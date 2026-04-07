@@ -295,8 +295,12 @@ body {
     border-bottom: none;
   }
 
-  .prose tbody tr:hover {
+  .prose tbody tr:nth-child(even) {
     background: #0d0d0f;
+  }
+
+  .prose tbody tr:hover {
+    background: #141416;
   }
 
   /* Task lists */

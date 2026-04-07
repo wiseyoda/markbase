@@ -8,7 +8,12 @@ export function getDb() {
   const url = process.env.PRISMA_DATABASE_URL || process.env.POSTGRES_URL;
   if (!url) throw new Error("No database URL found in env");
 
-  sql = postgres(url, { ssl: "require" });
+  sql = postgres(url, {
+    ssl: "require",
+    idle_timeout: 20,
+    max_lifetime: 60 * 5,
+    connect_timeout: 10,
+  });
   return sql;
 }
 
