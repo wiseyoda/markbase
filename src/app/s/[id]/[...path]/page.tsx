@@ -5,7 +5,9 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import type { Components } from "react-markdown";
 import { getShare } from "@/lib/shares";
-import { getFileContent } from "@/lib/github";
+import { getFileContent, getMarkdownTree } from "@/lib/github";
+import { buildTree } from "@/app/repos/[owner]/[repo]/layout";
+import { SharedSidebar } from "./shared-sidebar";
 import "highlight.js/styles/github-dark.css";
 
 function resolveShareLink(
@@ -64,17 +66,25 @@ export default async function SharedFilePage({
     }
   }
 
-  const content = await getFileContent(
-    share.accessToken,
-    owner,
-    repo,
-    share.branch,
-    filePath,
-  );
+  const [content, allFiles] = await Promise.all([
+    getFileContent(share.accessToken, owner, repo, share.branch, filePath),
+    (share.type === "repo" || share.type === "folder")
+      ? getMarkdownTree(share.accessToken, owner, repo, share.branch)
+      : Promise.resolve([]),
+  ]);
 
   if (!content) notFound();
 
   const folderScope = share.type === "folder" ? share.file_path : null;
+
+  // Build sidebar tree for repo/folder shares
+  let sidebarFiles = allFiles;
+  if (share.type === "folder" && share.file_path) {
+    const prefix = share.file_path + "/";
+    sidebarFiles = allFiles.filter((f) => f.path.startsWith(prefix));
+  }
+  const showSidebar = (share.type === "repo" || share.type === "folder") && sidebarFiles.length > 0;
+  const tree = showSidebar ? buildTree(sidebarFiles) : [];
 
   const components: Components = {
     a: ({ href, children, ...props }) => {
@@ -134,37 +144,57 @@ export default async function SharedFilePage({
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
+    <div className="flex h-screen flex-col">
+      <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
         <div className="flex items-center gap-2 text-sm">
-          <Link href={`/s/${id}`} className="font-semibold">
-            markbase
-          </Link>
+          <span className="font-semibold">markbase</span>
           <span className="text-zinc-300 dark:text-zinc-600">/</span>
-          <Link
-            href={`/s/${id}`}
-            className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-          >
+          <span className="text-zinc-500 dark:text-zinc-400">
             {share.repo}
-          </Link>
-          <span className="text-zinc-300 dark:text-zinc-600">/</span>
-          <span className="text-zinc-500 dark:text-zinc-400">{filePath}</span>
+          </span>
+          {share.type === "folder" && share.file_path && (
+            <>
+              <span className="text-zinc-300 dark:text-zinc-600">/</span>
+              <span className="text-zinc-500 dark:text-zinc-400">
+                {share.file_path}
+              </span>
+            </>
+          )}
+          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+            {share.branch}
+          </span>
         </div>
         <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
           shared
         </span>
       </header>
-      <main className="mx-auto w-full max-w-4xl px-8 py-8">
-        <article className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
-          <Markdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeHighlight]}
-            components={components}
-          >
-            {content}
-          </Markdown>
-        </article>
-      </main>
+      <div className="flex min-h-0 flex-1">
+        {showSidebar && (
+          <SharedSidebar
+            tree={tree}
+            shareId={id}
+            fileCount={sidebarFiles.length}
+          />
+        )}
+        <main className="flex-1 overflow-y-auto">
+          <div className="border-b border-zinc-200 px-8 py-3 dark:border-zinc-800">
+            <span className="text-sm text-zinc-500 dark:text-zinc-400">
+              {filePath}
+            </span>
+          </div>
+          <div className="mx-auto w-full max-w-4xl px-8 py-8">
+            <article className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
+              <Markdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeHighlight]}
+                components={components}
+              >
+                {content}
+              </Markdown>
+            </article>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

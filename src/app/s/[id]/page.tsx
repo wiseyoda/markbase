@@ -1,5 +1,4 @@
-import { notFound } from "next/navigation";
-import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -97,7 +96,7 @@ export default async function SharePage({
     );
   }
 
-  // Repo or folder share: show file tree with links to browse
+  // Repo or folder share: redirect to first file (sidebar is in the [...path] page)
   if (share.type === "repo" || share.type === "folder") {
     let files = await getMarkdownTree(
       share.accessToken,
@@ -106,58 +105,25 @@ export default async function SharePage({
       share.branch,
     );
 
-    // Filter to folder prefix for folder shares
     if (share.type === "folder" && share.file_path) {
       const prefix = share.file_path + "/";
       files = files.filter((f) => f.path.startsWith(prefix));
     }
 
+    const readme = files.find(
+      (f) => f.path.toLowerCase().endsWith("readme.md"),
+    );
+    const target = readme || files[0];
+
+    if (target) {
+      redirect(`/s/${id}/${target.path}`);
+    }
+
     return (
-      <div className="flex min-h-screen flex-col">
-        <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="font-semibold">markbase</span>
-            <span className="text-zinc-300 dark:text-zinc-600">/</span>
-            <span className="text-zinc-500 dark:text-zinc-400">
-              {share.repo}
-            </span>
-            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-              {share.branch}
-            </span>
-          </div>
-          <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-            shared
-          </span>
-        </header>
-        <main className="mx-auto w-full max-w-3xl px-6 py-8">
-          <div className="mb-4 text-sm text-zinc-400 dark:text-zinc-500">
-            {files.length} markdown {files.length === 1 ? "file" : "files"}
-          </div>
-          <ul className="flex flex-col gap-1">
-            {files
-              .map((f) => f.path)
-              .sort()
-              .map((path) => (
-                <li key={path}>
-                  <Link
-                    href={`/s/${id}/${path}`}
-                    className="flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 16 16"
-                      fill="currentColor"
-                      className="shrink-0 text-zinc-400"
-                    >
-                      <path d="M3.75 1.5a.25.25 0 00-.25.25v12.5c0 .138.112.25.25.25h8.5a.25.25 0 00.25-.25V6H9.75A1.75 1.75 0 018 4.25V1.5H3.75zm5.75.56v2.19c0 .138.112.25.25.25h2.19L9.5 2.06zM2 1.75C2 .784 2.784 0 3.75 0h5.086c.464 0 .909.184 1.237.513l3.414 3.414c.329.328.513.773.513 1.237v9.086A1.75 1.75 0 0112.25 16h-8.5A1.75 1.75 0 012 14.25V1.75z" />
-                    </svg>
-                    {path}
-                  </Link>
-                </li>
-              ))}
-          </ul>
-        </main>
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-zinc-500 dark:text-zinc-400">
+          No markdown files found.
+        </p>
       </div>
     );
   }

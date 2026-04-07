@@ -59,6 +59,14 @@ export async function initDb() {
   await db`
     CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON comments(parent_id)
   `;
+  // Migrate FK to CASCADE delete
+  await db`
+    ALTER TABLE comments DROP CONSTRAINT IF EXISTS comments_parent_id_fkey
+  `.catch(() => {});
+  await db`
+    ALTER TABLE comments ADD CONSTRAINT comments_parent_id_fkey
+    FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE
+  `.catch(() => {});
   await db`
     CREATE TABLE IF NOT EXISTS synced_repos (
       user_id TEXT NOT NULL,

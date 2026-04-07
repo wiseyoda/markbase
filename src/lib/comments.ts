@@ -114,8 +114,6 @@ export async function deleteComment(
   userId: string,
 ): Promise<boolean> {
   const db = getDb();
-  // Delete replies first, then the parent
-  await db`DELETE FROM comments WHERE parent_id = ${commentId}`;
   const rows = await db`
     DELETE FROM comments
     WHERE id = ${commentId} AND author_id = ${userId}
