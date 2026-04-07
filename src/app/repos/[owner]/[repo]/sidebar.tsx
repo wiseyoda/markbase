@@ -36,7 +36,11 @@ const SidebarContext = createContext<SidebarContextValue>({
 });
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(false);
+  // Default open on desktop (lg: 1024px+), closed on mobile/tablet
+  const [open, setOpen] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.innerWidth >= 1024;
+  });
   const toggle = useCallback(() => setOpen((prev) => !prev), []);
   const value = useMemo(() => ({ open, setOpen, toggle }), [open, toggle]);
   return (
@@ -58,7 +62,7 @@ export function SidebarToggle() {
     <Tooltip content="Toggle file tree" shortcut="/">
       <button
         onClick={toggle}
-        className="inline-flex items-center justify-center rounded-md p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 lg:hidden dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+        className="inline-flex items-center justify-center rounded-md p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
         aria-label="Toggle file tree"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -243,7 +247,8 @@ export function Sidebar({ tree, owner, repo, fileCount, commentCounts = {} }: Si
     );
   }
 
-  // Tablet (< lg): slide-over overlay
+  // Desktop (lg:): collapsible inline panel (width transition like comment rail)
+  // Tablet (< lg): slide-over overlay with backdrop
   return (
     <>
       {/* Tablet overlay backdrop */}
@@ -254,13 +259,25 @@ export function Sidebar({ tree, owner, repo, fileCount, commentCounts = {} }: Si
         />
       )}
 
-      {/* Sidebar panel */}
+      {/* Tablet: fixed overlay */}
       <aside
         className={`${
           open ? "translate-x-0" : "-translate-x-full"
-        } fixed inset-y-0 left-0 z-50 w-72 border-r border-zinc-200 bg-white transition-transform lg:relative lg:z-auto lg:w-64 lg:translate-x-0 dark:border-zinc-800 dark:bg-zinc-950`}
+        } fixed inset-y-0 left-0 z-50 w-72 border-r border-zinc-200 bg-white transition-transform lg:hidden dark:border-zinc-800 dark:bg-zinc-950`}
       >
         <div className="flex h-full flex-col">
+          {sidebarHeader}
+          {fileTreeContent}
+        </div>
+      </aside>
+
+      {/* Desktop: inline collapsible panel */}
+      <aside
+        className={`${
+          open ? "w-64" : "w-0"
+        } hidden shrink-0 overflow-hidden border-r border-zinc-200 transition-all lg:block dark:border-zinc-800`}
+      >
+        <div className="flex h-full w-64 flex-col">
           {sidebarHeader}
           {fileTreeContent}
         </div>
