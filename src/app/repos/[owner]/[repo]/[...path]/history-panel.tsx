@@ -263,10 +263,10 @@ function HistoryPanel({
                             <span
                               className={
                                 line.type === "add"
-                                  ? "text-green-300"
+                                  ? "text-green-800 dark:text-green-300"
                                   : line.type === "remove"
-                                    ? "text-red-300"
-                                    : "text-zinc-400 dark:text-zinc-500"
+                                    ? "text-red-800 dark:text-red-300"
+                                    : "text-zinc-700 dark:text-zinc-400"
                               }
                             >
                               {line.text}
@@ -276,7 +276,7 @@ function HistoryPanel({
                       ))}
                     </div>
                   ) : (
-                    <pre className="whitespace-pre-wrap p-4 text-zinc-300">
+                    <pre className="whitespace-pre-wrap p-4 text-zinc-700 dark:text-zinc-300">
                       {fullContent}
                     </pre>
                   )}
