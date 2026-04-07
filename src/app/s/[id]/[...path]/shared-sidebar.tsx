@@ -117,7 +117,11 @@ export function SharedSidebar({
   const pathname = usePathname();
 
   const basePath = `/s/${shareId}`;
-  const closeSidebar = useCallback(() => setOpen(false), [setOpen]);
+  const closeSidebar = useCallback(() => {
+    if (window.innerWidth < 1024) {
+      setOpen(false);
+    }
+  }, [setOpen]);
 
   const fileTreeContent = (
     <FileTree

@@ -196,7 +196,13 @@ export function Sidebar({ tree, owner, repo, fileCount, commentCounts = {} }: Si
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [open, flatFiles, pathname, repoPrefix, router]);
 
-  const closeSidebar = useCallback(() => setOpen(false), [setOpen]);
+  const closeSidebar = useCallback(() => {
+    // Only close on mobile/tablet where sidebar is an overlay.
+    // On desktop (lg: 1024px+), sidebar stays open after file navigation.
+    if (window.innerWidth < 1024) {
+      setOpen(false);
+    }
+  }, [setOpen]);
 
   // Context menu builders for authenticated sidebar
   const fileContextMenuItems = useCallback(
