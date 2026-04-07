@@ -75,7 +75,7 @@ export default async function RepoLayout({
       {/* Top bar */}
       <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
         <div className="flex items-center gap-2 text-sm">
-          <Link href="/repos" className="font-semibold">
+          <Link href="/dashboard" className="font-semibold">
             markbase
           </Link>
           <span className="text-zinc-300 dark:text-zinc-600">/</span>
@@ -95,10 +95,10 @@ export default async function RepoLayout({
             branch={branch}
           />
           <Link
-            href="/repos"
+            href="/dashboard"
             className="text-sm text-zinc-400 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
           >
-            ← Back to repos
+            ← Dashboard
           </Link>
         </div>
       </header>

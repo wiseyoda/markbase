@@ -279,14 +279,6 @@ export default async function Dashboard() {
       <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
         <h1 className="text-lg font-semibold">markbase</h1>
         <div className="flex items-center gap-4">
-          {syncedRepos.length > 0 && (
-            <Link
-              href="/repos"
-              className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
-            >
-              View synced repos
-            </Link>
-          )}
           <Link
             href="/shares"
             className="text-sm text-zinc-500 transition-colors hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
@@ -313,8 +305,49 @@ export default async function Dashboard() {
       </header>
 
       <main className="mx-auto w-full max-w-4xl px-6 py-8">
+        {/* Synced repos */}
+        {syncedRepos.length > 0 && (
+          <div className="mb-10">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-semibold">Synced repos</h2>
+              <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                {syncedRepos.length} synced
+              </span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {syncedRepos.map((fullName) => {
+                const [owner, repoName] = fullName.split("/");
+                return (
+                  <Link
+                    key={fullName}
+                    href={`/repos/${owner}/${repoName}`}
+                    className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-zinc-400 dark:text-zinc-500">
+                        {owner}/
+                      </span>
+                      <span className="text-sm font-medium">{repoName}</span>
+                    </div>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                      fill="currentColor"
+                      className="text-zinc-400"
+                    >
+                      <path d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z" />
+                    </svg>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* All repos */}
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Your repositories</h2>
+          <h2 className="text-xl font-semibold">All repositories</h2>
           <span className="text-sm text-zinc-500 dark:text-zinc-400">
             {repos.length} repos
           </span>
