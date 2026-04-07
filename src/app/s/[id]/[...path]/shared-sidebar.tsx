@@ -9,9 +9,10 @@ interface SharedSidebarProps {
   tree: TreeNode[];
   shareId: string;
   fileCount: number;
+  commentCounts?: Record<string, number>;
 }
 
-export function SharedSidebar({ tree, shareId, fileCount }: SharedSidebarProps) {
+export function SharedSidebar({ tree, shareId, fileCount, commentCounts = {} }: SharedSidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -26,7 +27,7 @@ export function SharedSidebar({ tree, shareId, fileCount }: SharedSidebarProps) 
           </span>
         </div>
         <nav className="flex-1 overflow-y-auto px-2 py-2">
-          <TreeView nodes={tree} shareId={shareId} pathname={pathname} depth={0} />
+          <TreeView nodes={tree} shareId={shareId} pathname={pathname} depth={0} commentCounts={commentCounts} />
         </nav>
       </div>
     </aside>
@@ -38,19 +39,21 @@ function TreeView({
   shareId,
   pathname,
   depth,
+  commentCounts,
 }: {
   nodes: TreeNode[];
   shareId: string;
   pathname: string;
   depth: number;
+  commentCounts: Record<string, number>;
 }) {
   return (
     <ul className={depth > 0 ? "ml-3" : ""}>
       {nodes.map((node) =>
         node.isFile ? (
-          <FileItem key={node.path} node={node} shareId={shareId} pathname={pathname} />
+          <FileItem key={node.path} node={node} shareId={shareId} pathname={pathname} commentCount={commentCounts[node.path] || 0} />
         ) : (
-          <FolderItem key={node.path} node={node} shareId={shareId} pathname={pathname} depth={depth} />
+          <FolderItem key={node.path} node={node} shareId={shareId} pathname={pathname} depth={depth} commentCounts={commentCounts} />
         ),
       )}
     </ul>
@@ -61,8 +64,10 @@ function FileItem({
   node,
   shareId,
   pathname,
+  commentCount,
 }: {
   node: TreeNode;
+  commentCount: number;
   shareId: string;
   pathname: string;
 }) {
@@ -89,6 +94,11 @@ function FileItem({
           <path d="M3.75 1.5a.25.25 0 00-.25.25v12.5c0 .138.112.25.25.25h8.5a.25.25 0 00.25-.25V6H9.75A1.75 1.75 0 018 4.25V1.5H3.75zm5.75.56v2.19c0 .138.112.25.25.25h2.19L9.5 2.06zM2 1.75C2 .784 2.784 0 3.75 0h5.086c.464 0 .909.184 1.237.513l3.414 3.414c.329.328.513.773.513 1.237v9.086A1.75 1.75 0 0112.25 16h-8.5A1.75 1.75 0 012 14.25V1.75z" />
         </svg>
         <span className="truncate">{node.name}</span>
+        {commentCount > 0 && (
+          <span className="ml-auto flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-medium text-white">
+            {commentCount}
+          </span>
+        )}
       </Link>
     </li>
   );
@@ -99,11 +109,13 @@ function FolderItem({
   shareId,
   pathname,
   depth,
+  commentCounts,
 }: {
   node: TreeNode;
   shareId: string;
   pathname: string;
   depth: number;
+  commentCounts: Record<string, number>;
 }) {
   const [open, setOpen] = useState(() => {
     const prefix = `/s/${shareId}/`;
@@ -141,7 +153,7 @@ function FolderItem({
         <span className="truncate">{node.name}</span>
       </button>
       {open && (
-        <TreeView nodes={node.children} shareId={shareId} pathname={pathname} depth={depth + 1} />
+        <TreeView nodes={node.children} shareId={shareId} pathname={pathname} depth={depth + 1} commentCounts={commentCounts} />
       )}
     </li>
   );

@@ -10,6 +10,8 @@ import { getFileContent, getMarkdownTree } from "@/lib/github";
 import { buildTree } from "@/app/repos/[owner]/[repo]/layout";
 import { SharedSidebar } from "./shared-sidebar";
 import { CommentRail } from "@/app/repos/[owner]/[repo]/[...path]/comment-rail";
+import { HistoryButton } from "@/app/repos/[owner]/[repo]/[...path]/history-panel";
+import { getComments, buildFileKey, countOpenComments } from "@/lib/comments";
 import "highlight.js/styles/github-dark.css";
 
 function resolveShareLink(
@@ -77,16 +79,31 @@ export default async function SharedFilePage({
     }
   }
 
-  const [content, allFiles] = await Promise.all([
+  const fullRepo = `${owner}/${repo}`;
+  const fKey = await buildFileKey(fullRepo, share.branch, filePath);
+  const fileKeyPrefix = `${fullRepo}/${share.branch}/`;
+
+  const [content, allFiles, initialComments, commentCounts] = await Promise.all([
     getFileContent(share.accessToken, owner, repo, share.branch, filePath),
     (share.type === "repo" || share.type === "folder")
       ? getMarkdownTree(share.accessToken, owner, repo, share.branch)
       : Promise.resolve([]),
+    isSignedIn ? getComments(fKey) : Promise.resolve([]),
+    (share.type === "repo" || share.type === "folder")
+      ? countOpenComments(fileKeyPrefix)
+      : Promise.resolve({}),
   ]);
 
   if (!content) notFound();
 
   const folderScope = share.type === "folder" ? share.file_path : null;
+
+  // Convert comment counts to path-based
+  const pathCounts: Record<string, number> = {};
+  for (const [key, count] of Object.entries(commentCounts)) {
+    const path = key.slice(fileKeyPrefix.length);
+    pathCounts[path] = count as number;
+  }
 
   // Build sidebar tree for repo/folder shares
   let sidebarFiles = allFiles;
@@ -207,14 +224,24 @@ export default async function SharedFilePage({
             tree={tree}
             shareId={id}
             fileCount={sidebarFiles.length}
+            commentCounts={pathCounts}
           />
         )}
         <main className="flex flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto" data-scroll-container>
-          <div className="border-b border-zinc-200 px-8 py-3 dark:border-zinc-800">
+          <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-3 dark:border-zinc-800">
             <span className="text-sm text-zinc-500 dark:text-zinc-400">
               {filePath}
             </span>
+            {isSignedIn && (
+              <HistoryButton
+                owner={owner}
+                repo={repo}
+                branch={share.branch}
+                filePath={filePath}
+                currentContent={content}
+              />
+            )}
           </div>
           <div className="mx-auto w-full max-w-4xl px-8 py-8">
             <article id="shared-markdown-content" className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
@@ -234,6 +261,7 @@ export default async function SharedFilePage({
               branch={share.branch}
               filePath={filePath}
               articleId="shared-markdown-content"
+              initialComments={initialComments}
             />
           )}
         </main>
