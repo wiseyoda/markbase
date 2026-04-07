@@ -5,6 +5,7 @@ import rehypeHighlight from "rehype-highlight";
 import type { Components } from "react-markdown";
 import { getShare } from "@/lib/shares";
 import { getFileContent, getMarkdownTree } from "@/lib/github";
+import { ThemeToggle } from "@/components/theme-toggle";
 import "highlight.js/styles/github-dark.css";
 
 // For file shares: disable .md links (render as muted text)
@@ -65,23 +66,26 @@ export default async function SharePage({
 
     return (
       <div className="flex min-h-screen flex-col">
-        <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
+        <header className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 sm:px-6 dark:border-zinc-800">
           <div className="flex items-center gap-2 text-sm">
             <span className="font-semibold">markbase</span>
             <span className="text-zinc-300 dark:text-zinc-600">/</span>
-            <span className="text-zinc-500 dark:text-zinc-400">
+            <span className="truncate max-w-[250px] text-zinc-500 sm:max-w-none dark:text-zinc-400">
               {share.repo}
             </span>
             <span className="text-zinc-300 dark:text-zinc-600">/</span>
-            <span className="text-zinc-500 dark:text-zinc-400">
+            <span className="truncate max-w-[250px] text-zinc-500 sm:max-w-none dark:text-zinc-400">
               {share.file_path}
             </span>
           </div>
-          <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-            shared
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+              shared
+            </span>
+            <ThemeToggle />
+          </div>
         </header>
-        <main className="mx-auto w-full max-w-4xl px-8 py-8">
+        <main id="main-content" className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-8 sm:py-8">
           <article className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
             <Markdown
               remarkPlugins={[remarkGfm]}

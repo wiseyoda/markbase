@@ -1,4 +1,5 @@
 import { auth, signIn } from "@/auth";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { redirect } from "next/navigation";
 
 export default async function Home() {
@@ -9,28 +10,146 @@ export default async function Home() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center">
-      <div className="flex flex-col items-center gap-8 px-6 text-center">
-        <div className="flex flex-col items-center gap-3">
-          <h1 className="text-4xl font-bold tracking-tight">markbase</h1>
-          <p className="max-w-md text-lg text-zinc-500 dark:text-zinc-400">
-            Browse and share your markdown files across GitHub repos.
+    <div className="flex min-h-screen flex-col">
+      <main className="flex flex-1 flex-col">
+        {/* Hero */}
+        <div className="mx-auto w-full max-w-6xl px-6 pt-16 sm:px-8 sm:pt-24 lg:pt-32">
+          <div className="max-w-2xl max-lg:mx-auto max-lg:text-center">
+            <h1 className="text-5xl font-bold tracking-tight sm:text-6xl">
+              markbase
+            </h1>
+            <p className="mt-4 max-w-lg text-lg text-zinc-500 max-lg:mx-auto sm:text-xl dark:text-zinc-400">
+              Browse, share, and discuss your markdown files across GitHub repos.
+            </p>
+            <form
+              action={async () => {
+                "use server";
+                await signIn("github", { redirectTo: "/dashboard" });
+              }}
+            >
+              <button
+                type="submit"
+                className="mt-8 inline-flex items-center gap-3 rounded-lg bg-zinc-900 px-6 py-3.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+              >
+                <GitHubIcon />
+                Sign in with GitHub
+              </button>
+            </form>
+            <div className="mt-6">
+              <ThemeToggle />
+            </div>
+          </div>
+        </div>
+
+        {/* Product preview */}
+        <div className="mx-auto w-full max-w-6xl px-6 mt-16 sm:mt-24 sm:px-8">
+          <ProductMockup />
+        </div>
+
+        {/* Features */}
+        <div className="mx-auto w-full max-w-4xl px-6 mt-16 sm:mt-24 sm:px-8">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-12">
+            <Feature
+              title="Beautiful rendering"
+              description="Typography-first markdown with syntax highlighting, tables, and task lists."
+            />
+            <Feature
+              title="Share anything"
+              description="Send a file, folder, or entire repo. Control access with expiring links."
+            />
+            <Feature
+              title="Inline comments"
+              description="Select any text and leave a comment. Threaded discussions that stay anchored."
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-16 pb-12 text-center sm:mt-24">
+          <p className="text-sm text-zinc-400 dark:text-zinc-500">
+            Built for teams who think in markdown.
           </p>
         </div>
-        <form
-          action={async () => {
-            "use server";
-            await signIn("github", { redirectTo: "/dashboard" });
-          }}
-        >
-          <button
-            type="submit"
-            className="flex items-center gap-3 rounded-lg bg-zinc-900 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
-          >
-            <GitHubIcon />
-            Sign in with GitHub
-          </button>
-        </form>
+      </main>
+    </div>
+  );
+}
+
+function Feature({ title, description }: { title: string; description: string }) {
+  return (
+    <div>
+      <h3 className="text-base font-semibold">{title}</h3>
+      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+        {description}
+      </p>
+    </div>
+  );
+}
+
+function ProductMockup() {
+  return (
+    <div
+      aria-hidden="true"
+      className="mx-auto max-w-4xl overflow-hidden rounded-xl border border-zinc-200 shadow-2xl dark:border-zinc-800"
+    >
+      {/* Browser chrome */}
+      <div className="flex h-10 items-center gap-2 border-b border-zinc-200 bg-zinc-50 px-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <span className="h-3 w-3 rounded-full bg-red-400" />
+        <span className="h-3 w-3 rounded-full bg-yellow-400" />
+        <span className="h-3 w-3 rounded-full bg-green-400" />
+      </div>
+
+      {/* App body */}
+      <div className="flex min-h-[320px] bg-white dark:bg-zinc-950">
+        {/* Sidebar */}
+        <div className="hidden w-48 shrink-0 border-r border-zinc-200 bg-zinc-50 p-4 sm:block dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex flex-col gap-1.5 text-xs">
+            <span className="text-zinc-400 dark:text-zinc-500">README.md</span>
+            <span className="rounded-md bg-[#86D5F4]/15 px-2 py-1 font-medium text-[#86D5F4]">
+              strategic-plan.md
+            </span>
+            <span className="text-zinc-400 dark:text-zinc-500">roadmap.md</span>
+            <span className="text-zinc-400 dark:text-zinc-500">meeting-notes/</span>
+            <span className="text-zinc-400 dark:text-zinc-500">architecture.md</span>
+          </div>
+        </div>
+
+        {/* Content area */}
+        <div className="flex-1 p-6 sm:p-8">
+          <h2 className="text-xl font-bold text-[#86D5F4]">
+            Strategic Plan 2026
+          </h2>
+          <div className="mt-4 space-y-2">
+            <div className="h-3 w-4/5 rounded bg-zinc-100 dark:bg-zinc-800/60" />
+            <div className="h-3 w-3/5 rounded bg-zinc-100 dark:bg-zinc-800/60" />
+          </div>
+          <div className="mt-6 rounded-lg bg-zinc-100 p-4 dark:bg-zinc-800/50">
+            <div className="space-y-2 font-mono text-xs text-zinc-400 dark:text-zinc-500">
+              <span className="block">
+                <span className="text-[#86D5F4]">const</span> targets = getQ3Goals();
+              </span>
+              <span className="block">
+                <span className="text-[#86D5F4]">await</span> syncReport(targets);
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Comment panel */}
+        <div className="hidden w-56 shrink-0 border-l border-zinc-200 p-4 md:block dark:border-zinc-800">
+          <div className="rounded-lg border-l-2 border-[#86D5F4] bg-zinc-50 p-3 dark:bg-zinc-900">
+            <div className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#86D5F4]/20 text-[10px] font-bold text-[#86D5F4]">
+                P
+              </span>
+              <span className="text-xs font-medium">Patrick</span>
+            </div>
+            <p className="mt-1.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+              Great analysis on the growth projections. Let&apos;s revisit the
+              timeline in our next sync.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

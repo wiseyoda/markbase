@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ThemeProvider } from "@/components/theme-provider";
+import { ToastProvider } from "@/components/toast";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,6 +19,18 @@ export const metadata: Metadata = {
   description: "Browse and share your markdown files across GitHub repos.",
 };
 
+const THEME_SCRIPT = `
+(function() {
+  try {
+    var t = localStorage.getItem('markbase-theme');
+    var d = document.documentElement;
+    if (t === 'dark') d.classList.add('dark');
+    else if (t === 'light') d.classList.remove('dark');
+    else if (window.matchMedia('(prefers-color-scheme: dark)').matches) d.classList.add('dark');
+  } catch(e) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -26,8 +40,24 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
+      <body className="min-h-full flex flex-col">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[200] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg dark:focus:bg-zinc-900 dark:focus:text-white"
+        >
+          Skip to content
+        </a>
+        <ThemeProvider>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </ThemeProvider>
+      </body>
     </html>
   );
 }

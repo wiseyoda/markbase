@@ -4,6 +4,10 @@ import { useState, useRef, useEffect, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { deleteShareAction } from "./share-actions";
 import { useRouter } from "next/navigation";
+import { timeAgo, expiryLabel } from "@/lib/format";
+import { useIsMobile } from "@/hooks/use-media-query";
+import { BottomSheet } from "@/components/bottom-sheet";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 interface ShareItem {
   id: string;
@@ -13,39 +17,16 @@ interface ShareItem {
   expires_at: string | null;
 }
 
-function timeAgo(dateStr: string): string {
-  const seconds = Math.floor(
-    (Date.now() - new Date(dateStr).getTime()) / 1000,
-  );
-  if (seconds < 60) return "now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-function expiryLabel(expiresAt: string | null): string {
-  if (!expiresAt) return "never";
-  const diff = new Date(expiresAt).getTime() - Date.now();
-  if (diff <= 0) return "expired";
-  const hours = Math.floor(diff / 3600000);
-  if (hours < 1) return "< 1h";
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  return `${days}d`;
-}
-
 export function SharesDropdown({ shares }: { shares: ShareItem[] }) {
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const isMobile = useIsMobile();
 
   const open = pos !== null;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || isMobile) return;
     const handler = (e: MouseEvent) => {
       if (dropRef.current && !dropRef.current.contains(e.target as Node)) {
         setPos(null);
@@ -60,7 +41,7 @@ export function SharesDropdown({ shares }: { shares: ShareItem[] }) {
       clearTimeout(timer);
       document.removeEventListener("mousedown", handler);
     };
-  }, [open]);
+  }, [open, isMobile]);
 
   if (shares.length === 0) return null;
 
@@ -72,6 +53,29 @@ export function SharesDropdown({ shares }: { shares: ShareItem[] }) {
       setPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
     }
   };
+
+  const dropdownContent = (
+    <>
+      {!isMobile && (
+        <div className="border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
+          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+            Active shares for this repo
+          </span>
+        </div>
+      )}
+      <div className="max-h-64 overflow-y-auto">
+        {shares.map((share) => (
+          <ShareRow
+            key={share.id}
+            share={share}
+            onDelete={() => {
+              router.refresh();
+            }}
+          />
+        ))}
+      </div>
+    </>
+  );
 
   return (
     <>
@@ -85,29 +89,25 @@ export function SharesDropdown({ shares }: { shares: ShareItem[] }) {
         </span>
       </button>
 
+      {open && isMobile && (
+        <BottomSheet
+          open={true}
+          onClose={() => setPos(null)}
+          title="Active shares for this repo"
+        >
+          {dropdownContent}
+        </BottomSheet>
+      )}
+
       {open &&
+        !isMobile &&
         createPortal(
           <div
             ref={dropRef}
             className="fixed z-[100] w-80 rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
             style={{ top: pos.top, right: pos.right }}
           >
-            <div className="border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
-              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                Active shares for this repo
-              </span>
-            </div>
-            <div className="max-h-64 overflow-y-auto">
-              {shares.map((share) => (
-                <ShareRow
-                  key={share.id}
-                  share={share}
-                  onDelete={() => {
-                    router.refresh();
-                  }}
-                />
-              ))}
-            </div>
+            {dropdownContent}
           </div>,
           document.body,
         )}
@@ -124,6 +124,7 @@ function ShareRow({
 }) {
   const [isPending, startTransition] = useTransition();
   const [copied, setCopied] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const url = `${window.location.origin}/s/${share.id}`;
 
@@ -158,18 +159,29 @@ function ShareRow({
       <div className="flex shrink-0 items-center gap-1">
         <button
           onClick={handleCopy}
-          className="rounded px-1.5 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          className="rounded px-2 py-1.5 text-xs text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
         >
           {copied ? "Copied!" : "Copy"}
         </button>
         <button
-          onClick={handleDelete}
+          onClick={() => setDeleteOpen(true)}
           disabled={isPending}
-          className="rounded px-1.5 py-0.5 text-[10px] text-red-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950"
+          className="rounded px-2 py-1.5 text-xs text-red-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950"
         >
           {isPending ? "..." : "Delete"}
         </button>
       </div>
+      <ConfirmDialog
+        open={deleteOpen}
+        onConfirm={() => {
+          handleDelete();
+          setDeleteOpen(false);
+        }}
+        onCancel={() => setDeleteOpen(false)}
+        title="Delete share"
+        description="Anyone with this link will lose access."
+        isPending={isPending}
+      />
     </div>
   );
 }

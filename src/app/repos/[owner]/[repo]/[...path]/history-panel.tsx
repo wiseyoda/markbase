@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { diffLines } from "diff";
 import { fetchFileHistory, fetchFileAtCommit } from "./history-actions";
+import { formatDate } from "@/lib/format";
 import type { FileCommit } from "@/lib/github";
 
 interface HistoryPanelProps {
@@ -109,7 +110,7 @@ function HistoryPanel({
   return createPortal(
     <>
       <div className="fixed inset-0 z-50 bg-black/60" onClick={onClose} />
-      <div className="fixed inset-4 z-50 flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="fixed inset-2 sm:inset-4 z-50 flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
           <div className="flex items-center gap-3">
@@ -120,7 +121,7 @@ function HistoryPanel({
           </div>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            className="rounded-md p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
           >
             <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
               <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.749.749 0 011.275.326.749.749 0 01-.215.734L9.06 8l3.22 3.22a.749.749 0 01-.326 1.275.749.749 0 01-.734-.215L8 9.06l-3.22 3.22a.751.751 0 01-1.042-.018.751.751 0 01-.018-1.042L6.94 8 3.72 4.78a.75.75 0 010-1.06z" />
@@ -128,9 +129,9 @@ function HistoryPanel({
           </button>
         </div>
 
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
           {/* Commit list */}
-          <div className="w-72 shrink-0 overflow-y-auto border-r border-zinc-200 dark:border-zinc-800">
+          <div className="w-full sm:w-72 sm:shrink-0 max-h-[40vh] sm:max-h-none overflow-y-auto border-b sm:border-b-0 sm:border-r border-zinc-200 dark:border-zinc-800">
             {loading ? (
               <div className="p-4 text-sm text-zinc-400">Loading commits...</div>
             ) : commits.length === 0 ? (
@@ -208,7 +209,7 @@ function HistoryPanel({
                   <div className="flex gap-1">
                     <button
                       onClick={() => setViewMode("diff")}
-                      className={`rounded px-2 py-1 text-xs ${
+                      className={`rounded px-3 py-1.5 text-xs ${
                         viewMode === "diff"
                           ? "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200"
                           : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
@@ -218,7 +219,7 @@ function HistoryPanel({
                     </button>
                     <button
                       onClick={() => setViewMode("full")}
-                      className={`rounded px-2 py-1 text-xs ${
+                      className={`rounded px-3 py-1.5 text-xs ${
                         viewMode === "full"
                           ? "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200"
                           : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
@@ -296,18 +297,3 @@ interface DiffLine {
   text: string;
 }
 
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffH = Math.floor(diffMs / 3600000);
-  if (diffH < 1) return "just now";
-  if (diffH < 24) return `${diffH}h ago`;
-  const diffD = Math.floor(diffH / 24);
-  if (diffD < 30) return `${diffD}d ago`;
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
-  });
-}

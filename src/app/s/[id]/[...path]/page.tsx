@@ -8,9 +8,18 @@ import { auth, signIn } from "@/auth";
 import { getShare } from "@/lib/shares";
 import { getFileContent, getMarkdownTree } from "@/lib/github";
 import { buildTree } from "@/app/repos/[owner]/[repo]/layout";
-import { SharedSidebar } from "./shared-sidebar";
-import { CommentRail } from "@/app/repos/[owner]/[repo]/[...path]/comment-rail";
+import {
+  SharedSidebar,
+  SharedSidebarProvider,
+  SharedSidebarToggle,
+} from "./shared-sidebar";
+import {
+  CommentRail,
+  CommentProvider,
+  CommentToggle,
+} from "@/app/repos/[owner]/[repo]/[...path]/comment-rail";
 import { HistoryButton } from "@/app/repos/[owner]/[repo]/[...path]/history-panel";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { getComments, buildFileKey, countOpenComments } from "@/lib/comments";
 import "highlight.js/styles/github-dark.css";
 
@@ -83,16 +92,17 @@ export default async function SharedFilePage({
   const fKey = await buildFileKey(fullRepo, share.branch, filePath);
   const fileKeyPrefix = `${fullRepo}/${share.branch}/`;
 
-  const [content, allFiles, initialComments, commentCounts] = await Promise.all([
-    getFileContent(share.accessToken, owner, repo, share.branch, filePath),
-    (share.type === "repo" || share.type === "folder")
-      ? getMarkdownTree(share.accessToken, owner, repo, share.branch)
-      : Promise.resolve([]),
-    isSignedIn ? getComments(fKey) : Promise.resolve([]),
-    (share.type === "repo" || share.type === "folder")
-      ? countOpenComments(fileKeyPrefix)
-      : Promise.resolve({}),
-  ]);
+  const [content, allFiles, initialComments, commentCounts] =
+    await Promise.all([
+      getFileContent(share.accessToken, owner, repo, share.branch, filePath),
+      share.type === "repo" || share.type === "folder"
+        ? getMarkdownTree(share.accessToken, owner, repo, share.branch)
+        : Promise.resolve([]),
+      isSignedIn ? getComments(fKey) : Promise.resolve([]),
+      share.type === "repo" || share.type === "folder"
+        ? countOpenComments(fileKeyPrefix)
+        : Promise.resolve({}),
+    ]);
 
   if (!content) notFound();
 
@@ -111,8 +121,14 @@ export default async function SharedFilePage({
     const prefix = share.file_path + "/";
     sidebarFiles = allFiles.filter((f) => f.path.startsWith(prefix));
   }
-  const showSidebar = (share.type === "repo" || share.type === "folder") && sidebarFiles.length > 0;
+  const showSidebar =
+    (share.type === "repo" || share.type === "folder") &&
+    sidebarFiles.length > 0;
   const tree = showSidebar ? buildTree(sidebarFiles) : [];
+
+  const unresolvedCount = initialComments.filter(
+    (c) => !c.resolved_at,
+  ).length;
 
   const components: Components = {
     a: ({ href, children, ...props }) => {
@@ -120,10 +136,13 @@ export default async function SharedFilePage({
         ? resolveShareLink(href, filePath, id, folderScope)
         : { url: "#", inScope: true };
 
-      // Out-of-scope .md links — render as muted text
+      // Out-of-scope .md links -- render as muted text
       if (!inScope) {
         return (
-          <span className="cursor-not-allowed text-zinc-500 dark:text-zinc-500" {...props}>
+          <span
+            className="cursor-not-allowed text-zinc-500 dark:text-zinc-500"
+            {...props}
+          >
             {children}
           </span>
         );
@@ -140,12 +159,7 @@ export default async function SharedFilePage({
       }
 
       return (
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          {...props}
-        >
+        <a href={url} target="_blank" rel="noopener noreferrer" {...props}>
           {children}
         </a>
       );
@@ -172,101 +186,116 @@ export default async function SharedFilePage({
   };
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-        <div className="flex items-center gap-2 text-sm">
-          <span className="font-semibold">markbase</span>
-          <span className="text-zinc-300 dark:text-zinc-600">/</span>
-          <span className="text-zinc-500 dark:text-zinc-400">
-            {share.repo}
-          </span>
-          {share.type === "folder" && share.file_path && (
-            <>
+    <SharedSidebarProvider>
+      <CommentProvider initialCount={isSignedIn ? unresolvedCount : 0}>
+        <div className="flex h-screen flex-col">
+          <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-3 py-2 sm:px-4 sm:py-3 dark:border-zinc-800">
+            <div className="flex items-center gap-2 text-sm">
+              {showSidebar && <SharedSidebarToggle />}
+              <span className="font-semibold">markbase</span>
               <span className="text-zinc-300 dark:text-zinc-600">/</span>
-              <span className="text-zinc-500 dark:text-zinc-400">
-                {share.file_path}
+              <span className="truncate max-w-[120px] text-zinc-500 sm:max-w-none dark:text-zinc-400">
+                {share.repo}
               </span>
-            </>
-          )}
-          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-            {share.branch}
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-            shared
-          </span>
-          {!isSignedIn && (
-            <form
-              action={async () => {
-                "use server";
-                await signIn("github", { redirectTo: `/s/${id}/${pathSegments.join("/")}` });
-              }}
-            >
-              <button
-                type="submit"
-                className="flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
-              >
-                Sign in to comment
-              </button>
-            </form>
-          )}
-          {isSignedIn && (
-            <span className="text-xs text-zinc-400 dark:text-zinc-500">
-              {session.user?.name}
-            </span>
-          )}
-        </div>
-      </header>
-      <div className="flex min-h-0 flex-1">
-        {showSidebar && (
-          <SharedSidebar
-            tree={tree}
-            shareId={id}
-            fileCount={sidebarFiles.length}
-            commentCounts={pathCounts}
-          />
-        )}
-        <main className="flex flex-1 overflow-hidden">
-          <div className="flex-1 overflow-y-auto" data-scroll-container>
-          <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-3 dark:border-zinc-800">
-            <span className="text-sm text-zinc-500 dark:text-zinc-400">
-              {filePath}
-            </span>
-            {isSignedIn && (
-              <HistoryButton
-                owner={owner}
-                repo={repo}
-                branch={share.branch}
-                filePath={filePath}
-                currentContent={content}
+              {share.type === "folder" && share.file_path && (
+                <>
+                  <span className="text-zinc-300 dark:text-zinc-600">/</span>
+                  <span className="truncate max-w-[100px] text-zinc-500 sm:max-w-none dark:text-zinc-400">
+                    {share.file_path}
+                  </span>
+                </>
+              )}
+              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                {share.branch}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                shared
+              </span>
+              {!isSignedIn && (
+                <form
+                  action={async () => {
+                    "use server";
+                    await signIn("github", {
+                      redirectTo: `/s/${id}/${pathSegments.join("/")}`,
+                    });
+                  }}
+                >
+                  <button
+                    type="submit"
+                    className="flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+                  >
+                    <span className="hidden sm:inline">Sign in to comment</span>
+                    <span className="sm:hidden">Sign in</span>
+                  </button>
+                </form>
+              )}
+              {isSignedIn && (
+                <span className="hidden text-xs text-zinc-400 sm:inline dark:text-zinc-500">
+                  {session.user?.name}
+                </span>
+              )}
+              <ThemeToggle />
+            </div>
+          </header>
+          <div className="flex min-h-0 flex-1">
+            {showSidebar && (
+              <SharedSidebar
+                tree={tree}
                 shareId={id}
+                fileCount={sidebarFiles.length}
+                commentCounts={pathCounts}
               />
             )}
+            <main id="main-content" className="flex flex-1 overflow-hidden">
+              <div className="flex-1 overflow-y-auto" data-scroll-container>
+                <div className="flex flex-col gap-1 border-b border-zinc-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-8 dark:border-zinc-800">
+                  <span className="truncate text-sm text-zinc-500 dark:text-zinc-400">
+                    {filePath}
+                  </span>
+                  <div className="flex shrink-0 items-center gap-3">
+                    {isSignedIn && <CommentToggle />}
+                    {isSignedIn && (
+                      <HistoryButton
+                        owner={owner}
+                        repo={repo}
+                        branch={share.branch}
+                        filePath={filePath}
+                        currentContent={content}
+                        shareId={id}
+                      />
+                    )}
+                  </div>
+                </div>
+                <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-8 sm:py-8">
+                  <article
+                    id="shared-markdown-content"
+                    className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none"
+                  >
+                    <Markdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeHighlight]}
+                      components={components}
+                    >
+                      {content}
+                    </Markdown>
+                  </article>
+                </div>
+              </div>
+              {isSignedIn && (
+                <CommentRail
+                  repo={share.repo}
+                  branch={share.branch}
+                  filePath={filePath}
+                  articleId="shared-markdown-content"
+                  initialComments={initialComments}
+                />
+              )}
+            </main>
           </div>
-          <div className="mx-auto w-full max-w-4xl px-8 py-8">
-            <article id="shared-markdown-content" className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
-              <Markdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeHighlight]}
-                components={components}
-              >
-                {content}
-              </Markdown>
-            </article>
-          </div>
-          </div>
-          {isSignedIn && (
-            <CommentRail
-              repo={share.repo}
-              branch={share.branch}
-              filePath={filePath}
-              articleId="shared-markdown-content"
-              initialComments={initialComments}
-            />
-          )}
-        </main>
-      </div>
-    </div>
+        </div>
+      </CommentProvider>
+    </SharedSidebarProvider>
   );
 }

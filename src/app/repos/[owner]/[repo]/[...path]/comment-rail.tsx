@@ -7,6 +7,8 @@ import {
   useRef,
   useTransition,
   useCallback,
+  createContext,
+  useContext,
 } from "react";
 import {
   addComment,
@@ -16,6 +18,74 @@ import {
   deleteCommentAction,
 } from "./comment-actions";
 import type { Comment } from "@/lib/comments";
+import { relativeTime } from "@/lib/format";
+import { useIsDesktop } from "@/hooks/use-media-query";
+import { BottomSheet } from "@/components/bottom-sheet";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+
+/* ------------------------------------------------------------------ */
+/* Context: shared open/close state between CommentToggle and Rail    */
+/* ------------------------------------------------------------------ */
+
+interface CommentContextValue {
+  open: boolean;
+  setOpen: (o: boolean) => void;
+  count: number;
+  setCount: (n: number) => void;
+}
+
+const CommentContext = createContext<CommentContextValue>({
+  open: true,
+  setOpen: () => {},
+  count: 0,
+  setCount: () => {},
+});
+
+export function CommentProvider({
+  children,
+  initialCount,
+}: {
+  children: React.ReactNode;
+  initialCount: number;
+}) {
+  const [open, setOpen] = useState(true);
+  const [count, setCount] = useState(initialCount);
+  return (
+    <CommentContext.Provider value={{ open, setOpen, count, setCount }}>
+      {children}
+    </CommentContext.Provider>
+  );
+}
+
+export function CommentToggle() {
+  const { open, setOpen, count } = useContext(CommentContext);
+  return (
+    <button
+      onClick={() => setOpen(!open)}
+      className="flex items-center gap-1.5 rounded-md border border-zinc-200 px-3 py-1.5 text-sm transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800 lg:hidden"
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="currentColor"
+        className="text-zinc-500 dark:text-zinc-400"
+      >
+        <path d="M1 2.75C1 1.784 1.784 1 2.75 1h10.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 0113.25 12H9.06l-2.573 2.573A1.458 1.458 0 014 13.543V12H2.75A1.75 1.75 0 011 10.25v-7.5z" />
+      </svg>
+      Comments
+      {count > 0 && (
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs text-white">
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* CommentRail                                                        */
+/* ------------------------------------------------------------------ */
 
 interface CommentRailProps {
   repo: string;
@@ -32,7 +102,8 @@ export function CommentRail({
   articleId,
   initialComments,
 }: CommentRailProps) {
-  const [open, setOpen] = useState(true);
+  const { open, setOpen, setCount } = useContext(CommentContext);
+  const isDesktop = useIsDesktop();
   const [comments, setComments] = useState<Comment[]>(initialComments || []);
   const [activeQuote, setActiveQuote] = useState<{
     text: string;
@@ -51,6 +122,11 @@ export function CommentRail({
     const data = await fetchComments(repo, branch, filePath);
     setComments(data);
   }, [repo, branch, filePath]);
+
+  // Keep context count in sync with unresolved comments
+  useEffect(() => {
+    setCount(comments.filter((c) => !c.resolved_at).length);
+  }, [comments, setCount]);
 
   // Initial load — skip if server already provided comments
   useEffect(() => {
@@ -271,6 +347,112 @@ export function CommentRail({
   );
   const noQuote = unresolved.filter((c) => !c.quote);
 
+  // Shared comment list content used by both desktop rail and mobile bottom sheet
+  const commentListContent = (
+    <>
+      {/* New comment from selection */}
+      {activeQuote && (
+        <NewCommentForm
+          quote={activeQuote.text}
+          quoteContext={String(activeQuote.offset)}
+          repo={repo}
+          branch={branch}
+          filePath={filePath}
+          parentId={null}
+          onSubmit={() => {
+            setActiveQuote(null);
+            loadComments();
+          }}
+          onCancel={() => setActiveQuote(null)}
+        />
+      )}
+
+      {unresolved.length === 0 && !activeQuote && (
+        <div className="px-4 py-8 text-center text-sm text-zinc-400 dark:text-zinc-500">
+          Select text to add a comment.
+        </div>
+      )}
+
+      {/* Flat comment list (no position syncing) */}
+      {unresolved.map((comment) => (
+        <CommentThread
+          key={comment.id}
+          comment={comment}
+          repo={repo}
+          branch={branch}
+          filePath={filePath}
+          onUpdate={loadComments}
+        />
+      ))}
+
+      {/* Resolved */}
+      {resolved.length > 0 && (
+        <details
+          className="border-t border-zinc-200 dark:border-zinc-800"
+          open={showResolved}
+          onToggle={(e) =>
+            setShowResolved((e.target as HTMLDetailsElement).open)
+          }
+        >
+          <summary className="cursor-pointer px-4 py-2 text-xs text-zinc-400 hover:text-zinc-600 dark:text-zinc-500">
+            {resolved.length} resolved
+          </summary>
+          {resolved.map((comment) => (
+            <CommentThread
+              key={comment.id}
+              comment={comment}
+              repo={repo}
+              branch={branch}
+              filePath={filePath}
+              onUpdate={loadComments}
+            />
+          ))}
+        </details>
+      )}
+    </>
+  );
+
+  /* ---- Mobile / tablet: BottomSheet ---- */
+  if (!isDesktop) {
+    return (
+      <>
+        {selectionPopup && (
+          <SelectionPopup
+            x={selectionPopup.x}
+            y={selectionPopup.y}
+            onComment={() => {
+              setActiveQuote({ text: selectionPopup.text, offset: selectionPopup.offset });
+              setOpen(true);
+              setSelectionPopup(null);
+            }}
+            onClose={() => setSelectionPopup(null)}
+          />
+        )}
+
+        <BottomSheet
+          open={open}
+          onClose={() => setOpen(false)}
+          title={`Comments (${unresolved.length})`}
+        >
+          {/* Add comment button for mobile (text selection is awkward) */}
+          <div className="mb-3 flex justify-end">
+            <button
+              onClick={() => setActiveQuote({ text: "", offset: 0 })}
+              className="flex items-center gap-1.5 rounded-md bg-blue-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-600"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M7.75 2a.75.75 0 01.75.75V7h4.25a.75.75 0 010 1.5H8.5v4.25a.75.75 0 01-1.5 0V8.5H2.75a.75.75 0 010-1.5H7V2.75A.75.75 0 017.75 2z" />
+              </svg>
+              Add comment
+            </button>
+          </div>
+          {commentListContent}
+        </BottomSheet>
+      </>
+    );
+  }
+
+  /* ---- Desktop (lg:): positioned aside rail ---- */
   return (
     <>
       {/* Selection popup */}
@@ -286,19 +468,6 @@ export function CommentRail({
           onClose={() => setSelectionPopup(null)}
         />
       )}
-
-      {/* Toggle button */}
-      <button
-        onClick={() => setOpen(!open)}
-        className="fixed right-4 bottom-4 z-30 flex items-center gap-1.5 rounded-full bg-zinc-900 px-4 py-2 text-sm text-white shadow-lg md:hidden dark:bg-zinc-100 dark:text-zinc-900"
-      >
-        {unresolved.length > 0 && (
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-xs text-white">
-            {unresolved.length}
-          </span>
-        )}
-        Comments
-      </button>
 
       {/* Right rail */}
       <aside
@@ -502,6 +671,7 @@ function CommentThread({
   onUpdate: () => void;
 }) {
   const [showReply, setShowReply] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const handleResolve = () => {
@@ -519,6 +689,7 @@ function CommentThread({
     startTransition(async () => {
       const repoOwner = repo.split("/")[0];
       await deleteCommentAction(comment.id, repoOwner);
+      setDeleteOpen(false);
       onUpdate();
     });
   };
@@ -558,7 +729,7 @@ function CommentThread({
               {comment.author_name}
             </span>
             <span className="text-xs text-zinc-400 dark:text-zinc-500">
-              {timeAgo(comment.created_at)}
+              {relativeTime(comment.created_at)}
             </span>
           </div>
           <p className="mt-0.5 text-sm text-zinc-700 dark:text-zinc-300">
@@ -567,29 +738,39 @@ function CommentThread({
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="mt-2 flex items-center gap-2">
+      {/* Actions — larger touch targets */}
+      <div className="mt-2 flex items-center gap-1">
         <button
           onClick={() => setShowReply(!showReply)}
-          className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+          className="rounded-md px-2 py-1.5 text-xs text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
         >
           Reply
         </button>
         <button
           onClick={handleResolve}
           disabled={isPending}
-          className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+          className="rounded-md px-2 py-1.5 text-xs text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
         >
           {comment.resolved_at ? "Reopen" : "Resolve"}
         </button>
         <button
-          onClick={handleDelete}
+          onClick={() => setDeleteOpen(true)}
           disabled={isPending}
-          className="text-xs text-red-400 hover:text-red-600"
+          className="rounded-md px-2 py-1.5 text-xs text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950 dark:hover:text-red-400"
         >
           Delete
         </button>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        open={deleteOpen}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteOpen(false)}
+        title="Delete comment"
+        description="This comment and its replies will be permanently deleted."
+        isPending={isPending}
+      />
 
       {/* Replies */}
       {comment.replies && comment.replies.length > 0 && (
@@ -614,7 +795,7 @@ function CommentThread({
                     {reply.author_name}
                   </span>
                   <span className="text-xs text-zinc-400">
-                    {timeAgo(reply.created_at)}
+                    {relativeTime(reply.created_at)}
                   </span>
                 </div>
                 <p className="mt-0.5 text-xs text-zinc-700 dark:text-zinc-300">
@@ -734,19 +915,6 @@ function NewCommentForm({
       </div>
     </div>
   );
-}
-
-function timeAgo(dateStr: string): string {
-  const seconds = Math.floor(
-    (Date.now() - new Date(dateStr).getTime()) / 1000,
-  );
-  if (seconds < 60) return "now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  return `${days}d`;
 }
 
 /** Find and highlight text in an article element */

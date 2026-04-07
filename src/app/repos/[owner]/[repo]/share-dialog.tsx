@@ -4,6 +4,9 @@ import { useState, useTransition, createContext, useContext, useRef } from "reac
 import { usePathname } from "next/navigation";
 import { createShareAction, searchGitHubUsers } from "./share-actions";
 import type { GitHubUserResult } from "./share-actions";
+import { useIsMobile } from "@/hooks/use-media-query";
+import { BottomSheet } from "@/components/bottom-sheet";
+import { useToast } from "@/components/toast";
 
 type ShareType = "file" | "folder" | "repo";
 
@@ -102,6 +105,8 @@ function ShareModal({
   targetPath: string | null;
   onClose: () => void;
 }) {
+  const isMobile = useIsMobile();
+  const { toast } = useToast();
   const [type, setType] = useState<ShareType>(defaultType);
   const [shareMode, setShareMode] = useState<"link" | "user">("link");
   const [expiry, setExpiry] = useState<string>("7d");
@@ -184,9 +189,11 @@ function ShareModal({
 
       if (shareMode === "user") {
         setUserShared(true);
+        toast(`Shared with ${selectedUser?.login}`, "success");
       } else {
         const base = window.location.origin;
         setShareUrl(`${base}/s/${id}`);
+        toast("Share link created", "success");
       }
     });
   };
@@ -203,7 +210,7 @@ function ShareModal({
       <button
         key={t}
         onClick={() => setType(t)}
-        className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${
+        className={`min-h-[44px] flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${
           type === t
             ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
             : "border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
@@ -212,6 +219,208 @@ function ShareModal({
         {label}
       </button>
     );
+
+  const dialogContent = (
+    <>
+      {!shareUrl && !userShared ? (
+        <>
+          {/* Share type */}
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-300">
+              Share type
+            </label>
+            <div className="flex gap-2">
+              {typeButton("file", "This file", !!targetPath)}
+              {typeButton("folder", "This folder", !!effectiveFolderPath)}
+              {typeButton("repo", "Entire repo", true)}
+            </div>
+          </div>
+
+          <div className="mb-4 rounded-lg bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+            {description}
+          </div>
+
+          {/* Share mode: link vs user */}
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-300">
+              Share with
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShareMode("link")}
+                className={`min-h-[44px] flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                  shareMode === "link"
+                    ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                    : "border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                }`}
+              >
+                Anyone with link
+              </button>
+              <button
+                onClick={() => setShareMode("user")}
+                className={`min-h-[44px] flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                  shareMode === "user"
+                    ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                    : "border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                }`}
+              >
+                Specific user
+              </button>
+            </div>
+          </div>
+
+          {/* Link mode: expiry */}
+          {shareMode === "link" && (
+            <div className="mb-6">
+              <label className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-300">
+                Expires
+              </label>
+              <select
+                value={expiry}
+                onChange={(e) => setExpiry(e.target.value)}
+                className="min-h-[44px] w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+              >
+                <option value="1h">1 hour</option>
+                <option value="1d">1 day</option>
+                <option value="7d">7 days</option>
+                <option value="30d">30 days</option>
+                <option value="never">Never</option>
+              </select>
+            </div>
+          )}
+
+          {/* User mode: search */}
+          {shareMode === "user" && (
+            <div className="mb-6">
+              <label className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-300">
+                GitHub username
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={selectedUser ? selectedUser.login : userQuery}
+                  onChange={(e) => handleUserSearch(e.target.value)}
+                  placeholder="Search users..."
+                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                />
+                {userResults.length > 0 && !selectedUser && (
+                  <div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+                    {userResults.map((user) => (
+                      <button
+                        key={user.id}
+                        onClick={() => {
+                          setSelectedUser(user);
+                          setUserQuery(user.login);
+                          setUserResults([]);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={user.avatar_url}
+                          alt=""
+                          className="h-5 w-5 rounded-full"
+                        />
+                        <span>{user.login}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {selectedUser && (
+                <div className="mt-2 flex items-center gap-2 rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-800">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={selectedUser.avatar_url}
+                    alt=""
+                    className="h-5 w-5 rounded-full"
+                  />
+                  <span className="text-sm">{selectedUser.login}</span>
+                  <button
+                    onClick={() => {
+                      setSelectedUser(null);
+                      setUserQuery("");
+                    }}
+                    className="ml-auto text-xs text-zinc-400 hover:text-zinc-600"
+                  >
+                    &times;
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          <button
+            onClick={handleCreate}
+            disabled={isPending || (shareMode === "user" && !selectedUser)}
+            className="min-h-[44px] w-full rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+          >
+            {isPending
+              ? "Creating..."
+              : shareMode === "user"
+                ? "Share with user"
+                : "Create share link"}
+          </button>
+        </>
+      ) : userShared ? (
+        <>
+          <div className="mb-4 flex items-center gap-3 rounded-lg bg-green-50 px-4 py-3 dark:bg-green-950">
+            {selectedUser && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={selectedUser.avatar_url}
+                alt=""
+                className="h-8 w-8 rounded-full"
+              />
+            )}
+            <div>
+              <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                Shared with {selectedUser?.login}
+              </p>
+              <p className="text-xs text-green-600 dark:text-green-400">
+                They&apos;ll see it in their &quot;Shared with me&quot; on their dashboard.
+              </p>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
+            <input
+              type="text"
+              readOnly
+              value={shareUrl || ""}
+              className="flex-1 bg-transparent text-sm outline-none"
+            />
+            <button
+              onClick={handleCopy}
+              className="shrink-0 rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          <p className="text-xs text-zinc-400 dark:text-zinc-500">
+            Anyone with this link can view{" "}
+            {type === "file"
+              ? "this file"
+              : type === "folder"
+                ? "files in this folder"
+                : "all markdown files in this repo"}
+            .
+            {expiry !== "never" && ` Expires in ${expiry}.`}
+          </p>
+        </>
+      )}
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <BottomSheet open={true} onClose={onClose} title="Share">
+        {dialogContent}
+      </BottomSheet>
+    );
+  }
 
   return (
     <>
@@ -227,195 +436,7 @@ function ShareModal({
           </button>
         </div>
 
-        {!shareUrl && !userShared ? (
-          <>
-            {/* Share type */}
-            <div className="mb-4">
-              <label className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-300">
-                Share type
-              </label>
-              <div className="flex gap-2">
-                {typeButton("file", "This file", !!targetPath)}
-                {typeButton("folder", "This folder", !!effectiveFolderPath)}
-                {typeButton("repo", "Entire repo", true)}
-              </div>
-            </div>
-
-            <div className="mb-4 rounded-lg bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-              {description}
-            </div>
-
-            {/* Share mode: link vs user */}
-            <div className="mb-4">
-              <label className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-300">
-                Share with
-              </label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShareMode("link")}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                    shareMode === "link"
-                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                      : "border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                  }`}
-                >
-                  Anyone with link
-                </button>
-                <button
-                  onClick={() => setShareMode("user")}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                    shareMode === "user"
-                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                      : "border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                  }`}
-                >
-                  Specific user
-                </button>
-              </div>
-            </div>
-
-            {/* Link mode: expiry */}
-            {shareMode === "link" && (
-              <div className="mb-6">
-                <label className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-300">
-                  Expires
-                </label>
-                <select
-                  value={expiry}
-                  onChange={(e) => setExpiry(e.target.value)}
-                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
-                >
-                  <option value="1h">1 hour</option>
-                  <option value="1d">1 day</option>
-                  <option value="7d">7 days</option>
-                  <option value="30d">30 days</option>
-                  <option value="never">Never</option>
-                </select>
-              </div>
-            )}
-
-            {/* User mode: search */}
-            {shareMode === "user" && (
-              <div className="mb-6">
-                <label className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-300">
-                  GitHub username
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={selectedUser ? selectedUser.login : userQuery}
-                    onChange={(e) => handleUserSearch(e.target.value)}
-                    placeholder="Search users..."
-                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
-                  />
-                  {userResults.length > 0 && !selectedUser && (
-                    <div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-                      {userResults.map((user) => (
-                        <button
-                          key={user.id}
-                          onClick={() => {
-                            setSelectedUser(user);
-                            setUserQuery(user.login);
-                            setUserResults([]);
-                          }}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={user.avatar_url}
-                            alt=""
-                            className="h-5 w-5 rounded-full"
-                          />
-                          <span>{user.login}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {selectedUser && (
-                  <div className="mt-2 flex items-center gap-2 rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-800">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={selectedUser.avatar_url}
-                      alt=""
-                      className="h-5 w-5 rounded-full"
-                    />
-                    <span className="text-sm">{selectedUser.login}</span>
-                    <button
-                      onClick={() => {
-                        setSelectedUser(null);
-                        setUserQuery("");
-                      }}
-                      className="ml-auto text-xs text-zinc-400 hover:text-zinc-600"
-                    >
-                      &times;
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <button
-              onClick={handleCreate}
-              disabled={isPending || (shareMode === "user" && !selectedUser)}
-              className="w-full rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
-            >
-              {isPending
-                ? "Creating..."
-                : shareMode === "user"
-                  ? "Share with user"
-                  : "Create share link"}
-            </button>
-          </>
-        ) : userShared ? (
-          <>
-            <div className="mb-4 flex items-center gap-3 rounded-lg bg-green-50 px-4 py-3 dark:bg-green-950">
-              {selectedUser && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={selectedUser.avatar_url}
-                  alt=""
-                  className="h-8 w-8 rounded-full"
-                />
-              )}
-              <div>
-                <p className="text-sm font-medium text-green-800 dark:text-green-200">
-                  Shared with {selectedUser?.login}
-                </p>
-                <p className="text-xs text-green-600 dark:text-green-400">
-                  They&apos;ll see it in their &quot;Shared with me&quot; on their dashboard.
-                </p>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="mb-4 flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
-              <input
-                type="text"
-                readOnly
-                value={shareUrl || ""}
-                className="flex-1 bg-transparent text-sm outline-none"
-              />
-              <button
-                onClick={handleCopy}
-                className="shrink-0 rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
-              >
-                {copied ? "Copied!" : "Copy"}
-              </button>
-            </div>
-            <p className="text-xs text-zinc-400 dark:text-zinc-500">
-              Anyone with this link can view{" "}
-              {type === "file"
-                ? "this file"
-                : type === "folder"
-                  ? "files in this folder"
-                  : "all markdown files in this repo"}
-              .
-              {expiry !== "never" && ` Expires in ${expiry}.`}
-            </p>
-          </>
-        )}
+        {dialogContent}
       </div>
     </>
   );

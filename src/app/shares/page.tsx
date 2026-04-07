@@ -3,30 +3,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { listShares } from "@/lib/shares";
 import { ShareActions } from "./share-actions-client";
-
-function timeAgo(dateStr: string): string {
-  const seconds = Math.floor(
-    (Date.now() - new Date(dateStr).getTime()) / 1000,
-  );
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-function expiryLabel(expiresAt: string | null): string {
-  if (!expiresAt) return "Never";
-  const diff = new Date(expiresAt).getTime() - Date.now();
-  if (diff <= 0) return "Expired";
-  const hours = Math.floor(diff / 3600000);
-  if (hours < 1) return "< 1h left";
-  if (hours < 24) return `${hours}h left`;
-  const days = Math.floor(hours / 24);
-  return `${days}d left`;
-}
+import { timeAgo, expiryLabel } from "@/lib/format";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default async function SharesPage() {
   const session = await auth();
@@ -46,7 +24,7 @@ export default async function SharesPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-4 sm:px-6 py-4 dark:border-zinc-800">
         <div className="flex items-center gap-3">
           <Link href="/dashboard" className="text-lg font-semibold">
             markbase
@@ -56,15 +34,18 @@ export default async function SharesPage() {
             Shared links
           </span>
         </div>
-        <Link
-          href="/dashboard"
-          className="text-sm text-zinc-400 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
-        >
-          ← Dashboard
-        </Link>
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <Link
+            href="/dashboard"
+            className="text-sm text-zinc-400 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+          >
+            ← Dashboard
+          </Link>
+        </div>
       </header>
 
-      <main className="mx-auto w-full max-w-4xl px-6 py-8">
+      <main id="main-content" className="mx-auto w-full max-w-4xl px-4 sm:px-6 py-8">
         {shares.length === 0 ? (
           <div className="py-16 text-center text-zinc-500 dark:text-zinc-400">
             No shared links yet. Share a file or repo from the viewer.
@@ -87,7 +68,7 @@ export default async function SharesPage() {
                       key={share.id}
                       className="rounded-lg border border-zinc-200 px-4 py-3 dark:border-zinc-800"
                     >
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                         <div className="flex flex-col gap-1.5">
                           {/* Type + path */}
                           <div className="flex items-center gap-2">

@@ -3,11 +3,12 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getDefaultBranch, getMarkdownTree } from "@/lib/github";
 import type { MarkdownFile } from "@/lib/github";
-import { Sidebar } from "./sidebar";
+import { Sidebar, SidebarProvider, SidebarToggle } from "./sidebar";
 import { ShareButton, ShareProvider } from "./share-dialog";
 import { SharesDropdown } from "./shares-dropdown";
 import { countOpenComments } from "@/lib/comments";
 import { listSharesForRepo } from "@/lib/shares";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export interface TreeNode {
   name: string;
@@ -91,35 +92,41 @@ export default async function RepoLayout({
 
   return (
     <ShareProvider repo={`${owner}/${repo}`} branch={branch}>
+    <SidebarProvider>
     <div className="flex h-screen flex-col">
       {/* Top bar */}
-      <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-        <div className="flex items-center gap-2 text-sm">
-          <Link href="/dashboard" className="font-semibold">
+      <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-3 py-2 sm:px-4 sm:py-3 dark:border-zinc-800">
+        <div className="flex min-w-0 items-center gap-2 text-sm">
+          <Link href="/dashboard" className="shrink-0 font-semibold">
             markbase
           </Link>
-          <span className="text-zinc-300 dark:text-zinc-600">/</span>
+          <span className="shrink-0 text-zinc-300 dark:text-zinc-600">/</span>
           <Link
             href={`/repos/${owner}/${repo}`}
-            className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+            className="min-w-0 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
           >
-            {owner}/{repo}
+            <span className="block max-w-[200px] truncate sm:max-w-none">
+              {owner}/{repo}
+            </span>
           </Link>
-          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+          <span className="hidden rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 sm:inline dark:bg-zinc-800 dark:text-zinc-400">
             {branch}
           </span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-3">
+          <SidebarToggle />
           <SharesDropdown shares={repoShares} />
           <ShareButton
             repo={`${owner}/${repo}`}
             branch={branch}
           />
+          <ThemeToggle />
           <Link
             href="/dashboard"
-            className="text-sm text-zinc-400 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+            className="inline-flex items-center justify-center rounded-md p-2 text-sm text-zinc-400 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
           >
-            ← Dashboard
+            <span className="sm:hidden">←</span>
+            <span className="hidden sm:inline">← Dashboard</span>
           </Link>
         </div>
       </header>
@@ -138,6 +145,7 @@ export default async function RepoLayout({
         </main>
       </div>
     </div>
+    </SidebarProvider>
     </ShareProvider>
   );
 }

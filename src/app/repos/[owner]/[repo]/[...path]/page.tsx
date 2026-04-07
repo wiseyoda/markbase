@@ -13,8 +13,9 @@ import {
   getLastModified,
 } from "@/lib/github";
 import { CopyButton } from "./copy-button";
-import { CommentRail } from "./comment-rail";
+import { CommentRail, CommentProvider, CommentToggle } from "./comment-rail";
 import { HistoryButton } from "./history-panel";
+import { relativeTime, formatBytes, readingTime } from "@/lib/format";
 import { getComments, buildFileKey } from "@/lib/comments";
 import "highlight.js/styles/github-dark.css";
 
@@ -50,14 +51,6 @@ function resolveRelativeLink(
   return href;
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const kb = bytes / 1024;
-  if (kb < 1024) return `${kb.toFixed(1)} KB`;
-  const mb = kb / 1024;
-  return `${mb.toFixed(1)} MB`;
-}
-
 interface TocEntry {
   level: number;
   text: string;
@@ -82,27 +75,6 @@ function extractToc(markdown: string): TocEntry[] {
   }
 
   return entries;
-}
-
-function readingTime(text: string): string {
-  const words = text.split(/\s+/).length;
-  const minutes = Math.ceil(words / 230);
-  return `${minutes} min read`;
-}
-
-function relativeTime(dateStr: string): string {
-  const seconds = Math.floor(
-    (Date.now() - new Date(dateStr).getTime()) / 1000,
-  );
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  return `${months}mo ago`;
 }
 
 export default async function MarkdownViewPage({
@@ -240,166 +212,173 @@ export default async function MarkdownViewPage({
     },
   };
 
+  const unresolvedCount = initialComments.filter(
+    (c) => !c.resolved_at,
+  ).length;
+
   return (
-    <div className="flex h-full">
-      <div className="flex flex-1 flex-col overflow-y-auto" data-scroll-container>
-      {/* Breadcrumb + reading time + history */}
-      <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-3 dark:border-zinc-800">
-        <span className="text-sm text-zinc-500 dark:text-zinc-400">
-          {filePath}
-          {lastModified && (
-            <span className="ml-2 text-xs text-zinc-400 dark:text-zinc-600">
-              (updated {relativeTime(lastModified)})
+    <CommentProvider initialCount={unresolvedCount}>
+      <div id="main-content" className="flex h-full">
+        <div className="flex flex-1 flex-col overflow-y-auto" data-scroll-container>
+          {/* Breadcrumb + reading time + history */}
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-200 px-4 sm:px-8 py-3 dark:border-zinc-800">
+            <span className="truncate text-sm text-zinc-500 dark:text-zinc-400">
+              {filePath}
+              {lastModified && (
+                <span className="ml-2 text-xs text-zinc-400 dark:text-zinc-600">
+                  (updated {relativeTime(lastModified)})
+                </span>
+              )}
             </span>
-          )}
-        </span>
-        <div className="flex items-center gap-3">
-          <HistoryButton
-            owner={owner}
-            repo={repo}
-            branch={branch}
-            filePath={filePath}
-            currentContent={content}
-          />
-          <span className="text-xs text-zinc-400 dark:text-zinc-500">
-            {readingTime(content)}
-          </span>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="mx-auto w-full max-w-4xl px-8 py-8">
-        {/* Frontmatter */}
-        {hasFrontmatter && (
-          <details className="mb-6 rounded-lg border border-zinc-200 dark:border-zinc-800">
-            <summary className="cursor-pointer px-4 py-2.5 text-sm font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
-              Frontmatter
-            </summary>
-            <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
-              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
-                {Object.entries(frontmatter).map(([key, value]) => (
-                  <div key={key} className="contents">
-                    <dt className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
-                      {key}
-                    </dt>
-                    <dd className="text-zinc-600 dark:text-zinc-300">
-                      {typeof value === "object"
-                        ? JSON.stringify(value)
-                        : String(value)}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
+            <div className="flex items-center gap-3 shrink-0">
+              <CommentToggle />
+              <HistoryButton
+                owner={owner}
+                repo={repo}
+                branch={branch}
+                filePath={filePath}
+                currentContent={content}
+              />
+              <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                {readingTime(content)}
+              </span>
             </div>
-          </details>
-        )}
+          </div>
 
-        {/* Table of Contents */}
-        {hasToc && (
-          <details className="mb-6 rounded-lg border border-zinc-200 dark:border-zinc-800">
-            <summary className="cursor-pointer px-4 py-2.5 text-sm font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
-              Table of contents
-            </summary>
-            <nav className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
-              <ul className="flex flex-col gap-1">
-                {toc.map((entry, i) => (
-                  <li
-                    key={`${entry.slug}-${i}`}
-                    style={{ paddingLeft: `${(entry.level - 1) * 1}rem` }}
+          {/* Content */}
+          <div className="mx-auto w-full max-w-4xl px-4 sm:px-8 py-6 sm:py-8">
+            {/* Frontmatter */}
+            {hasFrontmatter && (
+              <details className="mb-6 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                <summary className="cursor-pointer px-4 py-2.5 text-sm font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+                  Frontmatter
+                </summary>
+                <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+                    {Object.entries(frontmatter).map(([key, value]) => (
+                      <div key={key} className="contents">
+                        <dt className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
+                          {key}
+                        </dt>
+                        <dd className="text-zinc-600 dark:text-zinc-300">
+                          {typeof value === "object"
+                            ? JSON.stringify(value)
+                            : String(value)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              </details>
+            )}
+
+            {/* Table of Contents */}
+            {hasToc && (
+              <details className="mb-6 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                <summary className="cursor-pointer px-4 py-2.5 text-sm font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+                  Table of contents
+                </summary>
+                <nav className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+                  <ul className="flex flex-col gap-1">
+                    {toc.map((entry, i) => (
+                      <li
+                        key={`${entry.slug}-${i}`}
+                        style={{ paddingLeft: `${(entry.level - 1) * 1}rem` }}
+                      >
+                        <a
+                          href={`#${entry.slug}`}
+                          className="text-sm text-zinc-500 transition-colors hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                        >
+                          {entry.text}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+              </details>
+            )}
+
+            {/* Markdown */}
+            <article id="markdown-content" className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
+              <Markdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeHighlight]}
+                components={components}
+              >
+                {content}
+              </Markdown>
+            </article>
+
+            {/* Footer metadata */}
+            <div className="mt-10 flex items-center justify-between border-t border-zinc-200 pt-4 text-xs text-zinc-400 dark:border-zinc-800 dark:text-zinc-500">
+              <div className="flex items-center gap-2">
+                <span>{branch}</span>
+                <span>·</span>
+                <span>{formatBytes(fileSize)}</span>
+              </div>
+              <a
+                href={githubUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
+              >
+                Edit on GitHub
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                >
+                  <path d="M3.75 2h3.5a.75.75 0 010 1.5h-3.5a.25.25 0 00-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 00.25-.25v-3.5a.75.75 0 011.5 0v3.5A1.75 1.75 0 0112.25 14h-8.5A1.75 1.75 0 012 12.25v-8.5C2 2.784 2.784 2 3.75 2zm6.854-1h4.146a.25.25 0 01.25.25v4.146a.25.25 0 01-.427.177L13.03 4.03 9.28 7.78a.751.751 0 01-1.042-.018.751.751 0 01-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0110.604 1z" />
+                </svg>
+              </a>
+            </div>
+
+            {/* Prev / Next navigation */}
+            {(prevFile || nextFile) && (
+              <div className="mt-4 flex flex-col sm:flex-row items-stretch gap-4">
+                {prevFile ? (
+                  <Link
+                    href={`/repos/${owner}/${repo}/${prevFile}`}
+                    className="flex flex-1 flex-col gap-1 rounded-lg border border-zinc-200 px-4 py-3 text-sm transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
                   >
-                    <a
-                      href={`#${entry.slug}`}
-                      className="text-sm text-zinc-500 transition-colors hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-                    >
-                      {entry.text}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          </details>
-        )}
-
-        {/* Markdown */}
-        <article id="markdown-content" className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
-          <Markdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeHighlight]}
-            components={components}
-          >
-            {content}
-          </Markdown>
-        </article>
-
-        {/* Footer metadata */}
-        <div className="mt-10 flex items-center justify-between border-t border-zinc-200 pt-4 text-xs text-zinc-400 dark:border-zinc-800 dark:text-zinc-500">
-          <div className="flex items-center gap-2">
-            <span>{branch}</span>
-            <span>·</span>
-            <span>{formatBytes(fileSize)}</span>
+                    <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                      ← Previous
+                    </span>
+                    <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                      {prevFile.split("/").pop()}
+                    </span>
+                  </Link>
+                ) : (
+                  <div className="flex-1" />
+                )}
+                {nextFile ? (
+                  <Link
+                    href={`/repos/${owner}/${repo}/${nextFile}`}
+                    className="flex flex-1 flex-col items-end gap-1 rounded-lg border border-zinc-200 px-4 py-3 text-sm transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                  >
+                    <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                      Next →
+                    </span>
+                    <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                      {nextFile.split("/").pop()}
+                    </span>
+                  </Link>
+                ) : (
+                  <div className="flex-1" />
+                )}
+              </div>
+            )}
           </div>
-          <a
-            href={githubUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
-          >
-            Edit on GitHub
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 16 16"
-              fill="currentColor"
-            >
-              <path d="M3.75 2h3.5a.75.75 0 010 1.5h-3.5a.25.25 0 00-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 00.25-.25v-3.5a.75.75 0 011.5 0v3.5A1.75 1.75 0 0112.25 14h-8.5A1.75 1.75 0 012 12.25v-8.5C2 2.784 2.784 2 3.75 2zm6.854-1h4.146a.25.25 0 01.25.25v4.146a.25.25 0 01-.427.177L13.03 4.03 9.28 7.78a.751.751 0 01-1.042-.018.751.751 0 01-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0110.604 1z" />
-            </svg>
-          </a>
         </div>
-
-        {/* Prev / Next navigation */}
-        {(prevFile || nextFile) && (
-          <div className="mt-4 flex items-stretch gap-4">
-            {prevFile ? (
-              <Link
-                href={`/repos/${owner}/${repo}/${prevFile}`}
-                className="flex flex-1 flex-col gap-1 rounded-lg border border-zinc-200 px-4 py-3 text-sm transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-              >
-                <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                  ← Previous
-                </span>
-                <span className="font-medium text-zinc-700 dark:text-zinc-300">
-                  {prevFile.split("/").pop()}
-                </span>
-              </Link>
-            ) : (
-              <div className="flex-1" />
-            )}
-            {nextFile ? (
-              <Link
-                href={`/repos/${owner}/${repo}/${nextFile}`}
-                className="flex flex-1 flex-col items-end gap-1 rounded-lg border border-zinc-200 px-4 py-3 text-sm transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-              >
-                <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                  Next →
-                </span>
-                <span className="font-medium text-zinc-700 dark:text-zinc-300">
-                  {nextFile.split("/").pop()}
-                </span>
-              </Link>
-            ) : (
-              <div className="flex-1" />
-            )}
-          </div>
-        )}
+        <CommentRail
+          repo={fullRepo}
+          branch={branch}
+          filePath={filePath}
+          articleId="markdown-content"
+          initialComments={initialComments}
+        />
       </div>
-      </div>
-      <CommentRail
-        repo={fullRepo}
-        branch={branch}
-        filePath={filePath}
-        articleId="markdown-content"
-        initialComments={initialComments}
-      />
-    </div>
+    </CommentProvider>
   );
 }
