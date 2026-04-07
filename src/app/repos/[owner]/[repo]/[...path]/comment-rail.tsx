@@ -71,7 +71,7 @@ export function CommentProvider({
   children: React.ReactNode;
   initialCount: number;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(initialCount > 0);
   const [count, setCount] = useState(initialCount);
   return (
     <CommentContext.Provider value={{ open, setOpen, count, setCount }}>

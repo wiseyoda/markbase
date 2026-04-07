@@ -214,17 +214,6 @@ export function Sidebar({ tree, owner, repo, fileCount, commentCounts = {} }: Si
     [openShare],
   );
 
-  const sidebarHeader = (
-    <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-      <span className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-        Files
-      </span>
-      <span className="text-xs text-zinc-400 dark:text-zinc-500">
-        {fileCount}
-      </span>
-    </div>
-  );
-
   const fileTreeContent = (
     <FileTree
       nodes={tree}
@@ -235,6 +224,7 @@ export function Sidebar({ tree, owner, repo, fileCount, commentCounts = {} }: Si
       fileContextMenuItems={fileContextMenuItems}
       folderContextMenuItems={folderContextMenuItems}
       searchInputRef={searchInputRef}
+      fileCount={fileCount}
     />
   );
 
@@ -266,7 +256,6 @@ export function Sidebar({ tree, owner, repo, fileCount, commentCounts = {} }: Si
         } fixed inset-y-0 left-0 z-50 w-72 border-r border-zinc-200 bg-white transition-transform lg:hidden dark:border-zinc-800 dark:bg-zinc-950`}
       >
         <div className="flex h-full flex-col">
-          {sidebarHeader}
           {fileTreeContent}
         </div>
       </aside>
@@ -278,7 +267,6 @@ export function Sidebar({ tree, owner, repo, fileCount, commentCounts = {} }: Si
         } hidden shrink-0 overflow-hidden border-r border-zinc-200 transition-all lg:block dark:border-zinc-800`}
       >
         <div className="flex h-full w-64 flex-col">
-          {sidebarHeader}
           {fileTreeContent}
         </div>
       </aside>

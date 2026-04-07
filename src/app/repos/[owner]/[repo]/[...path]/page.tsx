@@ -220,33 +220,26 @@ export default async function MarkdownViewPage({
     <CommentProvider initialCount={unresolvedCount}>
       <div id="main-content" className="flex h-full">
         <div className="flex flex-1 flex-col overflow-y-auto bg-white dark:bg-zinc-950" data-scroll-container>
-          {/* Breadcrumb + reading time + history */}
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-200 px-4 sm:px-8 py-3 dark:border-zinc-800">
-            <span className="truncate text-sm text-zinc-500 dark:text-zinc-400">
-              {filePath}
-              {lastModified && (
-                <span className="ml-2 text-xs text-zinc-400 dark:text-zinc-600">
-                  (updated {relativeTime(lastModified)})
-                </span>
-              )}
-            </span>
-            <div className="flex items-center gap-3 shrink-0">
-              <CommentToggle />
-              <HistoryButton
-                owner={owner}
-                repo={repo}
-                branch={branch}
-                filePath={filePath}
-                currentContent={content}
-              />
-              <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                {readingTime(content)}
-              </span>
-            </div>
-          </div>
-
           {/* Content */}
           <div className="mx-auto w-full max-w-4xl px-4 sm:px-8 py-6 sm:py-8">
+            {/* File metadata + document actions — inline, not a separate bar */}
+            <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-x-2 text-xs text-zinc-400 dark:text-zinc-500">
+                <span className="truncate">{filePath}</span>
+                {lastModified && <span>· updated {relativeTime(lastModified)}</span>}
+                <span>· {readingTime(content)}</span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <CommentToggle />
+                <HistoryButton
+                  owner={owner}
+                  repo={repo}
+                  branch={branch}
+                  filePath={filePath}
+                  currentContent={content}
+                />
+              </div>
+            </div>
             {/* Frontmatter */}
             {hasFrontmatter && (
               <details className="mb-6 rounded-lg border border-zinc-200 dark:border-zinc-800">

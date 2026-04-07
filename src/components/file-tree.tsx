@@ -94,6 +94,7 @@ export interface FileTreeProps {
   fileContextMenuItems?: (node: TreeNode) => ContextMenuItem[];
   folderContextMenuItems?: (node: TreeNode) => ContextMenuItem[];
   searchInputRef?: React.RefObject<HTMLInputElement | null>;
+  fileCount?: number;
 }
 
 export function FileTree({
@@ -105,6 +106,7 @@ export function FileTree({
   fileContextMenuItems,
   folderContextMenuItems,
   searchInputRef,
+  fileCount,
 }: FileTreeProps) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => filterTree(nodes, search), [nodes, search]);
@@ -112,14 +114,21 @@ export function FileTree({
   return (
     <>
       <div className="sticky top-0 z-10 bg-white px-2 pb-1 pt-2 dark:bg-zinc-950">
-        <input
-          ref={searchInputRef}
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search files..."
-          className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-sm text-zinc-700 placeholder-zinc-400 outline-none transition-colors focus:border-blue-400 focus:ring-1 focus:ring-blue-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder-zinc-500 dark:focus:border-blue-500 dark:focus:ring-blue-500"
-        />
+        <div className="relative">
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search files..."
+            className="w-full rounded-md border border-zinc-200 bg-zinc-50 py-1.5 pl-2.5 pr-10 text-sm text-zinc-700 placeholder-zinc-400 outline-none transition-colors focus:border-blue-400 focus:ring-1 focus:ring-blue-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder-zinc-500 dark:focus:border-blue-500 dark:focus:ring-blue-500"
+          />
+          {fileCount != null && (
+            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-zinc-400 dark:text-zinc-500">
+              {fileCount}
+            </span>
+          )}
+        </div>
       </div>
       <nav className="flex-1 overflow-y-auto px-2 py-2">
         {filtered.length === 0 ? (

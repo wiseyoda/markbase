@@ -5,10 +5,9 @@ import { getDefaultBranch, getMarkdownTree } from "@/lib/github";
 import type { MarkdownFile } from "@/lib/github";
 import { Sidebar, SidebarProvider, SidebarToggle } from "./sidebar";
 import { ShareButton, ShareProvider } from "./share-dialog";
-import { SharesDropdown } from "./shares-dropdown";
 import { countOpenComments } from "@/lib/comments";
-import { listSharesForRepo } from "@/lib/shares";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Tooltip } from "@/components/tooltip";
 import { CommandPaletteWrapper } from "./command-palette-wrapper";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts";
 
@@ -75,11 +74,9 @@ export default async function RepoLayout({
   const fullRepo = `${owner}/${repo}`;
   const fileKeyPrefix = `${fullRepo}/${branch}/`;
 
-  const userId = session.user?.id || "";
-  const [files, commentCounts, repoShares] = await Promise.all([
+  const [files, commentCounts] = await Promise.all([
     getMarkdownTree(session.accessToken, owner, repo, branch),
     countOpenComments(fileKeyPrefix),
-    userId ? listSharesForRepo(userId, fullRepo) : Promise.resolve([]),
   ]);
 
   // Convert file_key based counts to path-based counts
@@ -113,25 +110,24 @@ export default async function RepoLayout({
               {owner}/{repo}
             </span>
           </Link>
-          <span className="hidden rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 sm:inline dark:bg-zinc-800 dark:text-zinc-400">
-            {branch}
-          </span>
         </div>
-        <div className="flex shrink-0 items-center gap-1 sm:gap-3">
+        <div className="flex shrink-0 items-center gap-1">
           <SidebarToggle />
-          <SharesDropdown shares={repoShares} />
           <ShareButton
             repo={`${owner}/${repo}`}
             branch={branch}
           />
           <ThemeToggle />
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center justify-center rounded-md p-2 text-sm text-zinc-400 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
-          >
-            <span className="sm:hidden">←</span>
-            <span className="hidden sm:inline">← Dashboard</span>
-          </Link>
+          <Tooltip content="Dashboard">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center justify-center rounded-md p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M6.906.664a1.749 1.749 0 012.187 0l5.25 4.2c.415.332.657.835.657 1.367v7.019A1.75 1.75 0 0113.25 15h-3.5a.75.75 0 01-.75-.75V9H7v5.25a.75.75 0 01-.75.75h-3.5A1.75 1.75 0 011 13.25V6.23c0-.531.242-1.034.657-1.366l5.25-4.2z" />
+              </svg>
+            </Link>
+          </Tooltip>
         </div>
       </header>
 
