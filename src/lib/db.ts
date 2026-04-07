@@ -10,6 +10,7 @@ export function getDb() {
 
   sql = postgres(url, {
     ssl: "require",
+    max: 20,
     idle_timeout: 20,
     max_lifetime: 60 * 5,
     connect_timeout: 10,
@@ -105,5 +106,11 @@ export async function initDb() {
   `.catch(() => {});
   await db`
     CREATE INDEX IF NOT EXISTS idx_shares_shared_with ON shares(shared_with)
+  `.catch(() => {});
+  // Composite index for countOpenComments and getCommentsByPrefix hot path
+  await db`
+    CREATE INDEX IF NOT EXISTS idx_comments_file_key_open
+    ON comments(file_key, created_at DESC)
+    WHERE resolved_at IS NULL AND parent_id IS NULL
   `.catch(() => {});
 }

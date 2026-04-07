@@ -98,6 +98,21 @@ export async function resolveComment(
   return rows.length > 0;
 }
 
+export async function resolveComments(
+  commentIds: string[],
+  userId: string,
+): Promise<string[]> {
+  if (commentIds.length === 0) return [];
+  const db = getDb();
+  const rows = await db`
+    UPDATE comments
+    SET resolved_at = NOW(), resolved_by = ${userId}
+    WHERE id = ANY(${commentIds}) AND resolved_at IS NULL
+    RETURNING id
+  `;
+  return rows.map((r) => r.id as string);
+}
+
 export async function unresolveComment(commentId: string): Promise<boolean> {
   const db = getDb();
   const rows = await db`

@@ -10,6 +10,7 @@ import {
   getDefaultBranch,
   getFileContent,
   getMarkdownTree,
+  getLastModified,
 } from "@/lib/github";
 import { CopyButton } from "./copy-button";
 import { CommentRail } from "./comment-rail";
@@ -89,6 +90,21 @@ function readingTime(text: string): string {
   return `${minutes} min read`;
 }
 
+function relativeTime(dateStr: string): string {
+  const seconds = Math.floor(
+    (Date.now() - new Date(dateStr).getTime()) / 1000,
+  );
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
+
 export default async function MarkdownViewPage({
   params,
 }: {
@@ -104,10 +120,11 @@ export default async function MarkdownViewPage({
   const fullRepo = `${owner}/${repo}`;
   const fKey = await buildFileKey(fullRepo, branch, filePath);
 
-  const [rawContent, files, initialComments] = await Promise.all([
+  const [rawContent, files, initialComments, lastModified] = await Promise.all([
     getFileContent(session.accessToken, owner, repo, branch, filePath),
     getMarkdownTree(session.accessToken, owner, repo, branch),
     getComments(fKey),
+    getLastModified(session.accessToken, owner, repo, branch, filePath),
   ]);
 
   if (rawContent === null) {
@@ -230,6 +247,11 @@ export default async function MarkdownViewPage({
       <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-3 dark:border-zinc-800">
         <span className="text-sm text-zinc-500 dark:text-zinc-400">
           {filePath}
+          {lastModified && (
+            <span className="ml-2 text-xs text-zinc-400 dark:text-zinc-600">
+              (updated {relativeTime(lastModified)})
+            </span>
+          )}
         </span>
         <div className="flex items-center gap-3">
           <HistoryButton

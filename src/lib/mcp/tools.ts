@@ -6,6 +6,7 @@ import {
   getCommentById,
   createComment,
   resolveComment,
+  resolveComments,
   unresolveComment,
   deleteComment,
 } from "@/lib/comments";
@@ -255,16 +256,9 @@ const TOOLS: McpToolDefinition[] = [
     },
     async execute(args, ctx) {
       const ids = args.comment_ids as string[];
-      let resolved = 0;
-      const failed: string[] = [];
-
-      for (const id of ids) {
-        const ok = await resolveComment(id, ctx.userId);
-        if (ok) resolved++;
-        else failed.push(id);
-      }
-
-      return { resolved, failed, total: ids.length };
+      const resolvedIds = await resolveComments(ids, ctx.userId);
+      const failed = ids.filter((id) => !resolvedIds.includes(id));
+      return { resolved: resolvedIds.length, failed, total: ids.length };
     },
   },
 

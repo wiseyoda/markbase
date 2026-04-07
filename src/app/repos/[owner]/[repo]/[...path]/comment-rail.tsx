@@ -51,14 +51,15 @@ export function CommentRail({
     setComments(data);
   }, [repo, branch, filePath]);
 
-  // Initial load
+  // Initial load — skip if server already provided comments
   useEffect(() => {
+    if (initialComments && initialComments.length > 0) return;
     let cancelled = false;
     fetchComments(repo, branch, filePath).then((data) => {
       if (!cancelled) setComments(data);
     });
     return () => { cancelled = true; };
-  }, [repo, branch, filePath]);
+  }, [repo, branch, filePath, initialComments]);
 
   // Highlight commented text in the article
   useEffect(() => {

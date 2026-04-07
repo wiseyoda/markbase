@@ -126,6 +126,32 @@ export async function getFileHistory(
   });
 }
 
+export async function getLastModified(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  branch: string,
+  path: string,
+): Promise<string | null> {
+  const res = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}&path=${encodeURIComponent(path)}&per_page=1`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/vnd.github.v3+json",
+      },
+      next: { revalidate: 60 },
+    },
+  );
+
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!Array.isArray(data) || data.length === 0) return null;
+  const commit = data[0].commit as Record<string, unknown>;
+  const author = commit.author as Record<string, unknown>;
+  return author.date as string;
+}
+
 export async function getFileAtCommit(
   accessToken: string,
   owner: string,
