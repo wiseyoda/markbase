@@ -5,6 +5,7 @@ import { getDefaultBranch, getMarkdownTree } from "@/lib/github";
 import type { MarkdownFile } from "@/lib/github";
 import { Sidebar } from "./sidebar";
 import { ShareButton, ShareProvider } from "./share-dialog";
+import { countOpenComments } from "@/lib/comments";
 
 export interface TreeNode {
   name: string;
@@ -66,7 +67,21 @@ export default async function RepoLayout({
 
   const { owner, repo } = await params;
   const branch = await getDefaultBranch(session.accessToken, owner, repo);
-  const files = await getMarkdownTree(session.accessToken, owner, repo, branch);
+  const fullRepo = `${owner}/${repo}`;
+  const fileKeyPrefix = `${fullRepo}/${branch}/`;
+
+  const [files, commentCounts] = await Promise.all([
+    getMarkdownTree(session.accessToken, owner, repo, branch),
+    countOpenComments(fileKeyPrefix),
+  ]);
+
+  // Convert file_key based counts to path-based counts
+  const pathCounts: Record<string, number> = {};
+  for (const [key, count] of Object.entries(commentCounts)) {
+    const path = key.slice(fileKeyPrefix.length);
+    pathCounts[path] = count;
+  }
+
   const tree = buildTree(files);
   const fileCount = files.length;
 
@@ -111,6 +126,7 @@ export default async function RepoLayout({
           owner={owner}
           repo={repo}
           fileCount={fileCount}
+          commentCounts={pathCounts}
         />
         <main className="flex-1 overflow-y-auto">
           {children}

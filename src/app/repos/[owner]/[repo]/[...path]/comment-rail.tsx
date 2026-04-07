@@ -474,7 +474,8 @@ function CommentThread({
 
   const handleDelete = () => {
     startTransition(async () => {
-      await deleteCommentAction(comment.id);
+      const repoOwner = repo.split("/")[0];
+      await deleteCommentAction(comment.id, repoOwner);
       onUpdate();
     });
   };

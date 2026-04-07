@@ -60,7 +60,15 @@ export async function unresolveCommentAction(commentId: string): Promise<boolean
   return unresolveComment(commentId);
 }
 
-export async function deleteCommentAction(commentId: string): Promise<boolean> {
+export async function deleteCommentAction(
+  commentId: string,
+  repoOwner?: string,
+): Promise<boolean> {
   const user = await getUser();
-  return deleteComment(commentId, user.id);
+  // Check if current user is the repo owner (GitHub username match)
+  const session = await auth();
+  const isOwner = repoOwner
+    ? session?.user?.name?.toLowerCase() === repoOwner.toLowerCase()
+    : false;
+  return deleteComment(commentId, user.id, isOwner);
 }

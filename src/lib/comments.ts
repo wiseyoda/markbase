@@ -112,14 +112,40 @@ export async function unresolveComment(commentId: string): Promise<boolean> {
 export async function deleteComment(
   commentId: string,
   userId: string,
+  isOwner: boolean = false,
 ): Promise<boolean> {
   const db = getDb();
-  const rows = await db`
-    DELETE FROM comments
-    WHERE id = ${commentId} AND author_id = ${userId}
-    RETURNING id
-  `;
+  // Author can delete their own; repo owner can delete any
+  const rows = isOwner
+    ? await db`
+        DELETE FROM comments WHERE id = ${commentId} RETURNING id
+      `
+    : await db`
+        DELETE FROM comments
+        WHERE id = ${commentId} AND author_id = ${userId}
+        RETURNING id
+      `;
   return rows.length > 0;
+}
+
+/** Count open (unresolved) comments per file key prefix */
+export async function countOpenComments(
+  fileKeyPrefix: string,
+): Promise<Record<string, number>> {
+  const db = getDb();
+  const rows = await db`
+    SELECT file_key, COUNT(*)::int as count
+    FROM comments
+    WHERE file_key LIKE ${fileKeyPrefix + '%'}
+      AND resolved_at IS NULL
+      AND parent_id IS NULL
+    GROUP BY file_key
+  `;
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    counts[row.file_key as string] = row.count as number;
+  }
+  return counts;
 }
 
 function rowToComment(row: Record<string, unknown>): Comment {

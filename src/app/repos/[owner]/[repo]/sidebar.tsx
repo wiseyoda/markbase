@@ -12,9 +12,10 @@ interface SidebarProps {
   owner: string;
   repo: string;
   fileCount: number;
+  commentCounts?: Record<string, number>;
 }
 
-export function Sidebar({ tree, owner, repo, fileCount }: SidebarProps) {
+export function Sidebar({ tree, owner, repo, fileCount, commentCounts = {} }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
 
@@ -65,6 +66,7 @@ export function Sidebar({ tree, owner, repo, fileCount }: SidebarProps) {
               pathname={pathname}
               onNavigate={() => setMobileOpen(false)}
               depth={0}
+              commentCounts={commentCounts}
             />
           </nav>
         </div>
@@ -80,6 +82,7 @@ function TreeView({
   pathname,
   onNavigate,
   depth,
+  commentCounts,
 }: {
   nodes: TreeNode[];
   owner: string;
@@ -87,6 +90,7 @@ function TreeView({
   pathname: string;
   onNavigate: () => void;
   depth: number;
+  commentCounts: Record<string, number>;
 }) {
   return (
     <ul className={depth > 0 ? "ml-3" : ""}>
@@ -99,6 +103,7 @@ function TreeView({
             repo={repo}
             pathname={pathname}
             onNavigate={onNavigate}
+            commentCount={commentCounts[node.path] || 0}
           />
         ) : (
           <FolderItem
@@ -109,6 +114,7 @@ function TreeView({
             pathname={pathname}
             onNavigate={onNavigate}
             depth={depth}
+            commentCounts={commentCounts}
           />
         ),
       )}
@@ -166,12 +172,14 @@ function FileItem({
   repo,
   pathname,
   onNavigate,
+  commentCount,
 }: {
   node: TreeNode;
   owner: string;
   repo: string;
   pathname: string;
   onNavigate: () => void;
+  commentCount: number;
 }) {
   const href = `/repos/${owner}/${repo}/${node.path}`;
   const isActive = pathname === href;
@@ -207,6 +215,11 @@ function FileItem({
           <path d="M3.75 1.5a.25.25 0 00-.25.25v12.5c0 .138.112.25.25.25h8.5a.25.25 0 00.25-.25V6H9.75A1.75 1.75 0 018 4.25V1.5H3.75zm5.75.56v2.19c0 .138.112.25.25.25h2.19L9.5 2.06zM2 1.75C2 .784 2.784 0 3.75 0h5.086c.464 0 .909.184 1.237.513l3.414 3.414c.329.328.513.773.513 1.237v9.086A1.75 1.75 0 0112.25 16h-8.5A1.75 1.75 0 012 14.25V1.75z" />
         </svg>
         <span className="truncate">{node.name}</span>
+        {commentCount > 0 && (
+          <span className="ml-auto flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-medium text-white">
+            {commentCount}
+          </span>
+        )}
       </Link>
       {ctx && (
         <ContextMenu
@@ -244,6 +257,7 @@ function FolderItem({
   pathname,
   onNavigate,
   depth,
+  commentCounts,
 }: {
   node: TreeNode;
   owner: string;
@@ -251,6 +265,7 @@ function FolderItem({
   pathname: string;
   onNavigate: () => void;
   depth: number;
+  commentCounts: Record<string, number>;
 }) {
   // Auto-expand if this folder contains the active file
   const [open, setOpen] = useState(() => {
@@ -320,6 +335,7 @@ function FolderItem({
           pathname={pathname}
           onNavigate={onNavigate}
           depth={depth + 1}
+          commentCounts={commentCounts}
         />
       )}
     </li>
