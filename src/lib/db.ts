@@ -80,4 +80,14 @@ export async function initDb() {
       PRIMARY KEY (user_id, repo)
     )
   `;
+  // Add shared_with column for user-targeted shares
+  await db`
+    ALTER TABLE shares ADD COLUMN IF NOT EXISTS shared_with TEXT
+  `.catch(() => {});
+  await db`
+    ALTER TABLE shares ADD COLUMN IF NOT EXISTS shared_with_name TEXT
+  `.catch(() => {});
+  await db`
+    CREATE INDEX IF NOT EXISTS idx_shares_shared_with ON shares(shared_with)
+  `.catch(() => {});
 }

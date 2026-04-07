@@ -11,6 +11,8 @@ export interface Share {
   repo: string;
   branch: string;
   file_path: string | null;
+  shared_with: string | null;
+  shared_with_name: string | null;
   created_at: string;
   expires_at: string | null;
   deleted_at: string | null;
@@ -27,7 +29,9 @@ export async function createShare(opts: {
   branch: string;
   filePath: string | null;
   accessToken: string;
-  expiresIn: string | null; // '1h', '1d', '7d', '30d', or null for never
+  expiresIn: string | null;
+  sharedWith: string | null;
+  sharedWithName: string | null;
 }): Promise<string> {
   const sql = getDb();
   const id = nanoid(12);
@@ -48,8 +52,8 @@ export async function createShare(opts: {
   }
 
   await sql`
-    INSERT INTO shares (id, type, owner_id, repo, branch, file_path, access_token, expires_at)
-    VALUES (${id}, ${opts.type}, ${opts.ownerId}, ${opts.repo}, ${opts.branch}, ${opts.filePath}, ${encryptedToken}, ${expiresAt})
+    INSERT INTO shares (id, type, owner_id, repo, branch, file_path, access_token, expires_at, shared_with, shared_with_name)
+    VALUES (${id}, ${opts.type}, ${opts.ownerId}, ${opts.repo}, ${opts.branch}, ${opts.filePath}, ${encryptedToken}, ${expiresAt}, ${opts.sharedWith}, ${opts.sharedWithName})
   `;
 
   return id;
@@ -69,15 +73,33 @@ export async function getShare(id: string): Promise<ShareWithToken | null> {
   const row = rows[0];
   return {
     id: row.id as string,
-    type: row.type as "file" | "repo",
+    type: row.type as "file" | "repo" | "folder",
     owner_id: row.owner_id as string,
     repo: row.repo as string,
     branch: row.branch as string,
     file_path: row.file_path as string | null,
+    shared_with: row.shared_with as string | null,
+    shared_with_name: row.shared_with_name as string | null,
     created_at: row.created_at as string,
     expires_at: row.expires_at as string | null,
     deleted_at: row.deleted_at as string | null,
     accessToken: decrypt(row.access_token as string),
+  };
+}
+
+function rowToShare(row: Record<string, unknown>): Share {
+  return {
+    id: row.id as string,
+    type: row.type as "file" | "repo" | "folder",
+    owner_id: row.owner_id as string,
+    repo: row.repo as string,
+    branch: row.branch as string,
+    file_path: row.file_path as string | null,
+    shared_with: row.shared_with as string | null,
+    shared_with_name: row.shared_with_name as string | null,
+    created_at: row.created_at as string,
+    expires_at: row.expires_at as string | null,
+    deleted_at: row.deleted_at as string | null,
   };
 }
 
@@ -87,7 +109,7 @@ export async function listSharesForRepo(
 ): Promise<Share[]> {
   const sql = getDb();
   const rows = await sql`
-    SELECT id, type, owner_id, repo, branch, file_path, created_at, expires_at, deleted_at
+    SELECT *
     FROM shares
     WHERE owner_id = ${ownerId}
       AND repo = ${repo}
@@ -95,45 +117,40 @@ export async function listSharesForRepo(
       AND (expires_at IS NULL OR expires_at > NOW())
     ORDER BY created_at DESC
   `;
-  return rows.map((row) => ({
-    id: row.id as string,
-    type: row.type as "file" | "repo" | "folder",
-    owner_id: row.owner_id as string,
-    repo: row.repo as string,
-    branch: row.branch as string,
-    file_path: row.file_path as string | null,
-    created_at: row.created_at as string,
-    expires_at: row.expires_at as string | null,
-    deleted_at: row.deleted_at as string | null,
-  }));
+  return rows.map(rowToShare);
+}
+
+/** Shares targeted at a specific user (not link shares) */
+export async function listSharesWithMe(userId: string): Promise<Share[]> {
+  const sql = getDb();
+  const rows = await sql`
+    SELECT *
+    FROM shares
+    WHERE shared_with = ${userId}
+      AND deleted_at IS NULL
+      AND (expires_at IS NULL OR expires_at > NOW())
+    ORDER BY created_at DESC
+  `;
+  return rows.map(rowToShare);
 }
 
 export async function listShares(ownerId: string): Promise<Share[]> {
   const sql = getDb();
   const rows = await sql`
-    SELECT id, type, owner_id, repo, branch, file_path, created_at, expires_at, deleted_at
+    SELECT *
     FROM shares
     WHERE owner_id = ${ownerId}
       AND deleted_at IS NULL
     ORDER BY created_at DESC
   `;
 
-  return rows.map((row) => ({
-    id: row.id as string,
-    type: row.type as "file" | "repo",
-    owner_id: row.owner_id as string,
-    repo: row.repo as string,
-    branch: row.branch as string,
-    file_path: row.file_path as string | null,
-    created_at: row.created_at as string,
-    expires_at: row.expires_at as string | null,
-    deleted_at: row.deleted_at as string | null,
-  }));
+  return rows.map(rowToShare);
 }
 
 export async function deleteShare(
   id: string,
   ownerId: string,
+  _isOwner: boolean = false,
 ): Promise<boolean> {
   const sql = getDb();
   const rows = await sql`

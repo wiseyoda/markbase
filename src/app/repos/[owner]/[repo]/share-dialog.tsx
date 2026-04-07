@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition, createContext, useContext } from "react";
+import { useState, useTransition, createContext, useContext, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { createShareAction } from "./share-actions";
+import { createShareAction, searchGitHubUsers } from "./share-actions";
+import type { GitHubUserResult } from "./share-actions";
 
 type ShareType = "file" | "folder" | "repo";
 
@@ -102,10 +103,16 @@ function ShareModal({
   onClose: () => void;
 }) {
   const [type, setType] = useState<ShareType>(defaultType);
+  const [shareMode, setShareMode] = useState<"link" | "user">("link");
   const [expiry, setExpiry] = useState<string>("7d");
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [userQuery, setUserQuery] = useState("");
+  const [userResults, setUserResults] = useState<GitHubUserResult[]>([]);
+  const [selectedUser, setSelectedUser] = useState<GitHubUserResult | null>(null);
+  const [userShared, setUserShared] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
   const folderPath = targetPath
     ? targetPath.includes("/")
@@ -149,6 +156,20 @@ function ShareModal({
     );
   })();
 
+  const handleUserSearch = (q: string) => {
+    setUserQuery(q);
+    setSelectedUser(null);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (q.length < 2) {
+      setUserResults([]);
+      return;
+    }
+    searchTimer.current = setTimeout(async () => {
+      const results = await searchGitHubUsers(q);
+      setUserResults(results);
+    }, 300);
+  };
+
   const handleCreate = () => {
     startTransition(async () => {
       const id = await createShareAction({
@@ -156,10 +177,17 @@ function ShareModal({
         repo,
         branch,
         filePath,
-        expiresIn: expiry === "never" ? null : expiry,
+        expiresIn: shareMode === "link" ? (expiry === "never" ? null : expiry) : null,
+        sharedWith: shareMode === "user" && selectedUser ? String(selectedUser.id) : null,
+        sharedWithName: shareMode === "user" && selectedUser ? selectedUser.login : null,
       });
-      const base = window.location.origin;
-      setShareUrl(`${base}/s/${id}`);
+
+      if (shareMode === "user") {
+        setUserShared(true);
+      } else {
+        const base = window.location.origin;
+        setShareUrl(`${base}/s/${id}`);
+      }
     });
   };
 
@@ -199,19 +227,16 @@ function ShareModal({
           </button>
         </div>
 
-        {!shareUrl ? (
+        {!shareUrl && !userShared ? (
           <>
+            {/* Share type */}
             <div className="mb-4">
               <label className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-300">
                 Share type
               </label>
               <div className="flex gap-2">
                 {typeButton("file", "This file", !!targetPath)}
-                {typeButton(
-                  "folder",
-                  "This folder",
-                  !!effectiveFolderPath,
-                )}
+                {typeButton("folder", "This folder", !!effectiveFolderPath)}
                 {typeButton("repo", "Entire repo", true)}
               </div>
             </div>
@@ -220,30 +245,148 @@ function ShareModal({
               {description}
             </div>
 
-            <div className="mb-6">
+            {/* Share mode: link vs user */}
+            <div className="mb-4">
               <label className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-300">
-                Expires
+                Share with
               </label>
-              <select
-                value={expiry}
-                onChange={(e) => setExpiry(e.target.value)}
-                className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
-              >
-                <option value="1h">1 hour</option>
-                <option value="1d">1 day</option>
-                <option value="7d">7 days</option>
-                <option value="30d">30 days</option>
-                <option value="never">Never</option>
-              </select>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShareMode("link")}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                    shareMode === "link"
+                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                      : "border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  Anyone with link
+                </button>
+                <button
+                  onClick={() => setShareMode("user")}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                    shareMode === "user"
+                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                      : "border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  Specific user
+                </button>
+              </div>
             </div>
+
+            {/* Link mode: expiry */}
+            {shareMode === "link" && (
+              <div className="mb-6">
+                <label className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-300">
+                  Expires
+                </label>
+                <select
+                  value={expiry}
+                  onChange={(e) => setExpiry(e.target.value)}
+                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                >
+                  <option value="1h">1 hour</option>
+                  <option value="1d">1 day</option>
+                  <option value="7d">7 days</option>
+                  <option value="30d">30 days</option>
+                  <option value="never">Never</option>
+                </select>
+              </div>
+            )}
+
+            {/* User mode: search */}
+            {shareMode === "user" && (
+              <div className="mb-6">
+                <label className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-300">
+                  GitHub username
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={selectedUser ? selectedUser.login : userQuery}
+                    onChange={(e) => handleUserSearch(e.target.value)}
+                    placeholder="Search users..."
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                  />
+                  {userResults.length > 0 && !selectedUser && (
+                    <div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+                      {userResults.map((user) => (
+                        <button
+                          key={user.id}
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setUserQuery(user.login);
+                            setUserResults([]);
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={user.avatar_url}
+                            alt=""
+                            className="h-5 w-5 rounded-full"
+                          />
+                          <span>{user.login}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {selectedUser && (
+                  <div className="mt-2 flex items-center gap-2 rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-800">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={selectedUser.avatar_url}
+                      alt=""
+                      className="h-5 w-5 rounded-full"
+                    />
+                    <span className="text-sm">{selectedUser.login}</span>
+                    <button
+                      onClick={() => {
+                        setSelectedUser(null);
+                        setUserQuery("");
+                      }}
+                      className="ml-auto text-xs text-zinc-400 hover:text-zinc-600"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <button
               onClick={handleCreate}
-              disabled={isPending}
+              disabled={isPending || (shareMode === "user" && !selectedUser)}
               className="w-full rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
             >
-              {isPending ? "Creating..." : "Create share link"}
+              {isPending
+                ? "Creating..."
+                : shareMode === "user"
+                  ? "Share with user"
+                  : "Create share link"}
             </button>
+          </>
+        ) : userShared ? (
+          <>
+            <div className="mb-4 flex items-center gap-3 rounded-lg bg-green-50 px-4 py-3 dark:bg-green-950">
+              {selectedUser && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={selectedUser.avatar_url}
+                  alt=""
+                  className="h-8 w-8 rounded-full"
+                />
+              )}
+              <div>
+                <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                  Shared with {selectedUser?.login}
+                </p>
+                <p className="text-xs text-green-600 dark:text-green-400">
+                  They&apos;ll see it in their &quot;Shared with me&quot; on their dashboard.
+                </p>
+              </div>
+            </div>
           </>
         ) : (
           <>
@@ -251,7 +394,7 @@ function ShareModal({
               <input
                 type="text"
                 readOnly
-                value={shareUrl}
+                value={shareUrl || ""}
                 className="flex-1 bg-transparent text-sm outline-none"
               />
               <button

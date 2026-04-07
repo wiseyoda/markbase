@@ -60,6 +60,13 @@ export default async function SharedFilePage({
 
   if (!share || (share.type !== "repo" && share.type !== "folder")) notFound();
 
+  // User-targeted shares require the correct user to be signed in
+  if (share.shared_with) {
+    if (!isSignedIn || session.user.id !== share.shared_with) {
+      notFound();
+    }
+  }
+
   const [owner, repo] = share.repo.split("/");
   const filePath = pathSegments.join("/");
 
