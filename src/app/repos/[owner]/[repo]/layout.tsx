@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getDefaultBranch, getMarkdownTree } from "@/lib/github";
 import type { MarkdownFile } from "@/lib/github";
 import { Sidebar } from "./sidebar";
+import { ShareButton } from "./share-dialog";
 
 export interface TreeNode {
   name: string;
@@ -88,12 +89,18 @@ export default async function RepoLayout({
             {branch}
           </span>
         </div>
-        <Link
-          href="/repos"
-          className="text-sm text-zinc-400 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
-        >
-          ← Back to repos
-        </Link>
+        <div className="flex items-center gap-3">
+          <ShareButton
+            repo={`${owner}/${repo}`}
+            branch={branch}
+          />
+          <Link
+            href="/repos"
+            className="text-sm text-zinc-400 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+          >
+            ← Back to repos
+          </Link>
+        </div>
       </header>
 
       {/* Sidebar + Content */}

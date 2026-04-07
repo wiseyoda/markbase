@@ -287,6 +287,12 @@ export default async function Dashboard() {
               View synced repos
             </Link>
           )}
+          <Link
+            href="/shares"
+            className="text-sm text-zinc-500 transition-colors hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+          >
+            Shared links
+          </Link>
           <span className="text-sm text-zinc-500 dark:text-zinc-400">
             {session.user?.name}
           </span>
