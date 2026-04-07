@@ -121,16 +121,10 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET(req: NextRequest) {
-  const context = await authenticate(req);
-  if (!context) return unauthorized();
-
-  // Streamable HTTP GET returns SSE stream for server-initiated messages.
-  // We have none, so return an empty event stream that closes immediately.
-  return new NextResponse("", {
-    status: 200,
-    headers: { "Content-Type": "text/event-stream" },
-  });
+export async function GET() {
+  // This server is stateless (Vercel) and never sends server-initiated messages.
+  // 405 tells MCP clients not to poll for an SSE stream.
+  return new NextResponse(null, { status: 405 });
 }
 
 export async function DELETE() {
