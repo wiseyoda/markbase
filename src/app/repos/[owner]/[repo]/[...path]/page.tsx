@@ -149,6 +149,7 @@ export default async function MarkdownViewPage({
     },
     img: ({ src, alt, ...props }) => {
       let resolvedSrc = typeof src === "string" ? src : "";
+      if (!resolvedSrc) return null;
       if (resolvedSrc && !resolvedSrc.startsWith("http")) {
         const currentDir = filePath.split("/").slice(0, -1).join("/");
         const imgPath = currentDir
