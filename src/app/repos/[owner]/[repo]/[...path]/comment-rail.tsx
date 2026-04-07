@@ -761,6 +761,7 @@ function highlightText(
 
   // Find the match closest to the offset hint
   let matchStart = -1;
+  let matchLen = text.length;
   if (offsetHint !== undefined) {
     // Search near the hint first
     const searchFrom = Math.max(0, offsetHint - 20);
@@ -773,8 +774,26 @@ function highlightText(
   if (matchStart === -1) {
     matchStart = accumulated.indexOf(text);
   }
+  // Fallback: strip block-boundary whitespace that selection.toString() adds
+  // between block elements (\n) and table cells (\t) but the tree walker omits
+  if (matchStart === -1) {
+    const stripped = text.replace(/[\n\t\r]/g, "");
+    if (stripped !== text) {
+      matchLen = stripped.length;
+      if (offsetHint !== undefined) {
+        const searchFrom = Math.max(0, offsetHint - 20);
+        const nearIdx = accumulated.indexOf(stripped, searchFrom);
+        if (nearIdx !== -1 && Math.abs(nearIdx - offsetHint) < 200) {
+          matchStart = nearIdx;
+        }
+      }
+      if (matchStart === -1) {
+        matchStart = accumulated.indexOf(stripped);
+      }
+    }
+  }
   if (matchStart === -1) return;
-  const matchEnd = matchStart + text.length;
+  const matchEnd = matchStart + matchLen;
 
   // Find nodes that overlap with the match
   for (const { node, start, end } of nodeMap) {

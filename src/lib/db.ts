@@ -62,6 +62,9 @@ export async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_comments_file_key ON comments(file_key)
   `;
   await db`
+    CREATE INDEX IF NOT EXISTS idx_comments_file_key_prefix ON comments(file_key text_pattern_ops)
+  `.catch(() => {});
+  await db`
     CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON comments(parent_id)
   `;
   // Migrate FK to CASCADE delete

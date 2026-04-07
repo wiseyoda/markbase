@@ -128,6 +128,99 @@ export async function deleteComment(
   return rows.length > 0;
 }
 
+/** Fetch a single comment by ID */
+export async function getCommentById(
+  commentId: string,
+): Promise<Comment | null> {
+  const db = getDb();
+  const rows = await db`
+    SELECT * FROM comments WHERE id = ${commentId}
+  `;
+  return rows.length > 0 ? rowToComment(rows[0]) : null;
+}
+
+/** Fetch threaded comments across multiple files by prefix, with pagination */
+export async function getCommentsByPrefix(
+  prefix: string,
+  opts: {
+    includeResolved?: boolean;
+    limit?: number;
+    cursor?: string;
+  } = {},
+): Promise<{ comments: Comment[]; nextCursor: string | null }> {
+  const db = getDb();
+  const limit = opts.limit ?? 50;
+
+  // Fetch top-level comments
+  const topRows = opts.cursor
+    ? opts.includeResolved
+      ? await db`
+          SELECT * FROM comments
+          WHERE file_key LIKE ${prefix + "%"}
+            AND parent_id IS NULL
+            AND created_at < ${opts.cursor}
+          ORDER BY created_at DESC
+          LIMIT ${limit}
+        `
+      : await db`
+          SELECT * FROM comments
+          WHERE file_key LIKE ${prefix + "%"}
+            AND parent_id IS NULL
+            AND resolved_at IS NULL
+            AND created_at < ${opts.cursor}
+          ORDER BY created_at DESC
+          LIMIT ${limit}
+        `
+    : opts.includeResolved
+      ? await db`
+          SELECT * FROM comments
+          WHERE file_key LIKE ${prefix + "%"}
+            AND parent_id IS NULL
+          ORDER BY created_at DESC
+          LIMIT ${limit}
+        `
+      : await db`
+          SELECT * FROM comments
+          WHERE file_key LIKE ${prefix + "%"}
+            AND parent_id IS NULL
+            AND resolved_at IS NULL
+          ORDER BY created_at DESC
+          LIMIT ${limit}
+        `;
+
+  const topLevel = topRows.map(rowToComment);
+  if (topLevel.length === 0) {
+    return { comments: [], nextCursor: null };
+  }
+
+  // Batch-fetch replies for all top-level comments
+  const ids = topLevel.map((c) => c.id);
+  const replyRows = await db`
+    SELECT * FROM comments
+    WHERE parent_id = ANY(${ids})
+    ORDER BY created_at ASC
+  `;
+
+  const byParent = new Map<string, Comment[]>();
+  for (const row of replyRows) {
+    const reply = rowToComment(row);
+    const siblings = byParent.get(reply.parent_id!) || [];
+    siblings.push(reply);
+    byParent.set(reply.parent_id!, siblings);
+  }
+
+  for (const c of topLevel) {
+    c.replies = byParent.get(c.id) || [];
+  }
+
+  const nextCursor =
+    topLevel.length === limit
+      ? topLevel[topLevel.length - 1].created_at
+      : null;
+
+  return { comments: topLevel, nextCursor };
+}
+
 /** Count open (unresolved) comments per file key prefix */
 export async function countOpenComments(
   fileKeyPrefix: string,
