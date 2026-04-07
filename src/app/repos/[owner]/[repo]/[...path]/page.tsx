@@ -13,6 +13,7 @@ import {
 } from "@/lib/github";
 import { CopyButton } from "./copy-button";
 import { CommentRail } from "./comment-rail";
+import { getComments, buildFileKey } from "@/lib/comments";
 import "highlight.js/styles/github-dark.css";
 
 function resolveRelativeLink(
@@ -99,9 +100,13 @@ export default async function MarkdownViewPage({
   const filePath = pathSegments.join("/");
   const branch = await getDefaultBranch(session.accessToken, owner, repo);
 
-  const [rawContent, files] = await Promise.all([
+  const fullRepo = `${owner}/${repo}`;
+  const fKey = await buildFileKey(fullRepo, branch, filePath);
+
+  const [rawContent, files, initialComments] = await Promise.all([
     getFileContent(session.accessToken, owner, repo, branch, filePath),
     getMarkdownTree(session.accessToken, owner, repo, branch),
+    getComments(fKey),
   ]);
 
   if (rawContent === null) {
@@ -216,8 +221,6 @@ export default async function MarkdownViewPage({
       return <h4 id={id} {...props}>{children}</h4>;
     },
   };
-
-  const fullRepo = `${owner}/${repo}`;
 
   return (
     <div className="flex h-full">
@@ -363,6 +366,7 @@ export default async function MarkdownViewPage({
         branch={branch}
         filePath={filePath}
         articleId="markdown-content"
+        initialComments={initialComments}
       />
     </div>
   );

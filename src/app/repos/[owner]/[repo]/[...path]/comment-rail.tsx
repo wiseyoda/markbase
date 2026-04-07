@@ -21,6 +21,7 @@ interface CommentRailProps {
   branch: string;
   filePath: string;
   articleId: string;
+  initialComments?: Comment[];
 }
 
 export function CommentRail({
@@ -28,9 +29,10 @@ export function CommentRail({
   branch,
   filePath,
   articleId,
+  initialComments,
 }: CommentRailProps) {
   const [open, setOpen] = useState(true);
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [comments, setComments] = useState<Comment[]>(initialComments || []);
   const [activeQuote, setActiveQuote] = useState<string | null>(null);
   const [showResolved, setShowResolved] = useState(false);
   const [selectionPopup, setSelectionPopup] = useState<{
