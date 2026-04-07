@@ -219,7 +219,7 @@ export default async function MarkdownViewPage({
   return (
     <CommentProvider initialCount={unresolvedCount}>
       <div id="main-content" className="flex h-full">
-        <div className="flex flex-1 flex-col overflow-y-auto" data-scroll-container>
+        <div className="flex flex-1 flex-col overflow-y-auto bg-white dark:bg-zinc-950" data-scroll-container>
           {/* Breadcrumb + reading time + history */}
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-200 px-4 sm:px-8 py-3 dark:border-zinc-800">
             <span className="truncate text-sm text-zinc-500 dark:text-zinc-400">

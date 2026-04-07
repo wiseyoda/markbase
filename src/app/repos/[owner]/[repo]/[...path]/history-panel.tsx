@@ -159,7 +159,7 @@ function HistoryPanel({
                           className="h-5 w-5 rounded-full"
                         />
                       ) : (
-                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-200 text-[10px] dark:bg-zinc-700">
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-200 text-[11px] dark:bg-zinc-700">
                           {commit.author.login[0]?.toUpperCase()}
                         </div>
                       )}
@@ -170,7 +170,7 @@ function HistoryPanel({
                     <p className="line-clamp-2 text-sm text-zinc-700 dark:text-zinc-300">
                       {commit.message}
                     </p>
-                    <div className="flex items-center gap-2 text-[10px] text-zinc-400 dark:text-zinc-500">
+                    <div className="flex items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-500">
                       <span>{formatDate(commit.date)}</span>
                       <span className="font-mono">{commit.sha.slice(0, 7)}</span>
                     </div>

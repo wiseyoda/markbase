@@ -24,7 +24,7 @@ export default async function SharesPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-4 sm:px-6 py-4 dark:border-zinc-800">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-4 sm:px-6 py-3 dark:border-zinc-800">
         <div className="flex items-center gap-3">
           <Link href="/dashboard" className="text-lg font-semibold">
             markbase
@@ -73,7 +73,7 @@ export default async function SharesPage() {
                           {/* Type + path */}
                           <div className="flex items-center gap-2">
                             <span
-                              className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                              className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
                                 share.type === "repo"
                                   ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"
                                   : share.type === "folder"
@@ -114,7 +114,7 @@ export default async function SharesPage() {
                           </div>
 
                           {/* Meta */}
-                          <div className="flex items-center gap-2 text-[10px] text-zinc-400 dark:text-zinc-500">
+                          <div className="flex items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-500">
                             <span>Created {timeAgo(share.created_at)}</span>
                             <span>·</span>
                             <span>Expires: {expiryLabel(share.expires_at)}</span>

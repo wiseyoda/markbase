@@ -125,7 +125,7 @@ export default async function Dashboard() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-4 sm:px-6 py-4 dark:border-zinc-800">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-4 sm:px-6 py-3 dark:border-zinc-800">
         <h1 className="text-lg font-semibold">markbase</h1>
         <div className="flex flex-wrap items-center gap-4">
           <Link
@@ -195,6 +195,21 @@ export default async function Dashboard() {
           </div>
         )}
 
+        {/* Synced repos empty state */}
+        {syncedRepos.length === 0 && (
+          <div className="mb-10 rounded-lg border border-dashed border-zinc-300 px-6 py-8 text-center dark:border-zinc-700">
+            <h2 className="text-base font-semibold">Get started</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm text-zinc-500 dark:text-zinc-400">
+              Sync a repository to start browsing and sharing your markdown files.
+              Find a repo below and click <strong>Sync</strong> to add it here.
+            </p>
+            <div className="mx-auto mt-4 flex max-w-xs items-center gap-2 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-400 dark:bg-zinc-900 dark:text-zinc-500">
+              <span className="shrink-0">Tip:</span>
+              <span>Synced repos appear at the top for quick access.</span>
+            </div>
+          </div>
+        )}
+
         {/* Shared with me */}
         {sharedWithMe.length > 0 && (
           <div className="mb-10">
@@ -226,7 +241,7 @@ export default async function Dashboard() {
                   >
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-2">
-                        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
                           {share.type}
                         </span>
                         <span className="text-sm text-zinc-400 dark:text-zinc-500">

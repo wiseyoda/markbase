@@ -9,6 +9,7 @@ import { SharesDropdown } from "./shares-dropdown";
 import { countOpenComments } from "@/lib/comments";
 import { listSharesForRepo } from "@/lib/shares";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { CommandPaletteWrapper } from "./command-palette-wrapper";
 
 export interface TreeNode {
   name: string;
@@ -93,9 +94,10 @@ export default async function RepoLayout({
   return (
     <ShareProvider repo={`${owner}/${repo}`} branch={branch}>
     <SidebarProvider>
+    <CommandPaletteWrapper>
     <div className="flex h-screen flex-col">
       {/* Top bar */}
-      <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-3 py-2 sm:px-4 sm:py-3 dark:border-zinc-800">
+      <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 sm:px-6 py-3 dark:border-zinc-800">
         <div className="flex min-w-0 items-center gap-2 text-sm">
           <Link href="/dashboard" className="shrink-0 font-semibold">
             markbase
@@ -140,11 +142,12 @@ export default async function RepoLayout({
           fileCount={fileCount}
           commentCounts={pathCounts}
         />
-        <main className="flex-1 overflow-y-auto">
+        <main id="main-content" className="flex-1 overflow-y-auto">
           {children}
         </main>
       </div>
     </div>
+    </CommandPaletteWrapper>
     </SidebarProvider>
     </ShareProvider>
   );

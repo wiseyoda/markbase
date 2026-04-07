@@ -368,8 +368,16 @@ export function CommentRail({
       )}
 
       {unresolved.length === 0 && !activeQuote && (
-        <div className="px-4 py-8 text-center text-sm text-zinc-400 dark:text-zinc-500">
-          Select text to add a comment.
+        <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+          <svg width="32" height="32" viewBox="0 0 16 16" fill="currentColor" className="text-zinc-300 dark:text-zinc-600">
+            <path d="M1 2.75C1 1.784 1.784 1 2.75 1h10.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 0113.25 12H9.06l-2.573 2.573A1.458 1.458 0 014 13.543V12H2.75A1.75 1.75 0 011 10.25v-7.5z" />
+          </svg>
+          <div>
+            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No comments yet</p>
+            <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+              Select any text in the document to leave a comment.
+            </p>
+          </div>
         </div>
       )}
 
@@ -472,10 +480,10 @@ export function CommentRail({
       {/* Right rail */}
       <aside
         className={`${
-          open ? "w-80" : "w-0"
+          open ? "w-72" : "w-0"
         } shrink-0 overflow-hidden border-l border-zinc-200 transition-all dark:border-zinc-800`}
       >
-        <div className="flex h-full w-80 flex-col">
+        <div className="flex h-full w-72 flex-col">
           {/* Rail header */}
           <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
             <div className="flex items-center gap-2">
@@ -514,8 +522,16 @@ export function CommentRail({
           {/* Comment list — scrollTop synced with content */}
           <div ref={railRef} className="relative flex-1 overflow-y-auto">
             {unresolved.length === 0 && !activeQuote && (
-              <div className="px-4 py-8 text-center text-sm text-zinc-400 dark:text-zinc-500">
-                Select text to add a comment.
+              <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+                <svg width="32" height="32" viewBox="0 0 16 16" fill="currentColor" className="text-zinc-300 dark:text-zinc-600">
+                  <path d="M1 2.75C1 1.784 1.784 1 2.75 1h10.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 0113.25 12H9.06l-2.573 2.573A1.458 1.458 0 014 13.543V12H2.75A1.75 1.75 0 011 10.25v-7.5z" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No comments yet</p>
+                  <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+                    Select any text in the document to leave a comment.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -716,10 +732,10 @@ function CommentThread({
           <img
             src={comment.author_avatar}
             alt=""
-            className="h-6 w-6 shrink-0 rounded-full"
+            className="h-5 w-5 shrink-0 rounded-full"
           />
         ) : (
-          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-xs font-medium dark:bg-zinc-700">
+          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-xs font-medium dark:bg-zinc-700">
             {comment.author_name[0]?.toUpperCase()}
           </div>
         )}

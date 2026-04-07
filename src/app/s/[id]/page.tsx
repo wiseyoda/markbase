@@ -66,7 +66,7 @@ export default async function SharePage({
 
     return (
       <div className="flex min-h-screen flex-col">
-        <header className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 sm:px-6 dark:border-zinc-800">
+        <header className="flex items-center justify-between border-b border-zinc-200 px-4 sm:px-6 py-3 dark:border-zinc-800">
           <div className="flex items-center gap-2 text-sm">
             <span className="font-semibold">markbase</span>
             <span className="text-zinc-300 dark:text-zinc-600">/</span>

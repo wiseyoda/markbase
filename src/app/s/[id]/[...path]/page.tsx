@@ -189,7 +189,7 @@ export default async function SharedFilePage({
     <SharedSidebarProvider>
       <CommentProvider initialCount={isSignedIn ? unresolvedCount : 0}>
         <div className="flex h-screen flex-col">
-          <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-3 py-2 sm:px-4 sm:py-3 dark:border-zinc-800">
+          <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 sm:px-6 py-3 dark:border-zinc-800">
             <div className="flex items-center gap-2 text-sm">
               {showSidebar && <SharedSidebarToggle />}
               <span className="font-semibold">markbase</span>
@@ -224,7 +224,7 @@ export default async function SharedFilePage({
                 >
                   <button
                     type="submit"
-                    className="flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+                    className="flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
                   >
                     <span className="hidden sm:inline">Sign in to comment</span>
                     <span className="sm:hidden">Sign in</span>
@@ -249,7 +249,7 @@ export default async function SharedFilePage({
               />
             )}
             <main id="main-content" className="flex flex-1 overflow-hidden">
-              <div className="flex-1 overflow-y-auto" data-scroll-container>
+              <div className="flex-1 overflow-y-auto bg-white dark:bg-zinc-950" data-scroll-container>
                 <div className="flex flex-col gap-1 border-b border-zinc-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-8 dark:border-zinc-800">
                   <span className="truncate text-sm text-zinc-500 dark:text-zinc-400">
                     {filePath}
@@ -281,6 +281,27 @@ export default async function SharedFilePage({
                       {content}
                     </Markdown>
                   </article>
+                  {!isSignedIn && (
+                    <div className="mx-auto mt-8 max-w-md rounded-lg border border-dashed border-zinc-300 px-6 py-4 text-center dark:border-zinc-700">
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                        Want to leave feedback?{" "}
+                        <form className="inline" action={async () => {
+                          "use server";
+                          await signIn("github", {
+                            redirectTo: `/s/${id}/${pathSegments.join("/")}`,
+                          });
+                        }}>
+                          <button
+                            type="submit"
+                            className="font-medium text-zinc-900 underline hover:text-zinc-700 dark:text-zinc-200 dark:hover:text-zinc-400"
+                          >
+                            Sign in with GitHub
+                          </button>
+                        </form>
+                        {" "}to add inline comments.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
               {isSignedIn && (

@@ -106,6 +106,28 @@ export function Sidebar({ tree, owner, repo, fileCount, commentCounts = {} }: Si
   const isMobile = useIsMobile();
   const pathname = usePathname();
   const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // "/" shortcut to focus sidebar search (when sidebar is visible)
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== "/") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if ((e.target as HTMLElement)?.isContentEditable) return;
+
+      // Only focus when sidebar is visible: desktop (always) or mobile/tablet (when open)
+      const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
+      if (!isDesktop && !open) return;
+
+      e.preventDefault();
+      searchInputRef.current?.focus();
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
 
   const filteredTree = useMemo(
     () => filterTree(tree, searchQuery),
@@ -128,6 +150,7 @@ export function Sidebar({ tree, owner, repo, fileCount, commentCounts = {} }: Si
   const searchInput = (
     <div className="sticky top-0 z-10 bg-white px-2 pb-1 pt-2 dark:bg-zinc-950">
       <input
+        ref={searchInputRef}
         type="text"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}

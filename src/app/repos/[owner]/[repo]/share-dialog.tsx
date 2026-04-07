@@ -240,6 +240,10 @@ function ShareModal({
             {description}
           </div>
 
+          <p className="mb-4 text-xs text-zinc-400 dark:text-zinc-500">
+            Share links are read-only. Recipients can view and comment but not edit.
+          </p>
+
           {/* Share mode: link vs user */}
           <div className="mb-4">
             <label className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-300">

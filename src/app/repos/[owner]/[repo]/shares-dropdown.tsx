@@ -145,14 +145,14 @@ function ShareRow({
     <div className="flex items-center justify-between gap-2 border-b border-zinc-100 px-3 py-2 last:border-b-0 dark:border-zinc-800/50">
       <div className="flex flex-col gap-0.5 overflow-hidden">
         <div className="flex items-center gap-1.5">
-          <span className="rounded bg-zinc-100 px-1 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+          <span className="rounded bg-zinc-100 px-1 py-0.5 text-[11px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
             {share.type}
           </span>
           <span className="truncate text-xs text-zinc-600 dark:text-zinc-300">
             {share.file_path || "entire repo"}
           </span>
         </div>
-        <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+        <span className="text-[11px] text-zinc-400 dark:text-zinc-500">
           {timeAgo(share.created_at)} · expires {expiryLabel(share.expires_at)}
         </span>
       </div>

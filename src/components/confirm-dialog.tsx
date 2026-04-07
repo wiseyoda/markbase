@@ -118,7 +118,7 @@ export function ConfirmDialog({
           className={`rounded-lg px-4 py-2.5 text-sm font-medium disabled:opacity-50 ${
             destructive
               ? "bg-red-600 text-white hover:bg-red-700"
-              : "bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100"
+              : "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
           }`}
         >
           {isPending ? "..." : confirmLabel}

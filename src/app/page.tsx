@@ -42,7 +42,7 @@ export default async function Home() {
         </div>
 
         {/* Product preview */}
-        <div className="mx-auto w-full max-w-6xl px-6 mt-16 sm:mt-24 sm:px-8">
+        <div className="mx-auto w-full max-w-6xl px-6 mt-16 sm:mt-24 sm:px-8 animate-fade-in-up">
           <ProductMockup />
         </div>
 
@@ -130,6 +130,9 @@ function ProductMockup() {
               </span>
               <span className="block">
                 <span className="text-[#86D5F4]">await</span> syncReport(targets);
+              </span>
+              <span className="block">
+                <span className="inline-block w-[1px] h-3 bg-zinc-400 dark:bg-zinc-500 animate-pulse" />
               </span>
             </div>
           </div>
