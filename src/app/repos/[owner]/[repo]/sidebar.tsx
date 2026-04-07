@@ -36,13 +36,28 @@ const SidebarContext = createContext<SidebarContextValue>({
 });
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  // Default open on desktop (lg: 1024px+), closed on mobile/tablet
-  const [open, setOpen] = useState(() => {
+  const [open, setOpenRaw] = useState(() => {
     if (typeof window === "undefined") return true;
-    return window.innerWidth >= 1024;
+    const stored = sessionStorage.getItem("markbase-sidebar");
+    if (stored === "open") return true;
+    if (stored === "closed") return false;
+    return window.innerWidth >= 1024; // default: open on desktop
   });
-  const toggle = useCallback(() => setOpen((prev) => !prev), []);
-  const value = useMemo(() => ({ open, setOpen, toggle }), [open, toggle]);
+
+  const setOpen = useCallback((v: boolean) => {
+    setOpenRaw(v);
+    sessionStorage.setItem("markbase-sidebar", v ? "open" : "closed");
+  }, []);
+
+  const toggle = useCallback(() => {
+    setOpenRaw((prev) => {
+      const next = !prev;
+      sessionStorage.setItem("markbase-sidebar", next ? "open" : "closed");
+      return next;
+    });
+  }, []);
+
+  const value = useMemo(() => ({ open, setOpen, toggle }), [open, setOpen, toggle]);
   return (
     <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>
   );

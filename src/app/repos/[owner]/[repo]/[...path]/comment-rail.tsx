@@ -71,8 +71,20 @@ export function CommentProvider({
   children: React.ReactNode;
   initialCount: number;
 }) {
-  const [open, setOpen] = useState(initialCount > 0);
+  const [open, setOpenRaw] = useState(() => {
+    if (typeof window === "undefined") return initialCount > 0;
+    const stored = sessionStorage.getItem("markbase-comments");
+    if (stored === "open") return true;
+    if (stored === "closed") return false;
+    return initialCount > 0; // default: open when there are comments
+  });
   const [count, setCount] = useState(initialCount);
+
+  const setOpen = useCallback((v: boolean) => {
+    setOpenRaw(v);
+    sessionStorage.setItem("markbase-comments", v ? "open" : "closed");
+  }, []);
+
   return (
     <CommentContext.Provider value={{ open, setOpen, count, setCount }}>
       {children}
