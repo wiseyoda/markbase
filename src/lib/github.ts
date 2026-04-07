@@ -59,14 +59,21 @@ export async function getMarkdownTree(
 }
 
 export async function getFileContent(
+  accessToken: string,
   owner: string,
   repo: string,
   branch: string,
   path: string,
 ): Promise<string | null> {
   const res = await fetch(
-    `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`,
-    { next: { revalidate: 60 } },
+    `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/vnd.github.raw+json",
+      },
+      next: { revalidate: 60 },
+    },
   );
 
   if (!res.ok) return null;
