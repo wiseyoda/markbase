@@ -59,7 +59,7 @@ export function ShareProvider({
   );
 }
 
-export function ShareButton({ repo, branch }: { repo: string; branch: string }) {
+export function ShareButton({ repo }: { repo: string; branch: string }) {
   const { openShare } = useShareDialog();
   const pathname = usePathname();
 

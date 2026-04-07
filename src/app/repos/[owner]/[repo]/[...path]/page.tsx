@@ -12,6 +12,7 @@ import {
   getMarkdownTree,
 } from "@/lib/github";
 import { CopyButton } from "./copy-button";
+import { CommentRail } from "./comment-rail";
 import "highlight.js/styles/github-dark.css";
 
 function resolveRelativeLink(
@@ -216,8 +217,11 @@ export default async function MarkdownViewPage({
     },
   };
 
+  const fullRepo = `${owner}/${repo}`;
+
   return (
-    <div className="flex flex-col">
+    <div className="flex h-full">
+      <div className="flex flex-1 flex-col overflow-y-auto">
       {/* Breadcrumb + reading time */}
       <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-3 dark:border-zinc-800">
         <span className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -282,7 +286,7 @@ export default async function MarkdownViewPage({
         )}
 
         {/* Markdown */}
-        <article className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
+        <article id="markdown-content" className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
           <Markdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeHighlight]}
@@ -353,6 +357,13 @@ export default async function MarkdownViewPage({
           </div>
         )}
       </div>
+      </div>
+      <CommentRail
+        repo={fullRepo}
+        branch={branch}
+        filePath={filePath}
+        articleId="markdown-content"
+      />
     </div>
   );
 }

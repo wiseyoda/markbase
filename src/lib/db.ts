@@ -37,6 +37,29 @@ export async function initDb() {
     CHECK (type IN ('file', 'repo', 'folder'))
   `.catch(() => {});
   await db`
+    CREATE TABLE IF NOT EXISTS comments (
+      id TEXT PRIMARY KEY,
+      file_key TEXT NOT NULL,
+      author_id TEXT NOT NULL,
+      author_name TEXT NOT NULL,
+      author_avatar TEXT,
+      quote TEXT,
+      quote_context TEXT,
+      body TEXT NOT NULL,
+      parent_id TEXT REFERENCES comments(id),
+      resolved_at TIMESTAMPTZ,
+      resolved_by TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await db`
+    CREATE INDEX IF NOT EXISTS idx_comments_file_key ON comments(file_key)
+  `;
+  await db`
+    CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON comments(parent_id)
+  `;
+  await db`
     CREATE TABLE IF NOT EXISTS synced_repos (
       user_id TEXT NOT NULL,
       repo TEXT NOT NULL,

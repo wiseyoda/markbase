@@ -114,28 +114,61 @@ body {
 
 /* Tables — refined */
 .prose table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   border-radius: 8px;
+  border: 1px solid #27272a;
   overflow: hidden;
   font-size: 0.875rem;
+  width: 100%;
 }
 
 .prose thead {
-  border-bottom: 2px solid #27272a;
+  border-bottom: none;
 }
 
 .prose th {
   padding: 0.75rem 1rem;
   text-align: left;
   font-weight: 600;
+  border-bottom: 2px solid #27272a;
 }
 
 .prose td {
-  padding: 0.625rem 1rem;
+  padding: 0.75rem 1rem;
 }
 
 .prose tbody tr {
   border-bottom: 1px solid #1a1a1a;
+}
+
+.prose tbody tr:last-child {
+  border-bottom: none;
+}
+
+/* ─── Custom scrollbars ─── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f46 transparent;
 }
 
 /* ─── Dark mode overrides ─── */
@@ -240,21 +273,30 @@ body {
   }
 
   /* Tables */
+  .prose table {
+    border-color: #1f1f23;
+  }
+
   .prose th {
-    color: #fafafa;
-    background: #111113;
+    color: var(--brand-blue);
+    background: #0d0d0f;
+    border-bottom-color: #1f1f23;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
 
   .prose td {
     color: #d4d4d8;
+    border-bottom: 1px solid #141416;
   }
 
-  .prose tbody tr {
-    border-bottom-color: #1a1a1a;
+  .prose tbody tr:last-child td {
+    border-bottom: none;
   }
 
   .prose tbody tr:hover {
-    background: #111113;
+    background: #0d0d0f;
   }
 
   /* Task lists */
