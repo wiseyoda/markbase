@@ -4,10 +4,12 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import type { Components } from "react-markdown";
+import { auth, signIn } from "@/auth";
 import { getShare } from "@/lib/shares";
 import { getFileContent, getMarkdownTree } from "@/lib/github";
 import { buildTree } from "@/app/repos/[owner]/[repo]/layout";
 import { SharedSidebar } from "./shared-sidebar";
+import { CommentRail } from "@/app/repos/[owner]/[repo]/[...path]/comment-rail";
 import "highlight.js/styles/github-dark.css";
 
 function resolveShareLink(
@@ -52,6 +54,8 @@ export default async function SharedFilePage({
   params: Promise<{ id: string; path: string[] }>;
 }) {
   const { id, path: pathSegments } = await params;
+  const session = await auth();
+  const isSignedIn = !!session?.user?.id;
   const share = await getShare(id);
 
   if (!share || (share.type !== "repo" && share.type !== "folder")) notFound();
@@ -164,9 +168,31 @@ export default async function SharedFilePage({
             {share.branch}
           </span>
         </div>
-        <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-          shared
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+            shared
+          </span>
+          {!isSignedIn && (
+            <form
+              action={async () => {
+                "use server";
+                await signIn("github", { redirectTo: `/s/${id}/${pathSegments.join("/")}` });
+              }}
+            >
+              <button
+                type="submit"
+                className="flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+              >
+                Sign in to comment
+              </button>
+            </form>
+          )}
+          {isSignedIn && (
+            <span className="text-xs text-zinc-400 dark:text-zinc-500">
+              {session.user?.name}
+            </span>
+          )}
+        </div>
       </header>
       <div className="flex min-h-0 flex-1">
         {showSidebar && (
@@ -176,14 +202,15 @@ export default async function SharedFilePage({
             fileCount={sidebarFiles.length}
           />
         )}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex flex-1 overflow-hidden">
+          <div className="flex-1 overflow-y-auto" data-scroll-container>
           <div className="border-b border-zinc-200 px-8 py-3 dark:border-zinc-800">
             <span className="text-sm text-zinc-500 dark:text-zinc-400">
               {filePath}
             </span>
           </div>
           <div className="mx-auto w-full max-w-4xl px-8 py-8">
-            <article className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
+            <article id="shared-markdown-content" className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
               <Markdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeHighlight]}
@@ -193,6 +220,15 @@ export default async function SharedFilePage({
               </Markdown>
             </article>
           </div>
+          </div>
+          {isSignedIn && (
+            <CommentRail
+              repo={share.repo}
+              branch={share.branch}
+              filePath={filePath}
+              articleId="shared-markdown-content"
+            />
+          )}
         </main>
       </div>
     </div>
