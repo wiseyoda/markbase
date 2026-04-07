@@ -257,7 +257,7 @@ function HistoryPanel({
                                 ? "-"
                                 : " "}
                           </span>
-                          <pre className="flex-1 overflow-x-auto whitespace-pre px-2 py-0.5">
+                          <pre className="flex-1 whitespace-pre-wrap break-words px-2 py-0.5">
                             <span
                               className={
                                 line.type === "add"
