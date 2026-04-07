@@ -1,7 +1,13 @@
+import type { Session } from "next-auth";
 import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+const {
+  handlers,
+  signIn,
+  signOut,
+  auth: nextAuth,
+} = NextAuth({
   providers: [
     GitHub({
       clientId: process.env.GITHUB_ID,
@@ -32,3 +38,34 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
 });
+
+function isBypass(): boolean {
+  return (
+    process.env.AUTH_BYPASS === "true" &&
+    process.env.NODE_ENV === "development"
+  );
+}
+
+function bypassSession(): Session {
+  const pat = process.env.GITHUB_PAT;
+  if (!pat) {
+    throw new Error("AUTH_BYPASS requires GITHUB_PAT in .env.local");
+  }
+  return {
+    user: {
+      id: process.env.GITHUB_BYPASS_USER_ID || "0",
+      name: "Dev User",
+      email: null,
+      image: null,
+    },
+    accessToken: pat,
+    expires: new Date(Date.now() + 86400000).toISOString(),
+  };
+}
+
+async function auth(): Promise<Session | null> {
+  if (isBypass()) return bypassSession();
+  return nextAuth();
+}
+
+export { handlers, signIn, signOut, auth };
