@@ -1,18 +1,23 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { auth } from "@/auth";
+import { getDb } from "./db";
 
-const COOKIE_NAME = "synced_repos";
+async function getUserId(): Promise<string> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Not authenticated");
+  return session.user.id;
+}
 
 export async function getSyncedRepos(): Promise<string[]> {
-  const cookieStore = await cookies();
-  const cookie = cookieStore.get(COOKIE_NAME);
-  if (!cookie?.value) return [];
-  try {
-    return JSON.parse(cookie.value);
-  } catch {
-    return [];
-  }
+  const userId = await getUserId();
+  const db = getDb();
+  const rows = await db`
+    SELECT repo FROM synced_repos
+    WHERE user_id = ${userId}
+    ORDER BY synced_at DESC
+  `;
+  return rows.map((r) => r.repo as string);
 }
 
 export async function isSynced(fullName: string): Promise<boolean> {
@@ -21,23 +26,26 @@ export async function isSynced(fullName: string): Promise<boolean> {
 }
 
 export async function toggleSyncRepo(fullName: string): Promise<boolean> {
-  const repos = await getSyncedRepos();
-  const index = repos.indexOf(fullName);
+  const userId = await getUserId();
+  const db = getDb();
 
-  if (index >= 0) {
-    repos.splice(index, 1);
-  } else {
-    repos.push(fullName);
+  // Check if already synced
+  const existing = await db`
+    SELECT 1 FROM synced_repos
+    WHERE user_id = ${userId} AND repo = ${fullName}
+  `;
+
+  if (existing.length > 0) {
+    await db`
+      DELETE FROM synced_repos
+      WHERE user_id = ${userId} AND repo = ${fullName}
+    `;
+    return false; // removed
   }
 
-  const cookieStore = await cookies();
-  cookieStore.set(COOKIE_NAME, JSON.stringify(repos), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 365,
-    path: "/",
-  });
-
-  return index < 0; // true if added, false if removed
+  await db`
+    INSERT INTO synced_repos (user_id, repo)
+    VALUES (${userId}, ${fullName})
+  `;
+  return true; // added
 }

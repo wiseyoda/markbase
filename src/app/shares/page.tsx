@@ -30,9 +30,11 @@ function expiryLabel(expiresAt: string | null): string {
 
 export default async function SharesPage() {
   const session = await auth();
-  if (!session?.user?.id) redirect("/");
+  if (!session) redirect("/");
+  const userId = session.user?.id;
+  if (!userId) redirect("/");
 
-  const shares = await listShares(session.user.id);
+  const shares = await listShares(userId);
 
   return (
     <div className="flex flex-1 flex-col">

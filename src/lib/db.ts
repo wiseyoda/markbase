@@ -28,4 +28,12 @@ export async function initDb() {
       deleted_at TIMESTAMPTZ
     )
   `;
+  await db`
+    CREATE TABLE IF NOT EXISTS synced_repos (
+      user_id TEXT NOT NULL,
+      repo TEXT NOT NULL,
+      synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (user_id, repo)
+    )
+  `;
 }
