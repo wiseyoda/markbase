@@ -79,3 +79,71 @@ export async function getFileContent(
   if (!res.ok) return null;
   return res.text();
 }
+
+export interface FileCommit {
+  sha: string;
+  message: string;
+  date: string;
+  author: {
+    login: string;
+    avatar_url: string;
+  };
+}
+
+export async function getFileHistory(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  branch: string,
+  path: string,
+): Promise<FileCommit[]> {
+  const res = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}&path=${encodeURIComponent(path)}&per_page=30`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/vnd.github.v3+json",
+      },
+      next: { revalidate: 60 },
+    },
+  );
+
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data as Record<string, unknown>[]).map((c) => {
+    const commit = c.commit as Record<string, unknown>;
+    const author = commit.author as Record<string, unknown>;
+    const ghAuthor = c.author as Record<string, unknown> | null;
+    return {
+      sha: c.sha as string,
+      message: (commit.message as string).split("\n")[0],
+      date: author.date as string,
+      author: {
+        login: ghAuthor?.login as string || "unknown",
+        avatar_url: ghAuthor?.avatar_url as string || "",
+      },
+    };
+  });
+}
+
+export async function getFileAtCommit(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  sha: string,
+  path: string,
+): Promise<string | null> {
+  const res = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${sha}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/vnd.github.raw+json",
+      },
+      next: { revalidate: 300 },
+    },
+  );
+
+  if (!res.ok) return null;
+  return res.text();
+}

@@ -13,6 +13,7 @@ import {
 } from "@/lib/github";
 import { CopyButton } from "./copy-button";
 import { CommentRail } from "./comment-rail";
+import { HistoryButton } from "./history-panel";
 import { getComments, buildFileKey } from "@/lib/comments";
 import "highlight.js/styles/github-dark.css";
 
@@ -225,14 +226,23 @@ export default async function MarkdownViewPage({
   return (
     <div className="flex h-full">
       <div className="flex flex-1 flex-col overflow-y-auto" data-scroll-container>
-      {/* Breadcrumb + reading time */}
+      {/* Breadcrumb + reading time + history */}
       <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-3 dark:border-zinc-800">
         <span className="text-sm text-zinc-500 dark:text-zinc-400">
           {filePath}
         </span>
-        <span className="text-xs text-zinc-400 dark:text-zinc-500">
-          {readingTime(content)}
-        </span>
+        <div className="flex items-center gap-3">
+          <HistoryButton
+            owner={owner}
+            repo={repo}
+            branch={branch}
+            filePath={filePath}
+            currentContent={content}
+          />
+          <span className="text-xs text-zinc-400 dark:text-zinc-500">
+            {readingTime(content)}
+          </span>
+        </div>
       </div>
 
       {/* Content */}
