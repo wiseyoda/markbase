@@ -5,6 +5,13 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Level Agency brand palette */
+  --brand-blue: #86D5F4;
+  --brand-pink: #FD6EF8;
+  --brand-green: #8EE34D;
+  --brand-orange: #FFAA53;
+  --brand-gray: #D9DEF0;
 }
 
 @theme inline {
@@ -27,11 +34,16 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Markdown prose fixes */
+/* ─── Markdown prose styling ─── */
+
+/* Code blocks */
 .prose pre {
   overflow-x: auto !important;
   max-width: 100% !important;
   word-wrap: normal;
+  border-radius: 12px;
+  border: 1px solid #27272a;
+  padding: 1.25rem;
 }
 
 .prose pre code {
@@ -39,6 +51,8 @@ body {
   word-break: normal;
   overflow-wrap: normal;
   display: block;
+  font-size: 0.875rem;
+  line-height: 1.7;
 }
 
 .prose pre code .hljs-ln-line,
@@ -46,13 +60,163 @@ body {
   background: transparent !important;
 }
 
+/* Headings — tighter tracking, better spacing */
+.prose h1 {
+  letter-spacing: -0.025em;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 2rem;
+}
 
+.prose h1:first-child {
+  margin-top: 0;
+}
+
+.prose h2 {
+  letter-spacing: -0.02em;
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.4rem;
+  font-size: 1.5rem;
+}
+
+.prose h3 {
+  letter-spacing: -0.015em;
+  margin-top: 1.75rem;
+  margin-bottom: 0.4rem;
+  font-size: 1.25rem;
+}
+
+.prose h4 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.4rem;
+}
+
+/* Reduce space after HR before heading */
+.prose hr + h1,
+.prose hr + h2,
+.prose hr + h3,
+.prose hr + h4 {
+  margin-top: 1.25rem;
+}
+
+/* Lists — tighter */
+.prose ul,
+.prose ol {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose li {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Tables — refined */
+.prose table {
+  border-collapse: collapse;
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.875rem;
+}
+
+.prose thead {
+  border-bottom: 2px solid #27272a;
+}
+
+.prose th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+}
+
+.prose td {
+  padding: 0.625rem 1rem;
+}
+
+.prose tbody tr {
+  border-bottom: 1px solid #1a1a1a;
+}
+
+/* ─── Dark mode overrides ─── */
 @media (prefers-color-scheme: dark) {
-  .prose del,
-  .prose s {
-    color: #a1a1aa;
+  /* Headings — blue family, fading to neutral */
+  .prose h1 {
+    color: var(--brand-blue);
   }
 
+  .prose h2 {
+    color: #b8e4f7;
+    border-bottom: 1px solid #1f1f23;
+  }
+
+  .prose h3 {
+    color: #e4e4e7;
+  }
+
+  .prose h4,
+  .prose h5,
+  .prose h6 {
+    color: #d4d4d8;
+  }
+
+  /* Links — brand blue */
+  .prose a {
+    color: var(--brand-blue) !important;
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .prose a:hover {
+    color: #b4e5f9 !important;
+    text-decoration: underline;
+  }
+
+  /* Inline code */
+  .prose :not(pre) > code {
+    background: #1c1c20 !important;
+    color: var(--brand-green) !important;
+    border: 1px solid #27272a;
+    border-radius: 6px;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.85em;
+  }
+
+  /* Code blocks */
+  .prose pre {
+    background: #111113 !important;
+    border-color: #1f1f23;
+  }
+
+  /* Blockquotes */
+  .prose blockquote {
+    border-left: 3px solid var(--brand-blue);
+    background: #111113;
+    border-radius: 0 8px 8px 0;
+    padding: 0.75rem 1.25rem;
+    color: #a1a1aa;
+    font-style: normal;
+  }
+
+  .prose blockquote p {
+    margin: 0.25rem 0;
+  }
+
+  /* Horizontal rules — subtle */
+  .prose hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      #3f3f46 30%,
+      #3f3f46 70%,
+      transparent
+    );
+    margin: 2rem 0;
+  }
+
+  /* Strong / em / del */
   .prose strong {
     color: #fafafa;
   }
@@ -61,25 +225,90 @@ body {
     color: #d4d4d8;
   }
 
+  .prose del,
+  .prose s {
+    color: #71717a;
+    text-decoration-color: #52525b;
+  }
+
+  /* Mark / highlight */
   .prose mark {
-    background-color: #854d0e;
-    color: #fef9c3;
+    background: rgba(255, 170, 83, 0.2);
+    color: var(--brand-orange);
+    border-radius: 3px;
+    padding: 0.1rem 0.3rem;
   }
 
-  .prose hr {
-    border-color: #27272a;
-  }
-
+  /* Tables */
   .prose th {
     color: #fafafa;
+    background: #111113;
   }
 
   .prose td {
     color: #d4d4d8;
   }
 
+  .prose tbody tr {
+    border-bottom-color: #1a1a1a;
+  }
+
+  .prose tbody tr:hover {
+    background: #111113;
+  }
+
+  /* Task lists */
+  .prose input[type="checkbox"] {
+    accent-color: var(--brand-green);
+  }
+}
+
+/* ─── Light mode overrides ─── */
+@media (prefers-color-scheme: light) {
+  .prose h1 {
+    color: #0c4a6e;
+  }
+
+  .prose h2 {
+    border-bottom: 1px solid #e4e4e7;
+  }
+
+  .prose a {
+    color: #0369a1 !important;
+  }
+
+  .prose a:hover {
+    color: #0c4a6e !important;
+  }
+
   .prose blockquote {
-    border-left-color: #3f3f46;
-    color: #a1a1aa;
+    border-left: 3px solid #0ea5e9;
+    background: #fafafa;
+    border-radius: 0 8px 8px 0;
+    padding: 0.75rem 1.25rem;
+  }
+
+  .prose :not(pre) > code {
+    background: #f4f4f5;
+    color: #166534;
+    border: 1px solid #e4e4e7;
+    border-radius: 6px;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.85em;
+  }
+
+  .prose hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      #86D5F4 20%,
+      #FD6EF8 50%,
+      #8EE34D 80%,
+      transparent
+    );
+    opacity: 0.4;
+    margin: 2rem 0;
   }
 }

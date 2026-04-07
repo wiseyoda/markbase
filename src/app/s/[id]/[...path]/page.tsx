@@ -12,13 +12,14 @@ function resolveShareLink(
   href: string,
   currentPath: string,
   shareId: string,
-): string {
+  folderScope: string | null,
+): { url: string; inScope: boolean } {
   if (
     href.startsWith("http") ||
     href.startsWith("#") ||
     href.startsWith("mailto:")
   ) {
-    return href;
+    return { url: href, inScope: true };
   }
 
   const currentDir = currentPath.split("/").slice(0, -1).join("/");
@@ -33,10 +34,14 @@ function resolveShareLink(
   const resolvedPath = resolved.join("/");
 
   if (resolvedPath.endsWith(".md")) {
-    return `/s/${shareId}/${resolvedPath}`;
+    // Check if link is within folder scope
+    if (folderScope && !resolvedPath.startsWith(folderScope + "/")) {
+      return { url: resolvedPath, inScope: false };
+    }
+    return { url: `/s/${shareId}/${resolvedPath}`, inScope: true };
   }
 
-  return href;
+  return { url: href, inScope: true };
 }
 
 export default async function SharedFilePage({
@@ -47,10 +52,17 @@ export default async function SharedFilePage({
   const { id, path: pathSegments } = await params;
   const share = await getShare(id);
 
-  if (!share || share.type !== "repo") notFound();
+  if (!share || (share.type !== "repo" && share.type !== "folder")) notFound();
 
   const [owner, repo] = share.repo.split("/");
   const filePath = pathSegments.join("/");
+
+  // For folder shares, verify the path is within the shared folder
+  if (share.type === "folder" && share.file_path) {
+    if (!filePath.startsWith(share.file_path + "/")) {
+      notFound();
+    }
+  }
 
   const content = await getFileContent(
     share.accessToken,
@@ -62,16 +74,28 @@ export default async function SharedFilePage({
 
   if (!content) notFound();
 
+  const folderScope = share.type === "folder" ? share.file_path : null;
+
   const components: Components = {
     a: ({ href, children, ...props }) => {
-      const resolved = href
-        ? resolveShareLink(href, filePath, id)
-        : "#";
-      const isInternal = resolved.startsWith("/s/");
+      const { url, inScope } = href
+        ? resolveShareLink(href, filePath, id, folderScope)
+        : { url: "#", inScope: true };
+
+      // Out-of-scope .md links — render as muted text
+      if (!inScope) {
+        return (
+          <span className="cursor-not-allowed text-zinc-500 dark:text-zinc-500" {...props}>
+            {children}
+          </span>
+        );
+      }
+
+      const isInternal = url.startsWith("/s/");
 
       if (isInternal) {
         return (
-          <Link href={resolved} {...props}>
+          <Link href={url} {...props}>
             {children}
           </Link>
         );
@@ -79,7 +103,7 @@ export default async function SharedFilePage({
 
       return (
         <a
-          href={resolved}
+          href={url}
           target="_blank"
           rel="noopener noreferrer"
           {...props}
@@ -131,7 +155,7 @@ export default async function SharedFilePage({
         </span>
       </header>
       <main className="mx-auto w-full max-w-4xl px-8 py-8">
-        <article className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline prose-code:rounded prose-code:bg-zinc-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:text-zinc-800 dark:prose-code:bg-zinc-800 dark:prose-code:text-zinc-200 prose-code:before:content-none prose-code:after:content-none prose-pre:bg-zinc-900 dark:prose-pre:bg-zinc-950 dark:prose-strong:text-zinc-50 dark:prose-del:text-zinc-400">
+        <article className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
           <Markdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeHighlight]}

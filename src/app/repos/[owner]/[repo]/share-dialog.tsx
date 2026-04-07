@@ -1,20 +1,68 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, createContext, useContext } from "react";
 import { usePathname } from "next/navigation";
 import { createShareAction } from "./share-actions";
 
-interface ShareDialogProps {
-  repo: string;
-  branch: string;
-  currentFile: string | null;
+type ShareType = "file" | "folder" | "repo";
+
+interface ShareModalState {
+  open: boolean;
+  defaultType: ShareType;
+  targetPath: string | null;
 }
 
-export function ShareButton({ repo, branch }: Omit<ShareDialogProps, "currentFile">) {
-  const [open, setOpen] = useState(false);
+interface ShareContextValue {
+  openShare: (type: ShareType, path: string | null) => void;
+}
+
+const ShareContext = createContext<ShareContextValue>({
+  openShare: () => {},
+});
+
+export function useShareDialog() {
+  return useContext(ShareContext);
+}
+
+export function ShareProvider({
+  repo,
+  branch,
+  children,
+}: {
+  repo: string;
+  branch: string;
+  children: React.ReactNode;
+}) {
+  const [modal, setModal] = useState<ShareModalState>({
+    open: false,
+    defaultType: "repo",
+    targetPath: null,
+  });
+
+  const openShare = (type: ShareType, path: string | null) => {
+    setModal({ open: true, defaultType: type, targetPath: path });
+  };
+
+  return (
+    <ShareContext.Provider value={{ openShare }}>
+      {children}
+      {modal.open && (
+        <ShareModal
+          repo={repo}
+          branch={branch}
+          defaultType={modal.defaultType}
+          targetPath={modal.targetPath}
+          onClose={() => setModal((s) => ({ ...s, open: false }))}
+        />
+      )}
+    </ShareContext.Provider>
+  );
+}
+
+export function ShareButton({ repo, branch }: { repo: string; branch: string }) {
+  const { openShare } = useShareDialog();
   const pathname = usePathname();
 
-  // Derive current file from URL: /repos/owner/repo/path/to/file.md
   const [owner, repoName] = repo.split("/");
   const prefix = `/repos/${owner}/${repoName}/`;
   const currentFile = pathname.startsWith(prefix)
@@ -22,48 +70,84 @@ export function ShareButton({ repo, branch }: Omit<ShareDialogProps, "currentFil
     : null;
 
   return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 rounded-md border border-zinc-200 px-3 py-1.5 text-sm transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+    <button
+      onClick={() => openShare(currentFile ? "file" : "repo", currentFile)}
+      className="flex items-center gap-1.5 rounded-md border border-zinc-200 px-3 py-1.5 text-sm transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="currentColor"
+        className="text-zinc-500"
       >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 16 16"
-          fill="currentColor"
-          className="text-zinc-500"
-        >
-          <path d="M3.75 2h3.5a.75.75 0 010 1.5h-3.5a.25.25 0 00-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 00.25-.25v-3.5a.75.75 0 011.5 0v3.5A1.75 1.75 0 0112.25 14h-8.5A1.75 1.75 0 012 12.25v-8.5C2 2.784 2.784 2 3.75 2zm6.854-1h4.146a.25.25 0 01.25.25v4.146a.25.25 0 01-.427.177L13.03 4.03 9.28 7.78a.751.751 0 01-1.042-.018.751.751 0 01-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0110.604 1z" />
-        </svg>
-        Share
-      </button>
-
-      {open && (
-        <ShareModal
-          repo={repo}
-          branch={branch}
-          currentFile={currentFile}
-          onClose={() => setOpen(false)}
-        />
-      )}
-    </>
+        <path d="M3.75 2h3.5a.75.75 0 010 1.5h-3.5a.25.25 0 00-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 00.25-.25v-3.5a.75.75 0 011.5 0v3.5A1.75 1.75 0 0112.25 14h-8.5A1.75 1.75 0 012 12.25v-8.5C2 2.784 2.784 2 3.75 2zm6.854-1h4.146a.25.25 0 01.25.25v4.146a.25.25 0 01-.427.177L13.03 4.03 9.28 7.78a.751.751 0 01-1.042-.018.751.751 0 01-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0110.604 1z" />
+      </svg>
+      Share
+    </button>
   );
 }
 
 function ShareModal({
   repo,
   branch,
-  currentFile,
+  defaultType,
+  targetPath,
   onClose,
-}: ShareDialogProps & { onClose: () => void }) {
-  const [type, setType] = useState<"file" | "repo">(
-    currentFile ? "file" : "repo",
-  );
+}: {
+  repo: string;
+  branch: string;
+  defaultType: ShareType;
+  targetPath: string | null;
+  onClose: () => void;
+}) {
+  const [type, setType] = useState<ShareType>(defaultType);
   const [expiry, setExpiry] = useState<string>("7d");
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  const folderPath = targetPath
+    ? targetPath.includes("/")
+      ? targetPath.split("/").slice(0, -1).join("/")
+      : null
+    : null;
+
+  // For folder shares opened from context menu, targetPath IS the folder
+  const effectiveFolderPath =
+    defaultType === "folder" ? targetPath : folderPath;
+
+  const filePath = (() => {
+    if (type === "file") return targetPath;
+    if (type === "folder") return effectiveFolderPath;
+    return null;
+  })();
+
+  const description = (() => {
+    if (type === "file" && targetPath) {
+      return (
+        <>
+          <span className="text-zinc-400">{repo}/</span>
+          {targetPath}
+        </>
+      );
+    }
+    if (type === "folder" && effectiveFolderPath) {
+      return (
+        <>
+          All .md files in{" "}
+          <span className="font-medium">
+            {repo}/{effectiveFolderPath}/
+          </span>
+        </>
+      );
+    }
+    return (
+      <>
+        All .md files in <span className="font-medium">{repo}</span>
+      </>
+    );
+  })();
 
   const handleCreate = () => {
     startTransition(async () => {
@@ -71,7 +155,7 @@ function ShareModal({
         type,
         repo,
         branch,
-        filePath: type === "file" ? currentFile : null,
+        filePath,
         expiresIn: expiry === "never" ? null : expiry,
       });
       const base = window.location.origin;
@@ -85,6 +169,21 @@ function ShareModal({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const typeButton = (t: ShareType, label: string, show: boolean) =>
+    show && (
+      <button
+        key={t}
+        onClick={() => setType(t)}
+        className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${
+          type === t
+            ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+            : "border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+        }`}
+      >
+        {label}
+      </button>
+    );
 
   return (
     <>
@@ -102,52 +201,25 @@ function ShareModal({
 
         {!shareUrl ? (
           <>
-            {/* Type selector */}
             <div className="mb-4">
               <label className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-300">
                 Share type
               </label>
               <div className="flex gap-2">
-                {currentFile && (
-                  <button
-                    onClick={() => setType("file")}
-                    className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                      type === "file"
-                        ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                        : "border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                    }`}
-                  >
-                    This file
-                  </button>
+                {typeButton("file", "This file", !!targetPath)}
+                {typeButton(
+                  "folder",
+                  "This folder",
+                  !!effectiveFolderPath,
                 )}
-                <button
-                  onClick={() => setType("repo")}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                    type === "repo"
-                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                      : "border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                  }`}
-                >
-                  Entire repo
-                </button>
+                {typeButton("repo", "Entire repo", true)}
               </div>
             </div>
 
-            {/* What's being shared */}
             <div className="mb-4 rounded-lg bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-              {type === "file" && currentFile ? (
-                <>
-                  <span className="text-zinc-400">{repo}/</span>
-                  {currentFile}
-                </>
-              ) : (
-                <>
-                  All .md files in <span className="font-medium">{repo}</span>
-                </>
-              )}
+              {description}
             </div>
 
-            {/* Expiry */}
             <div className="mb-6">
               <label className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-300">
                 Expires
@@ -191,9 +263,13 @@ function ShareModal({
             </div>
             <p className="text-xs text-zinc-400 dark:text-zinc-500">
               Anyone with this link can view{" "}
-              {type === "file" ? "this file" : "all markdown files in this repo"}
+              {type === "file"
+                ? "this file"
+                : type === "folder"
+                  ? "files in this folder"
+                  : "all markdown files in this repo"}
               .
-              {expiry !== "never" && ` Link expires in ${expiry}.`}
+              {expiry !== "never" && ` Expires in ${expiry}.`}
             </p>
           </>
         )}

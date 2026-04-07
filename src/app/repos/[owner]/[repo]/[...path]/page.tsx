@@ -4,12 +4,14 @@ import Link from "next/link";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import matter from "gray-matter";
 import type { Components } from "react-markdown";
 import {
   getDefaultBranch,
   getFileContent,
   getMarkdownTree,
 } from "@/lib/github";
+import { CopyButton } from "./copy-button";
 import "highlight.js/styles/github-dark.css";
 
 function resolveRelativeLink(
@@ -52,6 +54,38 @@ function formatBytes(bytes: number): string {
   return `${mb.toFixed(1)} MB`;
 }
 
+interface TocEntry {
+  level: number;
+  text: string;
+  slug: string;
+}
+
+function extractToc(markdown: string): TocEntry[] {
+  const entries: TocEntry[] = [];
+  const lines = markdown.split("\n");
+
+  for (const line of lines) {
+    const match = line.match(/^(#{1,4})\s+(.+)$/);
+    if (match) {
+      const level = match[1].length;
+      const text = match[2].replace(/[*_`~\[\]]/g, "");
+      const slug = text
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, "")
+        .replace(/\s+/g, "-");
+      entries.push({ level, text, slug });
+    }
+  }
+
+  return entries;
+}
+
+function readingTime(text: string): string {
+  const words = text.split(/\s+/).length;
+  const minutes = Math.ceil(words / 230);
+  return `${minutes} min read`;
+}
+
 export default async function MarkdownViewPage({
   params,
 }: {
@@ -64,14 +98,22 @@ export default async function MarkdownViewPage({
   const filePath = pathSegments.join("/");
   const branch = await getDefaultBranch(session.accessToken, owner, repo);
 
-  const [content, files] = await Promise.all([
+  const [rawContent, files] = await Promise.all([
     getFileContent(session.accessToken, owner, repo, branch, filePath),
     getMarkdownTree(session.accessToken, owner, repo, branch),
   ]);
 
-  if (content === null) {
+  if (rawContent === null) {
     notFound();
   }
+
+  // Parse frontmatter
+  const { data: frontmatter, content } = matter(rawContent);
+  const hasFrontmatter = Object.keys(frontmatter).length > 0;
+
+  // Extract TOC
+  const toc = extractToc(content);
+  const hasToc = toc.length > 2;
 
   // Compute prev/next files
   const allPaths = files.map((f) => f.path).sort();
@@ -80,7 +122,7 @@ export default async function MarkdownViewPage({
   const nextFile =
     currentIndex < allPaths.length - 1 ? allPaths[currentIndex + 1] : null;
 
-  const fileSize = new Blob([content]).size;
+  const fileSize = new Blob([rawContent]).size;
   const githubUrl = `https://github.com/${owner}/${repo}/blob/${branch}/${filePath}`;
 
   const components: Components = {
@@ -128,20 +170,119 @@ export default async function MarkdownViewPage({
         />
       );
     },
+    pre: ({ children, ...props }) => {
+      // Extract text content for the copy button
+      let codeText = "";
+      const extractText = (node: React.ReactNode): void => {
+        if (typeof node === "string") {
+          codeText += node;
+        } else if (Array.isArray(node)) {
+          node.forEach(extractText);
+        } else if (node && typeof node === "object" && "props" in node) {
+          const reactNode = node as React.ReactElement<{ children?: React.ReactNode }>;
+          if (reactNode.props?.children) {
+            extractText(reactNode.props.children);
+          }
+        }
+      };
+      extractText(children);
+
+      return (
+        <div className="group relative">
+          <CopyButton text={codeText.trim()} />
+          <pre {...props}>{children}</pre>
+        </div>
+      );
+    },
+    h1: ({ children, ...props }) => {
+      const text = String(children).replace(/[*_`~\[\]]/g, "");
+      const id = text.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+      return <h1 id={id} {...props}>{children}</h1>;
+    },
+    h2: ({ children, ...props }) => {
+      const text = String(children).replace(/[*_`~\[\]]/g, "");
+      const id = text.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+      return <h2 id={id} {...props}>{children}</h2>;
+    },
+    h3: ({ children, ...props }) => {
+      const text = String(children).replace(/[*_`~\[\]]/g, "");
+      const id = text.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+      return <h3 id={id} {...props}>{children}</h3>;
+    },
+    h4: ({ children, ...props }) => {
+      const text = String(children).replace(/[*_`~\[\]]/g, "");
+      const id = text.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+      return <h4 id={id} {...props}>{children}</h4>;
+    },
   };
 
   return (
     <div className="flex flex-col">
-      {/* Breadcrumb for current file */}
-      <div className="border-b border-zinc-200 px-8 py-3 dark:border-zinc-800">
+      {/* Breadcrumb + reading time */}
+      <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-3 dark:border-zinc-800">
         <span className="text-sm text-zinc-500 dark:text-zinc-400">
           {filePath}
+        </span>
+        <span className="text-xs text-zinc-400 dark:text-zinc-500">
+          {readingTime(content)}
         </span>
       </div>
 
       {/* Content */}
       <div className="mx-auto w-full max-w-4xl px-8 py-8">
-        <article className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline prose-code:rounded prose-code:bg-zinc-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:text-zinc-800 dark:prose-code:bg-zinc-800 dark:prose-code:text-zinc-200 prose-code:before:content-none prose-code:after:content-none prose-pre:bg-zinc-900 dark:prose-pre:bg-zinc-950 dark:prose-strong:text-zinc-50 dark:prose-del:text-zinc-400">
+        {/* Frontmatter */}
+        {hasFrontmatter && (
+          <details className="mb-6 rounded-lg border border-zinc-200 dark:border-zinc-800">
+            <summary className="cursor-pointer px-4 py-2.5 text-sm font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+              Frontmatter
+            </summary>
+            <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+                {Object.entries(frontmatter).map(([key, value]) => (
+                  <div key={key} className="contents">
+                    <dt className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
+                      {key}
+                    </dt>
+                    <dd className="text-zinc-600 dark:text-zinc-300">
+                      {typeof value === "object"
+                        ? JSON.stringify(value)
+                        : String(value)}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </details>
+        )}
+
+        {/* Table of Contents */}
+        {hasToc && (
+          <details className="mb-6 rounded-lg border border-zinc-200 dark:border-zinc-800">
+            <summary className="cursor-pointer px-4 py-2.5 text-sm font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+              Table of contents
+            </summary>
+            <nav className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+              <ul className="flex flex-col gap-1">
+                {toc.map((entry, i) => (
+                  <li
+                    key={`${entry.slug}-${i}`}
+                    style={{ paddingLeft: `${(entry.level - 1) * 1}rem` }}
+                  >
+                    <a
+                      href={`#${entry.slug}`}
+                      className="text-sm text-zinc-500 transition-colors hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                    >
+                      {entry.text}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          </details>
+        )}
+
+        {/* Markdown */}
+        <article className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
           <Markdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeHighlight]}

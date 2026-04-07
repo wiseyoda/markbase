@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { createShare, deleteShare } from "@/lib/shares";
 
 export async function createShareAction(opts: {
-  type: "file" | "repo";
+  type: "file" | "repo" | "folder";
   repo: string;
   branch: string;
   filePath: string | null;

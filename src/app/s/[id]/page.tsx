@@ -3,9 +3,42 @@ import Link from "next/link";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import type { Components } from "react-markdown";
 import { getShare } from "@/lib/shares";
 import { getFileContent, getMarkdownTree } from "@/lib/github";
 import "highlight.js/styles/github-dark.css";
+
+// For file shares: disable .md links (render as muted text)
+function fileShareComponents(): Components {
+  return {
+    a: ({ href, children }) => {
+      const isMdLink =
+        href &&
+        !href.startsWith("http") &&
+        !href.startsWith("#") &&
+        !href.startsWith("mailto:") &&
+        href.endsWith(".md");
+
+      if (isMdLink) {
+        return (
+          <span className="cursor-not-allowed text-zinc-500 dark:text-zinc-500">
+            {children}
+          </span>
+        );
+      }
+
+      if (href?.startsWith("#")) {
+        return <a href={href}>{children}</a>;
+      }
+
+      return (
+        <a href={href || "#"} target="_blank" rel="noopener noreferrer">
+          {children}
+        </a>
+      );
+    },
+  };
+}
 
 export default async function SharePage({
   params,
@@ -50,10 +83,11 @@ export default async function SharePage({
           </span>
         </header>
         <main className="mx-auto w-full max-w-4xl px-8 py-8">
-          <article className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline prose-code:rounded prose-code:bg-zinc-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:text-zinc-800 dark:prose-code:bg-zinc-800 dark:prose-code:text-zinc-200 prose-code:before:content-none prose-code:after:content-none prose-pre:bg-zinc-900 dark:prose-pre:bg-zinc-950 dark:prose-strong:text-zinc-50 dark:prose-del:text-zinc-400">
+          <article className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
             <Markdown
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[rehypeHighlight]}
+              components={fileShareComponents()}
             >
               {content}
             </Markdown>
@@ -63,14 +97,20 @@ export default async function SharePage({
     );
   }
 
-  // Repo share: show file tree with links to browse
-  if (share.type === "repo") {
-    const files = await getMarkdownTree(
+  // Repo or folder share: show file tree with links to browse
+  if (share.type === "repo" || share.type === "folder") {
+    let files = await getMarkdownTree(
       share.accessToken,
       owner,
       repo,
       share.branch,
     );
+
+    // Filter to folder prefix for folder shares
+    if (share.type === "folder" && share.file_path) {
+      const prefix = share.file_path + "/";
+      files = files.filter((f) => f.path.startsWith(prefix));
+    }
 
     return (
       <div className="flex min-h-screen flex-col">

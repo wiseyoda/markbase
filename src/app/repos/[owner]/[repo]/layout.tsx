@@ -4,7 +4,7 @@ import Link from "next/link";
 import { getDefaultBranch, getMarkdownTree } from "@/lib/github";
 import type { MarkdownFile } from "@/lib/github";
 import { Sidebar } from "./sidebar";
-import { ShareButton } from "./share-dialog";
+import { ShareButton, ShareProvider } from "./share-dialog";
 
 export interface TreeNode {
   name: string;
@@ -71,6 +71,7 @@ export default async function RepoLayout({
   const fileCount = files.length;
 
   return (
+    <ShareProvider repo={`${owner}/${repo}`} branch={branch}>
     <div className="flex h-screen flex-col">
       {/* Top bar */}
       <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
@@ -116,5 +117,6 @@ export default async function RepoLayout({
         </main>
       </div>
     </div>
+    </ShareProvider>
   );
 }

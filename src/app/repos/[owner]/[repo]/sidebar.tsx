@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { TreeNode } from "./layout";
+import { useShareDialog } from "./share-dialog";
 
 interface SidebarProps {
   tree: TreeNode[];
@@ -114,6 +116,50 @@ function TreeView({
   );
 }
 
+function ContextMenu({
+  x,
+  y,
+  items,
+  onClose,
+}: {
+  x: number;
+  y: number;
+  items: { label: string; onClick: () => void }[];
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      ref={ref}
+      className="fixed z-[100] min-w-[150px] rounded-md border border-zinc-200 bg-white py-0.5 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+      style={{ left: x, top: y }}
+    >
+      {items.map((item) => (
+        <button
+          key={item.label}
+          onClick={() => {
+            item.onClick();
+            onClose();
+          }}
+          className="flex w-full items-center px-3 py-1 text-xs text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>,
+    document.body,
+  );
+}
+
 function FileItem({
   node,
   owner,
@@ -129,12 +175,22 @@ function FileItem({
 }) {
   const href = `/repos/${owner}/${repo}/${node.path}`;
   const isActive = pathname === href;
+  const { openShare } = useShareDialog();
+  const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null);
+
+  const folderPath = node.path.includes("/")
+    ? node.path.split("/").slice(0, -1).join("/")
+    : null;
 
   return (
     <li>
       <Link
         href={href}
         onClick={onNavigate}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setCtx({ x: e.clientX, y: e.clientY });
+        }}
         className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
           isActive
             ? "bg-blue-50 font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300"
@@ -152,6 +208,31 @@ function FileItem({
         </svg>
         <span className="truncate">{node.name}</span>
       </Link>
+      {ctx && (
+        <ContextMenu
+          x={ctx.x}
+          y={ctx.y}
+          onClose={() => setCtx(null)}
+          items={[
+            {
+              label: "Share this file",
+              onClick: () => openShare("file", node.path),
+            },
+            ...(folderPath
+              ? [
+                  {
+                    label: "Share parent folder",
+                    onClick: () => openShare("folder", folderPath),
+                  },
+                ]
+              : []),
+            {
+              label: "Share entire repo",
+              onClick: () => openShare("repo", null),
+            },
+          ]}
+        />
+      )}
     </li>
   );
 }
@@ -181,10 +262,17 @@ function FolderItem({
     return check(node);
   });
 
+  const { openShare } = useShareDialog();
+  const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null);
+
   return (
     <li>
       <button
         onClick={() => setOpen(!open)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setCtx({ x: e.clientX, y: e.clientY });
+        }}
         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
       >
         <svg
@@ -207,6 +295,23 @@ function FolderItem({
         </svg>
         <span className="truncate">{node.name}</span>
       </button>
+      {ctx && (
+        <ContextMenu
+          x={ctx.x}
+          y={ctx.y}
+          onClose={() => setCtx(null)}
+          items={[
+            {
+              label: "Share this folder",
+              onClick: () => openShare("folder", node.path),
+            },
+            {
+              label: "Share entire repo",
+              onClick: () => openShare("repo", null),
+            },
+          ]}
+        />
+      )}
       {open && (
         <TreeView
           nodes={node.children}

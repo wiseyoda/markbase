@@ -17,7 +17,7 @@ export async function initDb() {
   await db`
     CREATE TABLE IF NOT EXISTS shares (
       id TEXT PRIMARY KEY,
-      type TEXT NOT NULL CHECK (type IN ('file', 'repo')),
+      type TEXT NOT NULL CHECK (type IN ('file', 'repo', 'folder')),
       owner_id TEXT NOT NULL,
       repo TEXT NOT NULL,
       branch TEXT NOT NULL,
@@ -28,6 +28,14 @@ export async function initDb() {
       deleted_at TIMESTAMPTZ
     )
   `;
+  // Migrate existing constraint to support folder type
+  await db`
+    ALTER TABLE shares DROP CONSTRAINT IF EXISTS shares_type_check
+  `.catch(() => {});
+  await db`
+    ALTER TABLE shares ADD CONSTRAINT shares_type_check
+    CHECK (type IN ('file', 'repo', 'folder'))
+  `.catch(() => {});
   await db`
     CREATE TABLE IF NOT EXISTS synced_repos (
       user_id TEXT NOT NULL,

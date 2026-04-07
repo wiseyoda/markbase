@@ -6,7 +6,7 @@ import { encrypt, decrypt } from "./crypto";
 
 export interface Share {
   id: string;
-  type: "file" | "repo";
+  type: "file" | "repo" | "folder";
   owner_id: string;
   repo: string;
   branch: string;
@@ -21,7 +21,7 @@ export interface ShareWithToken extends Share {
 }
 
 export async function createShare(opts: {
-  type: "file" | "repo";
+  type: "file" | "repo" | "folder";
   ownerId: string;
   repo: string;
   branch: string;
