@@ -9,6 +9,7 @@ import {
   useCallback,
   createContext,
   useContext,
+  useSyncExternalStore,
 } from "react";
 import {
   addComment,
@@ -64,6 +65,21 @@ const CommentContext = createContext<CommentContextValue>({
   setCount: () => {},
 });
 
+function subscribeCommentsStorage(cb: () => void) {
+  const handler = (e: StorageEvent) => {
+    if (e.key === "markbase-comments") cb();
+  };
+  window.addEventListener("storage", handler);
+  return () => window.removeEventListener("storage", handler);
+}
+
+function getCommentsSnapshot(): boolean | null {
+  const stored = sessionStorage.getItem("markbase-comments");
+  if (stored === "open") return true;
+  if (stored === "closed") return false;
+  return null; // no stored preference
+}
+
 export function CommentProvider({
   children,
   initialCount,
@@ -71,18 +87,18 @@ export function CommentProvider({
   children: React.ReactNode;
   initialCount: number;
 }) {
-  const [open, setOpenRaw] = useState(() => {
-    if (typeof window === "undefined") return initialCount > 0;
-    const stored = sessionStorage.getItem("markbase-comments");
-    if (stored === "open") return true;
-    if (stored === "closed") return false;
-    return initialCount > 0; // default: open when there are comments
-  });
+  const storedPref = useSyncExternalStore(
+    subscribeCommentsStorage,
+    getCommentsSnapshot,
+    () => null,
+  );
+  // Use stored preference if set, otherwise open when there are comments
+  const open = storedPref ?? initialCount > 0;
   const [count, setCount] = useState(initialCount);
 
   const setOpen = useCallback((v: boolean) => {
-    setOpenRaw(v);
     sessionStorage.setItem("markbase-comments", v ? "open" : "closed");
+    window.dispatchEvent(new StorageEvent("storage", { key: "markbase-comments" }));
   }, []);
 
   return (

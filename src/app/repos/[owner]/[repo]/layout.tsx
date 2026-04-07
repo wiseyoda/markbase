@@ -98,6 +98,7 @@ export default async function RepoLayout({
       {/* Top bar */}
       <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 sm:px-6 py-3 dark:border-zinc-800">
         <div className="flex min-w-0 items-center gap-2 text-sm">
+          <SidebarToggle />
           <Link href="/dashboard" className="shrink-0 font-semibold">
             markbase
           </Link>
@@ -112,7 +113,6 @@ export default async function RepoLayout({
           </Link>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <SidebarToggle />
           <ShareButton
             repo={`${owner}/${repo}`}
             branch={branch}

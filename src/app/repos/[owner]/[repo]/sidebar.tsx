@@ -8,6 +8,7 @@ import {
   createContext,
   useCallback,
   useMemo,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -35,26 +36,37 @@ const SidebarContext = createContext<SidebarContextValue>({
   toggle: () => {},
 });
 
+function subscribeSidebarStorage(cb: () => void) {
+  const handler = (e: StorageEvent) => {
+    if (e.key === "markbase-sidebar") cb();
+  };
+  window.addEventListener("storage", handler);
+  return () => window.removeEventListener("storage", handler);
+}
+
+function getSidebarSnapshot(): boolean {
+  const stored = sessionStorage.getItem("markbase-sidebar");
+  if (stored === "open") return true;
+  if (stored === "closed") return false;
+  return window.innerWidth >= 1024;
+}
+
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  const [open, setOpenRaw] = useState(() => {
-    if (typeof window === "undefined") return true;
-    const stored = sessionStorage.getItem("markbase-sidebar");
-    if (stored === "open") return true;
-    if (stored === "closed") return false;
-    return window.innerWidth >= 1024; // default: open on desktop
-  });
+  const open = useSyncExternalStore(
+    subscribeSidebarStorage,
+    getSidebarSnapshot,
+    () => true,
+  );
 
   const setOpen = useCallback((v: boolean) => {
-    setOpenRaw(v);
     sessionStorage.setItem("markbase-sidebar", v ? "open" : "closed");
+    window.dispatchEvent(new StorageEvent("storage", { key: "markbase-sidebar" }));
   }, []);
 
   const toggle = useCallback(() => {
-    setOpenRaw((prev) => {
-      const next = !prev;
-      sessionStorage.setItem("markbase-sidebar", next ? "open" : "closed");
-      return next;
-    });
+    const current = getSidebarSnapshot();
+    sessionStorage.setItem("markbase-sidebar", current ? "closed" : "open");
+    window.dispatchEvent(new StorageEvent("storage", { key: "markbase-sidebar" }));
   }, []);
 
   const value = useMemo(() => ({ open, setOpen, toggle }), [open, setOpen, toggle]);
@@ -68,20 +80,20 @@ export function useSidebar() {
 }
 
 // ---------------------------------------------------------------------------
-// SidebarToggle — rendered in the header, visible on mobile/tablet only
+// SidebarToggle — rendered on the left side of the header
 // ---------------------------------------------------------------------------
 
 export function SidebarToggle() {
   const { toggle } = useSidebar();
   return (
-    <Tooltip content="Toggle file tree" shortcut="/">
+    <Tooltip content="Toggle sidebar" shortcut="/">
       <button
         onClick={toggle}
-        className="inline-flex items-center justify-center rounded-md p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-        aria-label="Toggle file tree"
+        className="inline-flex items-center justify-center rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+        aria-label="Toggle sidebar"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75z" />
+          <path d="M0 2.75C0 1.784.784 1 1.75 1h12.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0114.25 15H1.75A1.75 1.75 0 010 13.25V2.75zm1.75-.25a.25.25 0 00-.25.25v10.5c0 .138.112.25.25.25h3.5V2.5h-3.5zm5 0v11h7.5a.25.25 0 00.25-.25V2.75a.25.25 0 00-.25-.25h-7.5z" />
         </svg>
       </button>
     </Tooltip>

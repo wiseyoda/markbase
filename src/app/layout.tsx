@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ToastProvider } from "@/components/toast";
@@ -43,7 +44,9 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <Script id="theme-init" strategy="beforeInteractive">
+          {THEME_SCRIPT}
+        </Script>
       </head>
       <body className="min-h-full flex flex-col">
         <a
