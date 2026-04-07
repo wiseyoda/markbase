@@ -45,7 +45,7 @@ function RepoCard({ repo, synced }: { repo: GitHubRepo; synced: boolean }) {
 
   return (
     <div
-      className={`flex flex-col gap-3 rounded-lg border border-zinc-200 px-5 py-4 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900 ${
+      className={`group/card flex flex-col gap-3 rounded-lg border border-zinc-200 px-5 py-4 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900 ${
         repo.archived ? "opacity-60" : ""
       }`}
     >
@@ -82,7 +82,7 @@ function RepoCard({ repo, synced }: { repo: GitHubRepo; synced: boolean }) {
       )}
 
       {/* Row 3: Language + branch */}
-      <div className="hidden sm:flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
+      <div className="hidden sm:flex sm:opacity-0 sm:transition-opacity sm:group-hover/card:opacity-100 items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
         {repo.language && (
           <span className="flex items-center gap-1">
             <span className="inline-block h-2.5 w-2.5 rounded-full bg-current" />
@@ -94,7 +94,7 @@ function RepoCard({ repo, synced }: { repo: GitHubRepo; synced: boolean }) {
 
       {/* Row 4: Stats (only if any > 0) */}
       {hasStats && (
-        <div className="hidden sm:flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
+        <div className="hidden sm:flex sm:opacity-0 sm:transition-opacity sm:group-hover/card:opacity-100 items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
           {repo.stargazers_count > 0 && (
             <span className="flex items-center gap-1">
               <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">

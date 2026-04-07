@@ -1,6 +1,7 @@
 "use client";
 
 import { useTheme } from "./theme-provider";
+import { Tooltip } from "./tooltip";
 
 const CYCLE: Record<string, "light" | "dark" | "system"> = {
   light: "dark",
@@ -41,13 +42,14 @@ export function ThemeToggle() {
   const Icon = ICONS[theme];
 
   return (
-    <button
-      onClick={() => setTheme(CYCLE[theme])}
-      className="inline-flex items-center justify-center rounded-md p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-      aria-label={LABELS[theme]}
-      title={LABELS[theme]}
-    >
-      <Icon />
-    </button>
+    <Tooltip content={LABELS[theme]}>
+      <button
+        onClick={() => setTheme(CYCLE[theme])}
+        className="inline-flex items-center justify-center rounded-md p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+        aria-label={LABELS[theme]}
+      >
+        <Icon />
+      </button>
+    </Tooltip>
   );
 }

@@ -6,7 +6,8 @@ import {
   getComments,
   resolveComment,
   unresolveComment,
-  deleteComment,
+  softDeleteComment,
+  restoreComment,
   buildFileKey,
 } from "@/lib/comments";
 import type { Comment } from "@/lib/comments";
@@ -70,5 +71,11 @@ export async function deleteCommentAction(
   const isOwner = repoOwner
     ? session?.user?.name?.toLowerCase() === repoOwner.toLowerCase()
     : false;
-  return deleteComment(commentId, user.id, isOwner);
+  return softDeleteComment(commentId, user.id, isOwner);
+}
+
+export async function restoreCommentAction(commentId: string): Promise<boolean> {
+  const user = await getUser();
+  if (!user) return false;
+  return restoreComment(commentId);
 }

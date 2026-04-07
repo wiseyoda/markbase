@@ -12,15 +12,21 @@ import {
 
 type ToastType = "success" | "error" | "info";
 
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface Toast {
   id: string;
   message: string;
   type: ToastType;
+  action?: ToastAction;
   state: "entering" | "visible" | "exiting";
 }
 
 interface ToastContextValue {
-  toast: (message: string, type?: ToastType) => void;
+  toast: (message: string, type?: ToastType, action?: ToastAction) => void;
 }
 
 const ToastContext = createContext<ToastContextValue>({
@@ -120,7 +126,15 @@ const iconColorMap: Record<ToastType, string> = {
   info: "text-blue-500",
 };
 
-function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
+function ToastItem({
+  toast,
+  onDismiss,
+  onRemove,
+}: {
+  toast: Toast;
+  onDismiss: () => void;
+  onRemove: () => void;
+}) {
   const Icon = iconMap[toast.type];
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -167,6 +181,17 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
         <Icon />
       </span>
       <span className="text-zinc-900 dark:text-zinc-100">{toast.message}</span>
+      {toast.action && (
+        <button
+          onClick={() => {
+            toast.action!.onClick();
+            onRemove();
+          }}
+          className="ml-2 shrink-0 text-xs font-semibold underline hover:no-underline"
+        >
+          {toast.action.label}
+        </button>
+      )}
     </div>
   );
 }
@@ -182,9 +207,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toast = useCallback(
-    (message: string, type: ToastType = "info") => {
+    (message: string, type: ToastType = "info", action?: ToastAction) => {
       const id = crypto.randomUUID();
-      const newToast: Toast = { id, message, type, state: "entering" };
+      const newToast: Toast = { id, message, type, action, state: "entering" };
 
       setToasts((prev) => {
         const next = [...prev, newToast];
@@ -228,7 +253,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       >
         {toasts.map((t) => (
           <div key={t.id} className="pointer-events-auto">
-            <ToastItem toast={t} onDismiss={() => removeToast(t.id)} />
+            <ToastItem
+              toast={t}
+              onDismiss={() => removeToast(t.id)}
+              onRemove={() => removeToast(t.id)}
+            />
           </div>
         ))}
       </div>

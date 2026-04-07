@@ -8,7 +8,7 @@ import {
   resolveComment,
   resolveComments,
   unresolveComment,
-  deleteComment,
+  softDeleteComment,
 } from "@/lib/comments";
 import type { McpToolDefinition, McpContext } from "./types";
 
@@ -347,7 +347,7 @@ const TOOLS: McpToolDefinition[] = [
         ? ctx.userLogin.toLowerCase() === repoOwner.toLowerCase()
         : false;
 
-      const ok = await deleteComment(
+      const ok = await softDeleteComment(
         args.comment_id as string,
         ctx.userId,
         isOwner,

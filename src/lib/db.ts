@@ -113,4 +113,8 @@ export async function initDb() {
     ON comments(file_key, created_at DESC)
     WHERE resolved_at IS NULL AND parent_id IS NULL
   `.catch(() => {});
+  // Soft-delete support for comments
+  await db`
+    ALTER TABLE comments ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ
+  `.catch(() => {});
 }

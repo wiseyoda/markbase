@@ -52,14 +52,17 @@ export default async function Home() {
             <Feature
               title="Beautiful rendering"
               description="Typography-first markdown with syntax highlighting, tables, and task lists."
+              accent="border-[#86D5F4]"
             />
             <Feature
               title="Share anything"
               description="Send a file, folder, or entire repo. Control access with expiring links."
+              accent="border-[#86D5F4]/60"
             />
             <Feature
               title="Inline comments"
               description="Select any text and leave a comment. Threaded discussions that stay anchored."
+              accent="border-[#86D5F4]/30"
             />
           </div>
         </div>
@@ -75,9 +78,17 @@ export default async function Home() {
   );
 }
 
-function Feature({ title, description }: { title: string; description: string }) {
+function Feature({
+  title,
+  description,
+  accent,
+}: {
+  title: string;
+  description: string;
+  accent?: string;
+}) {
   return (
-    <div>
+    <div className={accent ? `border-l-2 pl-4 ${accent}` : ""}>
       <h3 className="text-base font-semibold">{title}</h3>
       <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
         {description}
@@ -132,7 +143,7 @@ function ProductMockup() {
                 <span className="text-[#86D5F4]">await</span> syncReport(targets);
               </span>
               <span className="block">
-                <span className="inline-block w-[1px] h-3 bg-zinc-400 dark:bg-zinc-500 animate-pulse" />
+                <span className="inline-block w-[1px] h-3 bg-zinc-400 dark:bg-zinc-500 animate-blink" />
               </span>
             </div>
           </div>

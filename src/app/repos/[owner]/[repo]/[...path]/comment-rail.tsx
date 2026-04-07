@@ -16,12 +16,35 @@ import {
   resolveCommentAction,
   unresolveCommentAction,
   deleteCommentAction,
+  restoreCommentAction,
 } from "./comment-actions";
 import type { Comment } from "@/lib/comments";
 import { relativeTime } from "@/lib/format";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { useToast } from "@/components/toast";
+import { Tooltip } from "@/components/tooltip";
+
+/* ------------------------------------------------------------------ */
+/* Retry wrapper for transient network failures                       */
+/* ------------------------------------------------------------------ */
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = 2,
+  delay = 1000,
+): Promise<T> {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i === retries) throw e;
+      await new Promise((r) => setTimeout(r, delay * (i + 1)));
+    }
+  }
+  throw new Error("unreachable");
+}
 
 /* ------------------------------------------------------------------ */
 /* Context: shared open/close state between CommentToggle and Rail    */
@@ -60,26 +83,28 @@ export function CommentProvider({
 export function CommentToggle() {
   const { open, setOpen, count } = useContext(CommentContext);
   return (
-    <button
-      onClick={() => setOpen(!open)}
-      className="flex items-center gap-1.5 rounded-md border border-zinc-200 px-3 py-1.5 text-sm transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800 lg:hidden"
-    >
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 16 16"
-        fill="currentColor"
-        className="text-zinc-500 dark:text-zinc-400"
+    <Tooltip content={open ? "Hide comments" : "Show comments"}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 rounded-md border border-zinc-200 px-3 py-1.5 text-sm transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800 lg:hidden"
       >
-        <path d="M1 2.75C1 1.784 1.784 1 2.75 1h10.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 0113.25 12H9.06l-2.573 2.573A1.458 1.458 0 014 13.543V12H2.75A1.75 1.75 0 011 10.25v-7.5z" />
-      </svg>
-      Comments
-      {count > 0 && (
-        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs text-white">
-          {count}
-        </span>
-      )}
-    </button>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 16 16"
+          fill="currentColor"
+          className="text-zinc-500 dark:text-zinc-400"
+        >
+          <path d="M1 2.75C1 1.784 1.784 1 2.75 1h10.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 0113.25 12H9.06l-2.573 2.573A1.458 1.458 0 014 13.543V12H2.75A1.75 1.75 0 011 10.25v-7.5z" />
+        </svg>
+        Comments
+        {count > 0 && (
+          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs text-white">
+            {count}
+          </span>
+        )}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -103,6 +128,7 @@ export function CommentRail({
   initialComments,
 }: CommentRailProps) {
   const { open, setOpen, setCount } = useContext(CommentContext);
+  const { toast } = useToast();
   const isDesktop = useIsDesktop();
   const [comments, setComments] = useState<Comment[]>(initialComments || []);
   const [activeQuote, setActiveQuote] = useState<{
@@ -118,10 +144,26 @@ export function CommentRail({
     offset: number;
   } | null>(null);
 
+  // First-visit hint — lazy init from localStorage (avoids setState in effect)
+  const [showHint, setShowHint] = useState(
+    () => typeof window !== "undefined"
+      && !localStorage.getItem("markbase-comment-hint-seen"),
+  );
+
+  const dismissHint = () => {
+    localStorage.setItem("markbase-comment-hint-seen", "1");
+    setShowHint(false);
+  };
+
   const loadComments = useCallback(async () => {
     const data = await fetchComments(repo, branch, filePath);
     setComments(data);
   }, [repo, branch, filePath]);
+
+  // Optimistic: add a temp comment to local state immediately
+  const addOptimisticComment = useCallback((tempComment: Comment) => {
+    setComments((prev) => [...prev, tempComment]);
+  }, []);
 
   // Keep context count in sync with unresolved comments
   useEffect(() => {
@@ -132,11 +174,23 @@ export function CommentRail({
   useEffect(() => {
     if (initialComments && initialComments.length > 0) return;
     let cancelled = false;
-    fetchComments(repo, branch, filePath).then((data) => {
-      if (!cancelled) setComments(data);
-    });
+    withRetry(() => fetchComments(repo, branch, filePath))
+      .then((data) => {
+        if (!cancelled) setComments(data);
+      })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [repo, branch, filePath, initialComments]);
+
+  // Poll for live comment updates every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      withRetry(() => fetchComments(repo, branch, filePath))
+        .then(setComments)
+        .catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [repo, branch, filePath]);
 
   // Highlight commented text in the article
   useEffect(() => {
@@ -347,9 +401,29 @@ export function CommentRail({
   );
   const noQuote = unresolved.filter((c) => !c.quote);
 
+  // Hint banner — shared between desktop and mobile
+  const hintBanner = showHint && (
+    <div className="mx-4 mt-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+      <div className="flex items-start justify-between gap-2">
+        <p>
+          Tip: Select any text in the document, then click
+          &ldquo;Comment&rdquo; to start a discussion.
+        </p>
+        <button
+          onClick={dismissHint}
+          className="shrink-0 text-blue-400 hover:text-blue-600"
+        >
+          &times;
+        </button>
+      </div>
+    </div>
+  );
+
   // Shared comment list content used by both desktop rail and mobile bottom sheet
   const commentListContent = (
     <>
+      {hintBanner}
+
       {/* New comment from selection */}
       {activeQuote && (
         <NewCommentForm
@@ -359,6 +433,8 @@ export function CommentRail({
           branch={branch}
           filePath={filePath}
           parentId={null}
+          onOptimistic={addOptimisticComment}
+          toast={toast}
           onSubmit={() => {
             setActiveQuote(null);
             loadComments();
@@ -390,6 +466,7 @@ export function CommentRail({
           branch={branch}
           filePath={filePath}
           onUpdate={loadComments}
+          toast={toast}
         />
       ))}
 
@@ -413,6 +490,7 @@ export function CommentRail({
               branch={branch}
               filePath={filePath}
               onUpdate={loadComments}
+              toast={toast}
             />
           ))}
         </details>
@@ -502,6 +580,9 @@ export function CommentRail({
             </button>
           </div>
 
+          {/* Hint banner */}
+          {hintBanner}
+
           {/* New comment from selection */}
           {activeQuote && (
             <NewCommentForm
@@ -511,6 +592,8 @@ export function CommentRail({
               branch={branch}
               filePath={filePath}
               parentId={null}
+              onOptimistic={addOptimisticComment}
+              toast={toast}
               onSubmit={() => {
                 setActiveQuote(null);
                 loadComments();
@@ -553,6 +636,7 @@ export function CommentRail({
                         branch={branch}
                         filePath={filePath}
                         onUpdate={loadComments}
+                        toast={toast}
                       />
                     </div>
                   ))}
@@ -568,6 +652,7 @@ export function CommentRail({
                 branch={branch}
                 filePath={filePath}
                 onUpdate={loadComments}
+                toast={toast}
               />
             ))}
 
@@ -585,6 +670,7 @@ export function CommentRail({
                     branch={branch}
                     filePath={filePath}
                     onUpdate={loadComments}
+                    toast={toast}
                   />
                 ))}
               </details>
@@ -610,6 +696,7 @@ export function CommentRail({
                     branch={branch}
                     filePath={filePath}
                     onUpdate={loadComments}
+                    toast={toast}
                   />
                 ))}
               </details>
@@ -679,12 +766,18 @@ function CommentThread({
   branch,
   filePath,
   onUpdate,
+  toast,
 }: {
   comment: Comment;
   repo: string;
   branch: string;
   filePath: string;
   onUpdate: () => void;
+  toast: (
+    message: string,
+    type?: "success" | "error" | "info",
+    action?: { label: string; onClick: () => void },
+  ) => void;
 }) {
   const [showReply, setShowReply] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -694,10 +787,12 @@ function CommentThread({
     startTransition(async () => {
       if (comment.resolved_at) {
         await unresolveCommentAction(comment.id);
+        onUpdate();
       } else {
         await resolveCommentAction(comment.id);
+        onUpdate();
+        toast("Comment resolved", "success");
       }
-      onUpdate();
     });
   };
 
@@ -707,12 +802,18 @@ function CommentThread({
       await deleteCommentAction(comment.id, repoOwner);
       setDeleteOpen(false);
       onUpdate();
+      toast("Comment deleted", "info", {
+        label: "Undo",
+        onClick: () => {
+          restoreCommentAction(comment.id).then(() => onUpdate());
+        },
+      });
     });
   };
 
   return (
     <div
-      className={`border-b border-zinc-100 px-4 py-3 dark:border-zinc-800/50 ${
+      className={`group/thread border-b border-zinc-100 px-4 py-3 dark:border-zinc-800/50 ${
         comment.resolved_at ? "opacity-60" : ""
       }`}
     >
@@ -754,8 +855,8 @@ function CommentThread({
         </div>
       </div>
 
-      {/* Actions — larger touch targets */}
-      <div className="mt-2 flex items-center gap-1">
+      {/* Actions — hover-reveal on desktop, always visible on mobile */}
+      <div className="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover/thread:opacity-100 focus-within:opacity-100 max-lg:opacity-100">
         <button
           onClick={() => setShowReply(!showReply)}
           className="rounded-md px-2 py-1.5 text-xs text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
@@ -833,6 +934,7 @@ function CommentThread({
             branch={branch}
             filePath={filePath}
             parentId={comment.id}
+            toast={toast}
             onSubmit={() => {
               setShowReply(false);
               onUpdate();
@@ -852,6 +954,8 @@ function NewCommentForm({
   branch,
   filePath,
   parentId,
+  onOptimistic,
+  toast,
   onSubmit,
   onCancel,
 }: {
@@ -861,12 +965,31 @@ function NewCommentForm({
   branch: string;
   filePath: string;
   parentId: string | null;
+  onOptimistic?: (comment: Comment) => void;
+  toast: (
+    message: string,
+    type?: "success" | "error" | "info",
+    action?: { label: string; onClick: () => void },
+  ) => void;
   onSubmit: () => void;
   onCancel: () => void;
 }) {
-  const [body, setBody] = useState("");
+  const storageKey = `markbase-draft-${filePath}-${parentId || "root"}`;
+  const [body, setBody] = useState(
+    () => (typeof window !== "undefined"
+      ? sessionStorage.getItem(storageKey) : null) ?? "",
+  );
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Persist draft to sessionStorage on change
+  useEffect(() => {
+    if (body) {
+      sessionStorage.setItem(storageKey, body);
+    } else {
+      sessionStorage.removeItem(storageKey);
+    }
+  }, [body, storageKey]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -874,6 +997,33 @@ function NewCommentForm({
 
   const handleSubmit = () => {
     if (!body.trim()) return;
+    const text = body.trim();
+
+    // Optimistic insert: add a temporary comment to the list immediately
+    if (onOptimistic) {
+      const tempComment: Comment = {
+        id: `temp-${Date.now()}`,
+        file_key: "",
+        quote: quote,
+        quote_context: quoteContext,
+        body: text,
+        author_id: "self",
+        author_name: "You",
+        author_avatar: null,
+        parent_id: parentId,
+        resolved_at: null,
+        resolved_by: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        replies: [],
+      };
+      onOptimistic(tempComment);
+    }
+
+    // Clear form and draft immediately
+    setBody("");
+    sessionStorage.removeItem(storageKey);
+
     startTransition(async () => {
       await addComment({
         repo,
@@ -881,10 +1031,10 @@ function NewCommentForm({
         filePath,
         quote,
         quoteContext,
-        body: body.trim(),
+        body: text,
         parentId,
       });
-      setBody("");
+      toast("Comment added", "success");
       onSubmit();
     });
   };

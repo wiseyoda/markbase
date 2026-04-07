@@ -10,6 +10,7 @@ import { countOpenComments } from "@/lib/comments";
 import { listSharesForRepo } from "@/lib/shares";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CommandPaletteWrapper } from "./command-palette-wrapper";
+import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts";
 
 export interface TreeNode {
   name: string;
@@ -94,7 +95,8 @@ export default async function RepoLayout({
   return (
     <ShareProvider repo={`${owner}/${repo}`} branch={branch}>
     <SidebarProvider>
-    <CommandPaletteWrapper>
+    <KeyboardShortcutsProvider>
+    <CommandPaletteWrapper files={files.map(f => f.path)} owner={owner} repo={repo}>
     <div className="flex h-screen flex-col">
       {/* Top bar */}
       <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 sm:px-6 py-3 dark:border-zinc-800">
@@ -148,6 +150,7 @@ export default async function RepoLayout({
       </div>
     </div>
     </CommandPaletteWrapper>
+    </KeyboardShortcutsProvider>
     </SidebarProvider>
     </ShareProvider>
   );

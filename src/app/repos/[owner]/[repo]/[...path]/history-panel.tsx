@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { diffLines } from "diff";
 import { fetchFileHistory, fetchFileAtCommit } from "./history-actions";
 import { formatDate } from "@/lib/format";
+import { Tooltip } from "@/components/tooltip";
 import type { FileCommit } from "@/lib/github";
 
 interface HistoryPanelProps {
@@ -21,21 +22,23 @@ export function HistoryButton(props: HistoryPanelProps) {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 rounded-md border border-zinc-200 px-3 py-1.5 text-sm transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 16 16"
-          fill="currentColor"
-          className="text-zinc-500"
+      <Tooltip content="View file history">
+        <button
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-1.5 rounded-md border border-zinc-200 px-3 py-1.5 text-sm transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
         >
-          <path d="M1.643 3.143L.427 1.927A.25.25 0 000 2.104V5.75c0 .138.112.25.25.25h3.646a.25.25 0 00.177-.427L2.715 4.215a6.5 6.5 0 11-1.18 4.458.75.75 0 10-1.493.154 8.001 8.001 0 101.6-5.684zM7.75 4a.75.75 0 01.75.75v2.992l2.028.812a.75.75 0 01-.557 1.392l-2.5-1A.751.751 0 017 8.25v-3.5A.75.75 0 017.75 4z" />
-        </svg>
-        History
-      </button>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            className="text-zinc-500"
+          >
+            <path d="M1.643 3.143L.427 1.927A.25.25 0 000 2.104V5.75c0 .138.112.25.25.25h3.646a.25.25 0 00.177-.427L2.715 4.215a6.5 6.5 0 11-1.18 4.458.75.75 0 10-1.493.154 8.001 8.001 0 101.6-5.684zM7.75 4a.75.75 0 01.75.75v2.992l2.028.812a.75.75 0 01-.557 1.392l-2.5-1A.751.751 0 017 8.25v-3.5A.75.75 0 017.75 4z" />
+          </svg>
+          History
+        </button>
+      </Tooltip>
       {open && (
         <HistoryPanel {...props} onClose={() => setOpen(false)} />
       )}

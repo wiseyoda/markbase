@@ -59,7 +59,7 @@ export async function getComments(fKey: string): Promise<Comment[]> {
   const db = getDb();
   const rows = await db`
     SELECT * FROM comments
-    WHERE file_key = ${fKey}
+    WHERE file_key = ${fKey} AND deleted_at IS NULL
     ORDER BY created_at ASC
   `;
 
@@ -124,13 +124,56 @@ export async function unresolveComment(commentId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-export async function deleteComment(
+/** Soft-delete a comment and its replies (sets deleted_at) */
+export async function softDeleteComment(
   commentId: string,
   userId: string,
   isOwner: boolean = false,
 ): Promise<boolean> {
   const db = getDb();
-  // Author can delete their own; repo owner can delete any
+  // Author can soft-delete their own; repo owner can soft-delete any
+  const rows = isOwner
+    ? await db`
+        UPDATE comments SET deleted_at = NOW()
+        WHERE id = ${commentId} AND deleted_at IS NULL
+        RETURNING id
+      `
+    : await db`
+        UPDATE comments SET deleted_at = NOW()
+        WHERE id = ${commentId} AND author_id = ${userId} AND deleted_at IS NULL
+        RETURNING id
+      `;
+  if (rows.length > 0) {
+    // Also soft-delete replies
+    await db`
+      UPDATE comments SET deleted_at = NOW()
+      WHERE parent_id = ${commentId} AND deleted_at IS NULL
+    `;
+  }
+  return rows.length > 0;
+}
+
+/** Restore a soft-deleted comment and its replies */
+export async function restoreComment(commentId: string): Promise<boolean> {
+  const db = getDb();
+  const result = await db`
+    UPDATE comments SET deleted_at = NULL WHERE id = ${commentId} AND deleted_at IS NOT NULL
+  `;
+  // Also restore replies
+  await db`
+    UPDATE comments SET deleted_at = NULL WHERE parent_id = ${commentId} AND deleted_at IS NOT NULL
+  `;
+  return result.count > 0;
+}
+
+/** Hard-delete a comment (for permanent purging) */
+export async function purgeComment(
+  commentId: string,
+  userId: string,
+  isOwner: boolean = false,
+): Promise<boolean> {
+  const db = getDb();
+  // Author can purge their own; repo owner can purge any
   const rows = isOwner
     ? await db`
         DELETE FROM comments WHERE id = ${commentId} RETURNING id
@@ -143,13 +186,23 @@ export async function deleteComment(
   return rows.length > 0;
 }
 
+/** Purge soft-deleted comments older than 30 days */
+export async function purgeDeletedComments(): Promise<number> {
+  const db = getDb();
+  const result = await db`
+    DELETE FROM comments
+    WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '30 days'
+  `;
+  return result.count;
+}
+
 /** Fetch a single comment by ID */
 export async function getCommentById(
   commentId: string,
 ): Promise<Comment | null> {
   const db = getDb();
   const rows = await db`
-    SELECT * FROM comments WHERE id = ${commentId}
+    SELECT * FROM comments WHERE id = ${commentId} AND deleted_at IS NULL
   `;
   return rows.length > 0 ? rowToComment(rows[0]) : null;
 }
@@ -173,6 +226,7 @@ export async function getCommentsByPrefix(
           SELECT * FROM comments
           WHERE file_key LIKE ${prefix + "%"}
             AND parent_id IS NULL
+            AND deleted_at IS NULL
             AND created_at < ${opts.cursor}
           ORDER BY created_at DESC
           LIMIT ${limit}
@@ -182,6 +236,7 @@ export async function getCommentsByPrefix(
           WHERE file_key LIKE ${prefix + "%"}
             AND parent_id IS NULL
             AND resolved_at IS NULL
+            AND deleted_at IS NULL
             AND created_at < ${opts.cursor}
           ORDER BY created_at DESC
           LIMIT ${limit}
@@ -191,6 +246,7 @@ export async function getCommentsByPrefix(
           SELECT * FROM comments
           WHERE file_key LIKE ${prefix + "%"}
             AND parent_id IS NULL
+            AND deleted_at IS NULL
           ORDER BY created_at DESC
           LIMIT ${limit}
         `
@@ -199,6 +255,7 @@ export async function getCommentsByPrefix(
           WHERE file_key LIKE ${prefix + "%"}
             AND parent_id IS NULL
             AND resolved_at IS NULL
+            AND deleted_at IS NULL
           ORDER BY created_at DESC
           LIMIT ${limit}
         `;
@@ -212,7 +269,7 @@ export async function getCommentsByPrefix(
   const ids = topLevel.map((c) => c.id);
   const replyRows = await db`
     SELECT * FROM comments
-    WHERE parent_id = ANY(${ids})
+    WHERE parent_id = ANY(${ids}) AND deleted_at IS NULL
     ORDER BY created_at ASC
   `;
 
@@ -247,6 +304,7 @@ export async function countOpenComments(
     WHERE file_key LIKE ${fileKeyPrefix + '%'}
       AND resolved_at IS NULL
       AND parent_id IS NULL
+      AND deleted_at IS NULL
     GROUP BY file_key
   `;
   const counts: Record<string, { count: number; latest: string | null }> = {};

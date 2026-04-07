@@ -7,11 +7,19 @@ import {
 import { useTheme } from "@/components/theme-provider";
 import { useSidebar } from "./sidebar";
 
+interface CommandPaletteWrapperProps {
+  children: React.ReactNode;
+  files: string[];
+  owner: string;
+  repo: string;
+}
+
 export function CommandPaletteWrapper({
   children,
-}: {
-  children: React.ReactNode;
-}) {
+  files,
+  owner,
+  repo,
+}: CommandPaletteWrapperProps) {
   const { setTheme, theme } = useTheme();
   const { toggle } = useSidebar();
 
@@ -45,9 +53,28 @@ export function CommandPaletteWrapper({
       action: toggle,
       section: "Actions",
     },
+    {
+      id: "shortcuts",
+      label: "Keyboard shortcuts",
+      description: "View all shortcuts",
+      action: () => {
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "?" }));
+      },
+      section: "Help",
+    },
   ];
 
+  const fileItems: CommandItem[] = files.map((path) => ({
+    id: `file-${path}`,
+    label: path.split("/").pop() || path,
+    description: path,
+    href: `/repos/${owner}/${repo}/${path}`,
+    section: "Files",
+  }));
+
   return (
-    <CommandPaletteProvider items={items}>{children}</CommandPaletteProvider>
+    <CommandPaletteProvider items={items} fileItems={fileItems}>
+      {children}
+    </CommandPaletteProvider>
   );
 }

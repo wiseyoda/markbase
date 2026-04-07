@@ -28,7 +28,7 @@ export function SyncButton({ repoFullName, synced }: SyncButtonProps) {
           : "border border-zinc-300 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-400 dark:hover:bg-zinc-800"
       } ${isPending ? "opacity-50" : ""}`}
     >
-      {isPending ? "..." : synced ? "Synced" : "Sync"}
+      {isPending ? "..." : synced ? "Added" : "Add"}
     </button>
   );
 }

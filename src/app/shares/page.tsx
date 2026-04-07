@@ -118,8 +118,6 @@ export default async function SharesPage() {
                             <span>Created {timeAgo(share.created_at)}</span>
                             <span>·</span>
                             <span>Expires: {expiryLabel(share.expires_at)}</span>
-                            <span>·</span>
-                            <span className="font-mono">{share.id}</span>
                           </div>
                         </div>
 

@@ -47,12 +47,52 @@ export function useCommandPalette() {
 // Provider
 // ---------------------------------------------------------------------------
 
+interface RecentFile {
+  label: string;
+  href: string;
+  timestamp: number;
+}
+
+const RECENT_FILES_KEY = "markbase-recent-files";
+const MAX_RECENT_FILES = 5;
+const MAX_FILE_RESULTS = 5;
+
+function getRecentFiles(): RecentFile[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(RECENT_FILES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as RecentFile[];
+    return parsed
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, MAX_RECENT_FILES);
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentFile(label: string, href: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const existing = getRecentFiles().filter((f) => f.href !== href);
+    const updated: RecentFile[] = [
+      { label, href, timestamp: Date.now() },
+      ...existing,
+    ].slice(0, MAX_RECENT_FILES);
+    localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(updated));
+  } catch {
+    // localStorage unavailable
+  }
+}
+
 export function CommandPaletteProvider({
   children,
   items,
+  fileItems = [],
 }: {
   children: ReactNode;
   items: CommandItem[];
+  fileItems?: CommandItem[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -93,6 +133,7 @@ export function CommandPaletteProvider({
       {open && (
         <CommandPaletteDialog
           items={items}
+          fileItems={fileItems}
           onClose={() => setOpen(false)}
         />
       )}
@@ -106,9 +147,11 @@ export function CommandPaletteProvider({
 
 function CommandPaletteDialog({
   items,
+  fileItems,
   onClose,
 }: {
   items: CommandItem[];
+  fileItems: CommandItem[];
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -118,16 +161,43 @@ function CommandPaletteDialog({
   const dialogRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Filter items
+  // Filter items: action items match on label/description,
+  // file items match on filename (last path segment) only
   const filtered = useMemo(() => {
-    if (!query) return items;
+    if (!query) {
+      // When no query, show recent files + action items (no file items)
+      const recent = getRecentFiles();
+      const recentItems: CommandItem[] = recent.map((f) => ({
+        id: `recent-${f.href}`,
+        label: f.label,
+        description: f.href.replace(/^\/repos\/[^/]+\/[^/]+\//, ""),
+        href: f.href,
+        section: "Recent files",
+      }));
+      return [...recentItems, ...items];
+    }
+
     const lower = query.toLowerCase();
-    return items.filter(
+
+    const filteredActions = items.filter(
       (item) =>
         item.label.toLowerCase().includes(lower) ||
         item.description?.toLowerCase().includes(lower),
     );
-  }, [items, query]);
+
+    // File items: match against filename (last segment of description/label)
+    const filteredFiles = fileItems
+      .filter((item) => {
+        const filename = (item.description || item.label)
+          .split("/")
+          .pop()
+          ?.toLowerCase() || "";
+        return filename.includes(lower);
+      })
+      .slice(0, MAX_FILE_RESULTS);
+
+    return [...filteredActions, ...filteredFiles];
+  }, [items, fileItems, query]);
 
   // Group by section
   const grouped = useMemo(() => {
@@ -164,6 +234,10 @@ function CommandPaletteDialog({
     (item: CommandItem) => {
       onClose();
       if (item.href) {
+        // Save to recent files if it looks like a file navigation
+        if (item.section === "Files" || item.section === "Recent files") {
+          saveRecentFile(item.label, item.href);
+        }
         router.push(item.href);
       } else if (item.action) {
         item.action();
