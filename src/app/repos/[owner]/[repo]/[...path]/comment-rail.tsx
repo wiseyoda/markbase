@@ -158,15 +158,13 @@ export function CommentRail({
   const unresolved = comments.filter((c) => !c.resolved_at);
   const resolved = comments.filter((c) => c.resolved_at);
 
-  // Calculate positions for anchored comments
+  // Calculate absolute Y positions of highlights in the content scroll container
   const [positions, setPositions] = useState<Record<string, number>>({});
   const railRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLElement | null>(null);
 
   const updatePositions = useCallback(() => {
     const article = document.getElementById(articleId);
     if (!article) return;
-    contentRef.current = article.closest("[data-scroll-container]") as HTMLElement || article.parentElement;
 
     const newPositions: Record<string, number> = {};
     for (const comment of unresolved) {
@@ -175,18 +173,20 @@ export function CommentRail({
         `[data-comment-id="${comment.id}"]`,
       ) as HTMLElement | null;
       if (highlight) {
-        // Position relative to the content scroll container
-        const container = contentRef.current;
-        if (container) {
-          newPositions[comment.id] = highlight.offsetTop - container.offsetTop;
+        // Get the highlight's offset from top of the article
+        let offset = 0;
+        let el: HTMLElement | null = highlight;
+        while (el && el !== article) {
+          offset += el.offsetTop;
+          el = el.offsetParent as HTMLElement | null;
         }
+        newPositions[comment.id] = offset;
       }
     }
     setPositions(newPositions);
   }, [unresolved, articleId]);
 
   useEffect(() => {
-    // Defer to avoid synchronous setState in effect
     const raf = requestAnimationFrame(updatePositions);
     window.addEventListener("resize", updatePositions);
     return () => {
@@ -195,20 +195,19 @@ export function CommentRail({
     };
   }, [updatePositions]);
 
-  // Sync scroll between content and rail
+  // Scroll sync: when content scrolls, set rail scrollTop to match
   useEffect(() => {
-    const content = document.getElementById(articleId)?.parentElement;
+    const scrollContainer = document.querySelector("[data-scroll-container]") as HTMLElement | null;
     const rail = railRef.current;
-    if (!content || !rail) return;
+    if (!scrollContainer || !rail) return;
 
     const handleScroll = () => {
-      const ratio = content.scrollTop / (content.scrollHeight - content.clientHeight || 1);
-      rail.scrollTop = ratio * (rail.scrollHeight - rail.clientHeight);
+      rail.scrollTop = scrollContainer.scrollTop;
     };
 
-    content.addEventListener("scroll", handleScroll, { passive: true });
-    return () => content.removeEventListener("scroll", handleScroll);
-  }, [articleId, comments]);
+    scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
+    return () => scrollContainer.removeEventListener("scroll", handleScroll);
+  }, [comments]);
 
   const anchored = unresolved.filter((c) => positions[c.id] !== undefined);
   const orphaned = unresolved.filter(
@@ -287,19 +286,18 @@ export function CommentRail({
             />
           )}
 
-          {/* Comment list */}
+          {/* Comment list — scrollTop synced with content */}
           <div ref={railRef} className="relative flex-1 overflow-y-auto">
             {unresolved.length === 0 && !activeQuote && (
               <div className="px-4 py-8 text-center text-sm text-zinc-400 dark:text-zinc-500">
-                Select text and click the comment button to add a comment.
+                Select text to add a comment.
               </div>
             )}
 
-            {/* Anchored comments — positioned to match highlight Y */}
+            {/* Positioned comments container — same height as content */}
             {anchored.length > 0 && (
-              <div className="relative" style={{ minHeight: Math.max(...Object.values(positions)) + 200 }}>
+              <div className="relative" style={{ minHeight: Math.max(0, ...Object.values(positions)) + 200 }}>
                 {(() => {
-                  // Sort by position and resolve overlaps
                   const sorted = [...anchored].sort(
                     (a, b) => (positions[a.id] || 0) - (positions[b.id] || 0),
                   );
@@ -309,13 +307,12 @@ export function CommentRail({
                   return sorted.map((comment) => {
                     const idealTop = positions[comment.id] || 0;
                     const top = Math.max(idealTop, lastBottom + MIN_GAP);
-                    // Estimate height — will adjust after render
-                    lastBottom = top + 100;
+                    lastBottom = top + 120;
 
                     return (
                       <div
                         key={comment.id}
-                        className="absolute left-0 right-0 transition-all duration-200"
+                        className="absolute left-0 right-0"
                         style={{ top }}
                       >
                         <CommentThread
@@ -332,7 +329,7 @@ export function CommentRail({
               </div>
             )}
 
-            {/* Unanchored comments (no quote) */}
+            {/* Unanchored comments */}
             {noQuote.map((comment) => (
               <CommentThread
                 key={comment.id}
@@ -348,8 +345,7 @@ export function CommentRail({
             {orphaned.length > 0 && (
               <details className="border-t border-zinc-200 dark:border-zinc-800">
                 <summary className="cursor-pointer px-4 py-2 text-xs text-zinc-400 hover:text-zinc-600 dark:text-zinc-500">
-                  {orphaned.length} comment{orphaned.length !== 1 ? "s" : ""}{" "}
-                  on changed text
+                  {orphaned.length} on changed text
                 </summary>
                 {orphaned.map((comment) => (
                   <CommentThread
@@ -364,15 +360,13 @@ export function CommentRail({
               </details>
             )}
 
-            {/* Resolved comments */}
+            {/* Resolved */}
             {resolved.length > 0 && (
               <details
                 className="border-t border-zinc-200 dark:border-zinc-800"
                 open={showResolved}
                 onToggle={(e) =>
-                  setShowResolved(
-                    (e.target as HTMLDetailsElement).open,
-                  )
+                  setShowResolved((e.target as HTMLDetailsElement).open)
                 }
               >
                 <summary className="cursor-pointer px-4 py-2 text-xs text-zinc-400 hover:text-zinc-600 dark:text-zinc-500">
