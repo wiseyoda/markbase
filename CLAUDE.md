@@ -28,7 +28,14 @@ src/
 │   ├── s/[id]/                     # Public share viewer
 │   │   └── [...path]/page.tsx      # Shared file viewer with sidebar
 │   ├── shares/                     # Share management
-│   └── api/init-db/                # DB migrations
+│   └── api/
+│       ├── init-db/                # DB migrations
+│       └── mcp/                    # MCP server (JSON-RPC + OAuth)
+│           ├── route.ts            # JSON-RPC dispatch
+│           ├── authorize/          # OAuth → GitHub redirect
+│           ├── callback/           # GitHub OAuth callback
+│           ├── token/              # Token exchange (PKCE)
+│           └── register/           # Dynamic client registration
 ├── lib/
 │   ├── github.ts    # GitHub API (tree, content, commits)
 │   ├── db.ts        # Postgres + migrations
@@ -36,7 +43,12 @@ src/
 │   ├── comments.ts  # Threaded comments
 │   ├── crypto.ts    # AES-256-GCM
 │   ├── synced-repos.ts
-│   └── users.ts
+│   ├── users.ts
+│   └── mcp/         # MCP server internals
+│       ├── types.ts # Interfaces
+│       ├── jwt.ts   # JWT sign/verify (jose)
+│       ├── oauth.ts # PKCE, encrypted auth codes
+│       └── tools.ts # 7 comment tools
 ├── auth.ts          # Auth config + bypass mode
 └── proxy.ts         # Route protection
 ```
@@ -51,6 +63,14 @@ See `.env.example` for all required variables. Key notes:
 ## Tech Stack
 
 Next.js 16, Auth.js v5 beta, Tailwind v4, postgres.js, react-markdown, diff
+
+## MCP Server
+
+Remote HTTP MCP server at `/api/mcp` with GitHub OAuth (stateless, Vercel-compatible).
+
+**Tools:** `list_files_with_comments`, `get_comments`, `add_comment`, `reply_to_comment`, `resolve_comment`, `unresolve_comment`, `delete_comment`
+
+**Add to Claude Code:** `claude mcp add --transport http markbase https://markbase-github.vercel.app/api/mcp`
 
 ## Key Constraints
 
