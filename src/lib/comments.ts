@@ -221,22 +221,25 @@ export async function getCommentsByPrefix(
   return { comments: topLevel, nextCursor };
 }
 
-/** Count open (unresolved) comments per file key prefix */
+/** Count open (unresolved) comments per file key prefix, with latest activity */
 export async function countOpenComments(
   fileKeyPrefix: string,
-): Promise<Record<string, number>> {
+): Promise<Record<string, { count: number; latest: string | null }>> {
   const db = getDb();
   const rows = await db`
-    SELECT file_key, COUNT(*)::int as count
+    SELECT file_key, COUNT(*)::int as count, MAX(created_at) as latest
     FROM comments
     WHERE file_key LIKE ${fileKeyPrefix + '%'}
       AND resolved_at IS NULL
       AND parent_id IS NULL
     GROUP BY file_key
   `;
-  const counts: Record<string, number> = {};
+  const counts: Record<string, { count: number; latest: string | null }> = {};
   for (const row of rows) {
-    counts[row.file_key as string] = row.count as number;
+    counts[row.file_key as string] = {
+      count: row.count as number,
+      latest: row.latest as string | null,
+    };
   }
   return counts;
 }

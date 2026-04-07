@@ -2,17 +2,28 @@
 
 import { auth } from "@/auth";
 import { getFileHistory, getFileAtCommit } from "@/lib/github";
+import { getShare } from "@/lib/shares";
 import type { FileCommit } from "@/lib/github";
+
+async function resolveToken(shareId?: string): Promise<string | null> {
+  if (shareId) {
+    const share = await getShare(shareId);
+    if (share?.accessToken) return share.accessToken;
+  }
+  const session = await auth();
+  return session?.accessToken || null;
+}
 
 export async function fetchFileHistory(
   owner: string,
   repo: string,
   branch: string,
   filePath: string,
+  shareId?: string,
 ): Promise<FileCommit[]> {
-  const session = await auth();
-  if (!session?.accessToken) return [];
-  return getFileHistory(session.accessToken, owner, repo, branch, filePath);
+  const token = await resolveToken(shareId);
+  if (!token) return [];
+  return getFileHistory(token, owner, repo, branch, filePath);
 }
 
 export async function fetchFileAtCommit(
@@ -20,8 +31,9 @@ export async function fetchFileAtCommit(
   repo: string,
   sha: string,
   filePath: string,
+  shareId?: string,
 ): Promise<string | null> {
-  const session = await auth();
-  if (!session?.accessToken) return null;
-  return getFileAtCommit(session.accessToken, owner, repo, sha, filePath);
+  const token = await resolveToken(shareId);
+  if (!token) return null;
+  return getFileAtCommit(token, owner, repo, sha, filePath);
 }

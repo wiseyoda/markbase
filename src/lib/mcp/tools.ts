@@ -46,9 +46,10 @@ const TOOLS: McpToolDefinition[] = [
 
       // Strip the prefix to show relative paths
       const keyPrefix = `${repo}/${branch}/`;
-      const files = Object.entries(counts).map(([key, count]) => ({
+      const files = Object.entries(counts).map(([key, { count, latest }]) => ({
         file_path: key.startsWith(keyPrefix) ? key.slice(keyPrefix.length) : key,
         open_comment_count: count,
+        last_activity: latest,
       }));
 
       files.sort((a, b) => b.open_comment_count - a.open_comment_count);

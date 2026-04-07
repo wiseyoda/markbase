@@ -81,7 +81,7 @@ export default async function RepoLayout({
 
   // Convert file_key based counts to path-based counts
   const pathCounts: Record<string, number> = {};
-  for (const [key, count] of Object.entries(commentCounts)) {
+  for (const [key, { count }] of Object.entries(commentCounts)) {
     const path = key.slice(fileKeyPrefix.length);
     pathCounts[path] = count;
   }

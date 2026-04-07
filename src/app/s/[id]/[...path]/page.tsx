@@ -100,9 +100,9 @@ export default async function SharedFilePage({
 
   // Convert comment counts to path-based
   const pathCounts: Record<string, number> = {};
-  for (const [key, count] of Object.entries(commentCounts)) {
+  for (const [key, val] of Object.entries(commentCounts)) {
     const path = key.slice(fileKeyPrefix.length);
-    pathCounts[path] = count as number;
+    pathCounts[path] = (val as { count: number }).count;
   }
 
   // Build sidebar tree for repo/folder shares
@@ -240,6 +240,7 @@ export default async function SharedFilePage({
                 branch={share.branch}
                 filePath={filePath}
                 currentContent={content}
+                shareId={id}
               />
             )}
           </div>

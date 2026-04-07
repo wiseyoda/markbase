@@ -12,6 +12,7 @@ interface HistoryPanelProps {
   branch: string;
   filePath: string;
   currentContent: string;
+  shareId?: string;
 }
 
 export function HistoryButton(props: HistoryPanelProps) {
@@ -47,6 +48,7 @@ function HistoryPanel({
   branch,
   filePath,
   currentContent: _currentContent,
+  shareId,
   onClose,
 }: HistoryPanelProps & { onClose: () => void }) {
   void _currentContent; // Reserved for future inline diff
@@ -59,11 +61,11 @@ function HistoryPanel({
   const [fullContent, setFullContent] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchFileHistory(owner, repo, branch, filePath).then((data) => {
+    fetchFileHistory(owner, repo, branch, filePath, shareId).then((data) => {
       setCommits(data);
       setLoading(false);
     });
-  }, [owner, repo, branch, filePath]);
+  }, [owner, repo, branch, filePath, shareId]);
 
   const loadDiff = useCallback(
     async (sha: string, prevSha: string | null) => {
@@ -73,9 +75,9 @@ function HistoryPanel({
       setFullContent(null);
 
       const [newContent, oldContent] = await Promise.all([
-        fetchFileAtCommit(owner, repo, sha, filePath),
+        fetchFileAtCommit(owner, repo, sha, filePath, shareId),
         prevSha
-          ? fetchFileAtCommit(owner, repo, prevSha, filePath)
+          ? fetchFileAtCommit(owner, repo, prevSha, filePath, shareId)
           : Promise.resolve(""),
       ]);
 
@@ -101,7 +103,7 @@ function HistoryPanel({
       }
       setDiffLoading(false);
     },
-    [owner, repo, filePath],
+    [owner, repo, filePath, shareId],
   );
 
   return createPortal(
