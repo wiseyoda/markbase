@@ -237,6 +237,80 @@ const TOOLS: McpToolDefinition[] = [
   },
 
   {
+    name: "bulk_resolve_comments",
+    description:
+      "Resolve multiple comment threads in one call. " +
+      "Returns the count of successfully resolved comments.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        comment_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Array of comment IDs to resolve",
+        },
+      },
+      required: ["comment_ids"],
+    },
+    async execute(args, ctx) {
+      const ids = args.comment_ids as string[];
+      let resolved = 0;
+      const failed: string[] = [];
+
+      for (const id of ids) {
+        const ok = await resolveComment(id, ctx.userId);
+        if (ok) resolved++;
+        else failed.push(id);
+      }
+
+      return { resolved, failed, total: ids.length };
+    },
+  },
+
+  {
+    name: "reply_and_resolve",
+    description:
+      "Reply to a comment with a summary of what changed, then resolve it. " +
+      "Combines reply_to_comment + resolve_comment in one call.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        comment_id: {
+          type: "string",
+          description: "ID of the comment to reply to and resolve",
+        },
+        body: {
+          type: "string",
+          description: "Reply text explaining what was changed/fixed",
+        },
+      },
+      required: ["comment_id", "body"],
+    },
+    async execute(args, ctx) {
+      const parentId = args.comment_id as string;
+      const parent = await getCommentById(parentId);
+      if (!parent) {
+        throw new Error(`Comment ${parentId} not found`);
+      }
+
+      const reply = await createComment({
+        fileKey: parent.file_key,
+        authorId: ctx.userId,
+        authorName: ctx.userName,
+        authorAvatar: ctx.userAvatar,
+        quote: null,
+        quoteContext: null,
+        body: args.body as string,
+        parentId,
+      });
+
+      await resolveComment(parentId, ctx.userId);
+
+      return { reply: formatComment(reply), resolved: true };
+    },
+  },
+
+  {
     name: "unresolve_comment",
     description: "Reopen a previously resolved comment thread.",
     inputSchema: {
