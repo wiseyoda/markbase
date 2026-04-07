@@ -177,7 +177,19 @@ export function CommentRail({
 
   const updatePositions = useCallback(() => {
     const article = document.getElementById(articleId);
-    if (!article) return;
+    const scrollContainer = document.querySelector(
+      "[data-scroll-container]",
+    ) as HTMLElement | null;
+    if (!article || !scrollContainer) return;
+
+    // Calculate article's offset within the scroll container so
+    // comment cards align with highlights, not the article origin
+    let articleOffset = 0;
+    let walk: HTMLElement | null = article;
+    while (walk && walk !== scrollContainer) {
+      articleOffset += walk.offsetTop;
+      walk = walk.offsetParent as HTMLElement | null;
+    }
 
     const newPositions: Record<string, number> = {};
     for (const comment of unresolved) {
@@ -186,14 +198,13 @@ export function CommentRail({
         `[data-comment-id="${comment.id}"]`,
       ) as HTMLElement | null;
       if (highlight) {
-        // Get the highlight's offset from top of the article
         let offset = 0;
         let el: HTMLElement | null = highlight;
         while (el && el !== article) {
           offset += el.offsetTop;
           el = el.offsetParent as HTMLElement | null;
         }
-        newPositions[comment.id] = offset;
+        newPositions[comment.id] = articleOffset + offset;
       }
     }
     setPositions(newPositions);
