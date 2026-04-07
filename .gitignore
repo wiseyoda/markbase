@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+vendor/
+.pnp.*
+.yarn/install-state.gz
+
+# Build output
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Misc
+*.tgz
+.cache/
+tmp/
