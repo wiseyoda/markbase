@@ -3,6 +3,7 @@
 import {
   useState,
   useEffect,
+  useLayoutEffect,
   useRef,
   useTransition,
   useCallback,
@@ -174,6 +175,7 @@ export function CommentRail({
   // Calculate absolute Y positions of highlights in the content scroll container
   const [positions, setPositions] = useState<Record<string, number>>({});
   const railRef = useRef<HTMLDivElement>(null);
+  const cardsContainerRef = useRef<HTMLDivElement>(null);
 
   const updatePositions = useCallback(() => {
     const article = document.getElementById(articleId);
@@ -218,6 +220,36 @@ export function CommentRail({
       window.removeEventListener("resize", updatePositions);
     };
   }, [updatePositions]);
+
+  // After render, measure actual card heights and fix overlaps
+  useLayoutEffect(() => {
+    const container = cardsContainerRef.current;
+    if (!container) return;
+
+    const cards = Array.from(
+      container.querySelectorAll<HTMLElement>("[data-comment-card]"),
+    );
+    if (cards.length < 2) return;
+
+    cards.sort(
+      (a, b) => parseFloat(a.style.top) - parseFloat(b.style.top),
+    );
+
+    let lastBottom = 0;
+    const MIN_GAP = 8;
+
+    for (const card of cards) {
+      const currentTop = parseFloat(card.style.top);
+      const adjustedTop = Math.max(currentTop, lastBottom + MIN_GAP);
+      if (adjustedTop !== currentTop) {
+        card.style.top = `${adjustedTop}px`;
+      }
+      lastBottom = adjustedTop + card.offsetHeight;
+    }
+
+    // Extend container to fit all cards
+    container.style.minHeight = `${lastBottom + 100}px`;
+  }, [positions, comments]);
 
   // Scroll sync: when content scrolls, set rail scrollTop to match
   useEffect(() => {
@@ -320,36 +352,25 @@ export function CommentRail({
 
             {/* Positioned comments container — same height as content */}
             {anchored.length > 0 && (
-              <div className="relative" style={{ minHeight: Math.max(0, ...Object.values(positions)) + 200 }}>
-                {(() => {
-                  const sorted = [...anchored].sort(
-                    (a, b) => (positions[a.id] || 0) - (positions[b.id] || 0),
-                  );
-                  let lastBottom = 0;
-                  const MIN_GAP = 8;
-
-                  return sorted.map((comment) => {
-                    const idealTop = positions[comment.id] || 0;
-                    const top = Math.max(idealTop, lastBottom + MIN_GAP);
-                    lastBottom = top + 120;
-
-                    return (
-                      <div
-                        key={comment.id}
-                        className="absolute left-0 right-0"
-                        style={{ top }}
-                      >
-                        <CommentThread
-                          comment={comment}
-                          repo={repo}
-                          branch={branch}
-                          filePath={filePath}
-                          onUpdate={loadComments}
-                        />
-                      </div>
-                    );
-                  });
-                })()}
+              <div ref={cardsContainerRef} className="relative" style={{ minHeight: Math.max(0, ...Object.values(positions)) + 200 }}>
+                {[...anchored]
+                  .sort((a, b) => (positions[a.id] || 0) - (positions[b.id] || 0))
+                  .map((comment) => (
+                    <div
+                      key={comment.id}
+                      data-comment-card
+                      className="absolute left-0 right-0"
+                      style={{ top: positions[comment.id] || 0 }}
+                    >
+                      <CommentThread
+                        comment={comment}
+                        repo={repo}
+                        branch={branch}
+                        filePath={filePath}
+                        onUpdate={loadComments}
+                      />
+                    </div>
+                  ))}
               </div>
             )}
 
