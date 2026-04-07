@@ -32,7 +32,7 @@ const {
     async session({ session, token }) {
       session.accessToken = token.accessToken as string;
       if (session.user) {
-        session.user.id = token.userId as string;
+        session.user.id = (token.userId || token.sub) as string;
       }
       return session;
     },
