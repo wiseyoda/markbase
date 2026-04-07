@@ -81,6 +81,33 @@ export async function getShare(id: string): Promise<ShareWithToken | null> {
   };
 }
 
+export async function listSharesForRepo(
+  ownerId: string,
+  repo: string,
+): Promise<Share[]> {
+  const sql = getDb();
+  const rows = await sql`
+    SELECT id, type, owner_id, repo, branch, file_path, created_at, expires_at, deleted_at
+    FROM shares
+    WHERE owner_id = ${ownerId}
+      AND repo = ${repo}
+      AND deleted_at IS NULL
+      AND (expires_at IS NULL OR expires_at > NOW())
+    ORDER BY created_at DESC
+  `;
+  return rows.map((row) => ({
+    id: row.id as string,
+    type: row.type as "file" | "repo" | "folder",
+    owner_id: row.owner_id as string,
+    repo: row.repo as string,
+    branch: row.branch as string,
+    file_path: row.file_path as string | null,
+    created_at: row.created_at as string,
+    expires_at: row.expires_at as string | null,
+    deleted_at: row.deleted_at as string | null,
+  }));
+}
+
 export async function listShares(ownerId: string): Promise<Share[]> {
   const sql = getDb();
   const rows = await sql`

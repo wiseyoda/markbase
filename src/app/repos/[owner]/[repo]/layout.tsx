@@ -5,7 +5,9 @@ import { getDefaultBranch, getMarkdownTree } from "@/lib/github";
 import type { MarkdownFile } from "@/lib/github";
 import { Sidebar } from "./sidebar";
 import { ShareButton, ShareProvider } from "./share-dialog";
+import { SharesDropdown } from "./shares-dropdown";
 import { countOpenComments } from "@/lib/comments";
+import { listSharesForRepo } from "@/lib/shares";
 
 export interface TreeNode {
   name: string;
@@ -70,9 +72,11 @@ export default async function RepoLayout({
   const fullRepo = `${owner}/${repo}`;
   const fileKeyPrefix = `${fullRepo}/${branch}/`;
 
-  const [files, commentCounts] = await Promise.all([
+  const userId = session.user?.id || "";
+  const [files, commentCounts, repoShares] = await Promise.all([
     getMarkdownTree(session.accessToken, owner, repo, branch),
     countOpenComments(fileKeyPrefix),
+    userId ? listSharesForRepo(userId, fullRepo) : Promise.resolve([]),
   ]);
 
   // Convert file_key based counts to path-based counts
@@ -106,6 +110,7 @@ export default async function RepoLayout({
           </span>
         </div>
         <div className="flex items-center gap-3">
+          <SharesDropdown shares={repoShares} />
           <ShareButton
             repo={`${owner}/${repo}`}
             branch={branch}
