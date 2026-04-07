@@ -33,13 +33,17 @@ export function CommentRail({
 }: CommentRailProps) {
   const [open, setOpen] = useState(true);
   const [comments, setComments] = useState<Comment[]>(initialComments || []);
-  const [activeQuote, setActiveQuote] = useState<string | null>(null);
+  const [activeQuote, setActiveQuote] = useState<{
+    text: string;
+    offset: number;
+  } | null>(null);
   const [showResolved, setShowResolved] = useState(false);
   const [selectionPopup, setSelectionPopup] = useState<{
     x: number;
     y: number;
     text: string;
     context: string;
+    offset: number;
   } | null>(null);
 
   const loadComments = useCallback(async () => {
@@ -76,10 +80,14 @@ export function CommentRail({
     // Add highlights for each quoted comment
     const quotes = comments
       .filter((c) => c.quote && !c.resolved_at)
-      .map((c) => ({ id: c.id, quote: c.quote! }));
+      .map((c) => ({
+        id: c.id,
+        quote: c.quote!,
+        offset: c.quote_context ? parseInt(c.quote_context, 10) : undefined,
+      }));
 
-    for (const { id, quote } of quotes) {
-      highlightText(article, quote, id);
+    for (const { id, quote, offset } of quotes) {
+      highlightText(article, quote, id, isNaN(offset as number) ? undefined : offset);
     }
   }, [comments, articleId]);
 
@@ -108,11 +116,11 @@ export function CommentRail({
         return;
       }
 
-      // Get surrounding context
+      // Get character offset of selection within article text
+      const offset = getTextOffset(article, range);
       const fullText = article.textContent || "";
-      const idx = fullText.indexOf(text);
-      const start = Math.max(0, idx - 40);
-      const end = Math.min(fullText.length, idx + text.length + 40);
+      const start = Math.max(0, offset - 40);
+      const end = Math.min(fullText.length, offset + text.length + 40);
       const context = fullText.slice(start, end);
 
       setSelectionPopup({
@@ -120,6 +128,7 @@ export function CommentRail({
         y: e.clientY - 40,
         text,
         context,
+        offset,
       });
     };
 
@@ -135,10 +144,10 @@ export function CommentRail({
 
       e.preventDefault();
 
+      const offset = getTextOffset(article, range);
       const fullText = article.textContent || "";
-      const idx = fullText.indexOf(text);
-      const start = Math.max(0, idx - 40);
-      const end = Math.min(fullText.length, idx + text.length + 40);
+      const start = Math.max(0, offset - 40);
+      const end = Math.min(fullText.length, offset + text.length + 40);
       const context = fullText.slice(start, end);
 
       setSelectionPopup({
@@ -146,6 +155,7 @@ export function CommentRail({
         y: e.clientY - 40,
         text,
         context,
+        offset,
       });
     };
 
@@ -225,7 +235,7 @@ export function CommentRail({
           x={selectionPopup.x}
           y={selectionPopup.y}
           onComment={() => {
-            setActiveQuote(selectionPopup.text);
+            setActiveQuote({ text: selectionPopup.text, offset: selectionPopup.offset });
             setOpen(true);
             setSelectionPopup(null);
           }}
@@ -274,8 +284,8 @@ export function CommentRail({
           {/* New comment from selection */}
           {activeQuote && (
             <NewCommentForm
-              quote={activeQuote}
-              quoteContext=""
+              quote={activeQuote.text}
+              quoteContext={String(activeQuote.offset)}
               repo={repo}
               branch={branch}
               filePath={filePath}
@@ -707,7 +717,27 @@ function timeAgo(dateStr: string): string {
 }
 
 /** Find and highlight text in an article element */
-function highlightText(root: HTMLElement, text: string, commentId: string) {
+/** Get the character offset of a Range's start within a root element's text */
+function getTextOffset(root: HTMLElement, range: Range): number {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let offset = 0;
+
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text;
+    if (node === range.startContainer) {
+      return offset + range.startOffset;
+    }
+    offset += (node.textContent || "").length;
+  }
+  return offset;
+}
+
+function highlightText(
+  root: HTMLElement,
+  text: string,
+  commentId: string,
+  offsetHint?: number,
+) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const textNodes: Text[] = [];
 
@@ -729,7 +759,20 @@ function highlightText(root: HTMLElement, text: string, commentId: string) {
     accumulated += content;
   }
 
-  const matchStart = accumulated.indexOf(text);
+  // Find the match closest to the offset hint
+  let matchStart = -1;
+  if (offsetHint !== undefined) {
+    // Search near the hint first
+    const searchFrom = Math.max(0, offsetHint - 20);
+    const nearIdx = accumulated.indexOf(text, searchFrom);
+    if (nearIdx !== -1 && Math.abs(nearIdx - offsetHint) < 200) {
+      matchStart = nearIdx;
+    }
+  }
+  // Fallback to first match
+  if (matchStart === -1) {
+    matchStart = accumulated.indexOf(text);
+  }
   if (matchStart === -1) return;
   const matchEnd = matchStart + text.length;
 

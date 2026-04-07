@@ -52,6 +52,16 @@ export async function searchGitHubUsers(
   const session = await auth();
   if (!session?.accessToken || !query.trim()) return [];
 
+  // Search local users first (people who have signed in to markbase)
+  const { searchUsers } = await import("@/lib/users");
+  const localUsers = await searchUsers(query);
+  const localResults: GitHubUserResult[] = localUsers.map((u) => ({
+    login: u.login,
+    id: Number(u.id),
+    avatar_url: u.avatar_url || "",
+  }));
+
+  // Then search GitHub for additional results
   const res = await fetch(
     `https://api.github.com/search/users?q=${encodeURIComponent(query)}&per_page=5`,
     {
@@ -62,11 +72,22 @@ export async function searchGitHubUsers(
     },
   );
 
-  if (!res.ok) return [];
-  const data = await res.json();
-  return (data.items || []).map((u: Record<string, unknown>) => ({
-    login: u.login as string,
-    id: u.id as number,
-    avatar_url: u.avatar_url as string,
-  }));
+  let githubResults: GitHubUserResult[] = [];
+  if (res.ok) {
+    const data = await res.json();
+    githubResults = (data.items || []).map((u: Record<string, unknown>) => ({
+      login: u.login as string,
+      id: u.id as number,
+      avatar_url: u.avatar_url as string,
+    }));
+  }
+
+  // Dedupe: local users first, then GitHub results not in local
+  const localIds = new Set(localResults.map((u) => u.id));
+  const combined = [
+    ...localResults,
+    ...githubResults.filter((u) => !localIds.has(u.id)),
+  ];
+
+  return combined.slice(0, 8);
 }

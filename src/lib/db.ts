@@ -80,6 +80,19 @@ export async function initDb() {
       PRIMARY KEY (user_id, repo)
     )
   `;
+  // Users table for tracking authenticated users
+  await db`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      login TEXT NOT NULL,
+      name TEXT,
+      avatar_url TEXT,
+      last_login TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await db`
+    CREATE INDEX IF NOT EXISTS idx_users_login ON users(login)
+  `.catch(() => {});
   // Add shared_with column for user-targeted shares
   await db`
     ALTER TABLE shares ADD COLUMN IF NOT EXISTS shared_with TEXT

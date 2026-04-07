@@ -26,6 +26,18 @@ const {
       }
       if (profile) {
         token.userId = String(profile.id);
+        // Track user in our DB
+        try {
+          const { upsertUser } = await import("@/lib/users");
+          await upsertUser({
+            id: String(profile.id),
+            login: (profile as Record<string, unknown>).login as string || "",
+            name: profile.name || null,
+            avatarUrl: (profile as Record<string, unknown>).avatar_url as string || null,
+          });
+        } catch {
+          // Don't block auth if DB is unavailable
+        }
       }
       return token;
     },
