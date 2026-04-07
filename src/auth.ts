@@ -68,4 +68,4 @@ async function auth(): Promise<Session | null> {
   return nextAuth();
 }
 
-export { handlers, signIn, signOut, auth };
+export { handlers, signIn, signOut, auth, nextAuth as authMiddleware };
