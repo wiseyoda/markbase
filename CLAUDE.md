@@ -48,7 +48,7 @@ src/
 │       ├── types.ts # Interfaces
 │       ├── jwt.ts   # JWT sign/verify (jose)
 │       ├── oauth.ts # PKCE, encrypted auth codes
-│       └── tools.ts # 7 comment tools
+│       └── tools.ts # 9 comment tools
 ├── auth.ts          # Auth config + bypass mode
 └── proxy.ts         # Route protection
 ```
@@ -68,7 +68,7 @@ Next.js 16, Auth.js v5 beta, Tailwind v4, postgres.js, react-markdown, diff
 
 Remote HTTP MCP server at `/api/mcp` with GitHub OAuth (stateless, Vercel-compatible).
 
-**Tools:** `list_files_with_comments`, `get_comments`, `add_comment`, `reply_to_comment`, `resolve_comment`, `unresolve_comment`, `delete_comment`
+**Tools:** `list_files_with_comments`, `get_comments`, `add_comment`, `reply_to_comment`, `resolve_comment`, `bulk_resolve_comments`, `reply_and_resolve`, `unresolve_comment`, `delete_comment`
 
 **Add to Claude Code:** `claude mcp add --transport http markbase https://markbase-github.vercel.app/api/mcp`
 
@@ -76,6 +76,7 @@ Remote HTTP MCP server at `/api/mcp` with GitHub OAuth (stateless, Vercel-compat
 
 - DB uses Prisma Accelerate URLs (`db.prisma.io`), not direct Neon
 - Migrations are idempotent — run via `/api/init-db`
-- GitHub OAuth App has ONE callback URL (production) — use bypass for local
+- GitHub OAuth App callback URL is domain root (supports both Auth.js and MCP callbacks)
+- Auth bypass (AUTH_BYPASS=true + GITHUB_PAT) for local dev — doesn't work with MCP
 - Production: https://markbase-github.vercel.app
 - Repo: wiseyoda/markbase
