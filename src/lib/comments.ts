@@ -114,16 +114,13 @@ export async function deleteComment(
   userId: string,
 ): Promise<boolean> {
   const db = getDb();
-  // Only author can delete
+  // Delete replies first, then the parent
+  await db`DELETE FROM comments WHERE parent_id = ${commentId}`;
   const rows = await db`
     DELETE FROM comments
     WHERE id = ${commentId} AND author_id = ${userId}
     RETURNING id
   `;
-  // Also delete replies
-  if (rows.length > 0) {
-    await db`DELETE FROM comments WHERE parent_id = ${commentId}`;
-  }
   return rows.length > 0;
 }
 

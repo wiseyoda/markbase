@@ -157,13 +157,64 @@ export function CommentRail({
 
   const unresolved = comments.filter((c) => !c.resolved_at);
   const resolved = comments.filter((c) => c.resolved_at);
+
+  // Calculate positions for anchored comments
+  const [positions, setPositions] = useState<Record<string, number>>({});
+  const railRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLElement | null>(null);
+
+  const updatePositions = useCallback(() => {
+    const article = document.getElementById(articleId);
+    if (!article) return;
+    contentRef.current = article.closest("[data-scroll-container]") as HTMLElement || article.parentElement;
+
+    const newPositions: Record<string, number> = {};
+    for (const comment of unresolved) {
+      if (!comment.quote) continue;
+      const highlight = article.querySelector(
+        `[data-comment-id="${comment.id}"]`,
+      ) as HTMLElement | null;
+      if (highlight) {
+        // Position relative to the content scroll container
+        const container = contentRef.current;
+        if (container) {
+          newPositions[comment.id] = highlight.offsetTop - container.offsetTop;
+        }
+      }
+    }
+    setPositions(newPositions);
+  }, [unresolved, articleId]);
+
+  useEffect(() => {
+    // Defer to avoid synchronous setState in effect
+    const raf = requestAnimationFrame(updatePositions);
+    window.addEventListener("resize", updatePositions);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", updatePositions);
+    };
+  }, [updatePositions]);
+
+  // Sync scroll between content and rail
+  useEffect(() => {
+    const content = document.getElementById(articleId)?.parentElement;
+    const rail = railRef.current;
+    if (!content || !rail) return;
+
+    const handleScroll = () => {
+      const ratio = content.scrollTop / (content.scrollHeight - content.clientHeight || 1);
+      rail.scrollTop = ratio * (rail.scrollHeight - rail.clientHeight);
+    };
+
+    content.addEventListener("scroll", handleScroll, { passive: true });
+    return () => content.removeEventListener("scroll", handleScroll);
+  }, [articleId, comments]);
+
+  const anchored = unresolved.filter((c) => positions[c.id] !== undefined);
   const orphaned = unresolved.filter(
-    (c) =>
-      c.quote &&
-      !document
-        .getElementById(articleId)
-        ?.textContent?.includes(c.quote),
+    (c) => c.quote && positions[c.id] === undefined,
   );
+  const noQuote = unresolved.filter((c) => !c.quote);
 
   return (
     <>
@@ -237,25 +288,61 @@ export function CommentRail({
           )}
 
           {/* Comment list */}
-          <div className="flex-1 overflow-y-auto">
+          <div ref={railRef} className="relative flex-1 overflow-y-auto">
             {unresolved.length === 0 && !activeQuote && (
               <div className="px-4 py-8 text-center text-sm text-zinc-400 dark:text-zinc-500">
                 Select text and click the comment button to add a comment.
               </div>
             )}
 
-            {unresolved
-              .filter((c) => !orphaned.includes(c))
-              .map((comment) => (
-                <CommentThread
-                  key={comment.id}
-                  comment={comment}
-                  repo={repo}
-                  branch={branch}
-                  filePath={filePath}
-                  onUpdate={loadComments}
-                />
-              ))}
+            {/* Anchored comments — positioned to match highlight Y */}
+            {anchored.length > 0 && (
+              <div className="relative" style={{ minHeight: Math.max(...Object.values(positions)) + 200 }}>
+                {(() => {
+                  // Sort by position and resolve overlaps
+                  const sorted = [...anchored].sort(
+                    (a, b) => (positions[a.id] || 0) - (positions[b.id] || 0),
+                  );
+                  let lastBottom = 0;
+                  const MIN_GAP = 8;
+
+                  return sorted.map((comment) => {
+                    const idealTop = positions[comment.id] || 0;
+                    const top = Math.max(idealTop, lastBottom + MIN_GAP);
+                    // Estimate height — will adjust after render
+                    lastBottom = top + 100;
+
+                    return (
+                      <div
+                        key={comment.id}
+                        className="absolute left-0 right-0 transition-all duration-200"
+                        style={{ top }}
+                      >
+                        <CommentThread
+                          comment={comment}
+                          repo={repo}
+                          branch={branch}
+                          filePath={filePath}
+                          onUpdate={loadComments}
+                        />
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            )}
+
+            {/* Unanchored comments (no quote) */}
+            {noQuote.map((comment) => (
+              <CommentThread
+                key={comment.id}
+                comment={comment}
+                repo={repo}
+                branch={branch}
+                filePath={filePath}
+                onUpdate={loadComments}
+              />
+            ))}
 
             {/* Orphaned comments */}
             {orphaned.length > 0 && (

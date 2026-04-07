@@ -221,7 +221,7 @@ export default async function MarkdownViewPage({
 
   return (
     <div className="flex h-full">
-      <div className="flex flex-1 flex-col overflow-y-auto">
+      <div className="flex flex-1 flex-col overflow-y-auto" data-scroll-container>
       {/* Breadcrumb + reading time */}
       <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-3 dark:border-zinc-800">
         <span className="text-sm text-zinc-500 dark:text-zinc-400">
