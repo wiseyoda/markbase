@@ -146,16 +146,12 @@ describe("comment DOM helpers", () => {
     const article = document.getElementById("article") as HTMLElement;
     const mark = article.querySelector("mark") as HTMLElement;
 
-    Object.defineProperty(article, "offsetTop", { configurable: true, value: 12 });
-    Object.defineProperty(mark, "offsetTop", { configurable: true, value: 30 });
-    Object.defineProperty(mark, "offsetParent", {
-      configurable: true,
-      value: article,
-    });
-    Object.defineProperty(article, "offsetParent", {
-      configurable: true,
-      value: scroll,
-    });
+    // getBoundingClientRect-based positioning
+    scroll.getBoundingClientRect = () =>
+      ({ top: 100, left: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => {} }) as DOMRect;
+    mark.getBoundingClientRect = () =>
+      ({ top: 142, left: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => {} }) as DOMRect;
+    Object.defineProperty(scroll, "scrollTop", { configurable: true, value: 0 });
 
     expect(
       calculateCommentPositions(scroll.querySelector("article") as HTMLElement, scroll, [

@@ -171,14 +171,8 @@ export function calculateCommentPositions(
   scrollContainer: HTMLElement,
   comments: Comment[],
 ): Record<string, number> {
-  let articleOffset = 0;
-  let current: HTMLElement | null = article;
-
-  while (current && current !== scrollContainer) {
-    articleOffset += current.offsetTop;
-    current = current.offsetParent as HTMLElement | null;
-  }
-
+  const containerRect = scrollContainer.getBoundingClientRect();
+  const scrollTop = scrollContainer.scrollTop;
   const positions: Record<string, number> = {};
 
   for (const comment of comments) {
@@ -189,15 +183,10 @@ export function calculateCommentPositions(
 
     if (!highlight) continue;
 
-    let offset = 0;
-    let element: HTMLElement | null = highlight;
-
-    while (element && element !== article) {
-      offset += element.offsetTop;
-      element = element.offsetParent as HTMLElement | null;
-    }
-
-    positions[comment.id] = articleOffset + offset;
+    // getBoundingClientRect gives viewport-relative position — convert to
+    // scroll-relative by subtracting container origin and adding scrollTop.
+    const highlightRect = highlight.getBoundingClientRect();
+    positions[comment.id] = highlightRect.top - containerRect.top + scrollTop;
   }
 
   return positions;

@@ -185,9 +185,13 @@ export function CommentRail({
     setCount(comments.filter((c) => !c.resolved_at).length);
   }, [comments, setCount]);
 
-  // Initial load — skip if server already provided comments
+  // Sync server-provided comments into state when they arrive
+  // (handles streaming where component mounts before data is ready)
   useEffect(() => {
-    if (initialComments && initialComments.length > 0) return;
+    if (initialComments && initialComments.length > 0) {
+      setComments(initialComments);
+      return;
+    }
     let cancelled = false;
     withRetry(() => fetchComments(repo, branch, filePath))
       .then((data) => {
