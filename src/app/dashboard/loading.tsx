@@ -60,21 +60,13 @@ export default function DashboardLoading() {
           ))}
         </div>
 
-        {/* All repos skeleton */}
-        <div className="mb-6 h-5 w-40 animate-pulse rounded-md bg-zinc-100 dark:bg-zinc-800" />
-        <div className="flex flex-col gap-3">
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="rounded-lg border border-zinc-200 px-5 py-4 dark:border-zinc-800"
-            >
-              <div className="flex flex-col gap-3">
-                <div className="h-5 w-36 animate-pulse rounded-md bg-zinc-100 dark:bg-zinc-800" />
-                <div className="h-4 w-64 animate-pulse rounded-md bg-zinc-100 dark:bg-zinc-800" />
-                <div className="h-3 w-32 animate-pulse rounded-md bg-zinc-100 dark:bg-zinc-800" />
-              </div>
-            </div>
-          ))}
+        {/* Add repo section skeleton */}
+        <div className="rounded-lg border border-dashed border-zinc-200 px-6 py-8 dark:border-zinc-700">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-5 w-36 animate-pulse rounded-md bg-zinc-100 dark:bg-zinc-800" />
+            <div className="h-4 w-64 animate-pulse rounded-md bg-zinc-100 dark:bg-zinc-800" />
+            <div className="mt-2 h-10 w-40 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+          </div>
         </div>
       </main>
     </div>

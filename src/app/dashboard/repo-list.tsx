@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { timeAgo, formatSize } from "@/lib/format";
 import { LANGUAGE_COLORS } from "@/lib/dashboard";
 import { SyncButton } from "./sync-button";
@@ -163,16 +163,61 @@ function matchesSearch(repo: GitHubRepo, query: string): boolean {
 }
 
 interface RepoListProps {
-  groups: RepoGroup[];
   syncedRepos: string[];
-  totalCount: number;
 }
 
-export function RepoList({ groups, syncedRepos, totalCount }: RepoListProps) {
+const PAGE_SIZE = 20;
+
+function RepoListSkeleton() {
+  return (
+    <div className="flex flex-col gap-3">
+      {Array.from({ length: 4 }, (_, i) => (
+        <div
+          key={i}
+          className="rounded-lg border border-zinc-200 px-5 py-4 dark:border-zinc-800"
+        >
+          <div className="flex flex-col gap-3">
+            <div className="h-5 w-36 animate-pulse rounded-md bg-zinc-100 dark:bg-zinc-800" />
+            <div className="h-4 w-64 animate-pulse rounded-md bg-zinc-100 dark:bg-zinc-800" />
+            <div className="h-3 w-32 animate-pulse rounded-md bg-zinc-100 dark:bg-zinc-800" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function RepoList({ syncedRepos }: RepoListProps) {
+  const [groups, setGroups] = useState<RepoGroup[] | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [search, setSearch] = useState("");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const syncedSet = useMemo(() => new Set(syncedRepos), [syncedRepos]);
 
+  const loadRepos = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/repos");
+      if (!res.ok) return;
+      const data = await res.json();
+      setGroups(data.groups);
+      setTotalCount(data.totalCount);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch repos when user expands the section
+  useEffect(() => {
+    if (expanded && !groups) {
+      loadRepos();
+    }
+  }, [expanded, groups, loadRepos]);
+
   const filteredGroups = useMemo(() => {
+    if (!groups) return [];
     if (!search.trim()) return groups;
 
     return groups
@@ -189,15 +234,58 @@ export function RepoList({ groups, syncedRepos, totalCount }: RepoListProps) {
     0,
   );
 
+  // Paginate: flatten active repos, slice to visibleCount, rebuild groups
+  const paginatedGroups = useMemo(() => {
+    let remaining = visibleCount;
+    return filteredGroups.map((group) => {
+      if (remaining <= 0) {
+        return { ...group, active: [], archived: [] };
+      }
+      const active = group.active.slice(0, remaining);
+      remaining -= active.length;
+      return { ...group, active, archived: remaining > 0 ? group.archived : [] };
+    }).filter((g) => g.active.length > 0 || g.archived.length > 0);
+  }, [filteredGroups, visibleCount]);
+
+  const hasMore = filteredCount > visibleCount;
+
+  // Collapsed state — show the "Add repo" button
+  if (!expanded) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-zinc-300 px-6 py-8 dark:border-zinc-700">
+        <h2 className="text-base font-semibold">Add a repository</h2>
+        <p className="max-w-md text-center text-sm text-zinc-500 dark:text-zinc-400">
+          Browse your GitHub repos and add them to your workspace.
+        </p>
+        <button
+          onClick={() => setExpanded(true)}
+          className="mt-2 rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+        >
+          Browse repositories
+        </button>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-xl font-semibold">All repositories</h2>
-        <span className="text-sm text-zinc-500 dark:text-zinc-400">
-          {search.trim()
-            ? `${filteredCount} of ${totalCount} repos`
-            : `${totalCount} repos`}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-zinc-500 dark:text-zinc-400">
+            {loading
+              ? "Loading..."
+              : search.trim()
+                ? `${filteredCount} of ${totalCount} repos`
+                : `${totalCount} repos`}
+          </span>
+          <button
+            onClick={() => setExpanded(false)}
+            className="text-sm text-zinc-400 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+          >
+            Collapse
+          </button>
+        </div>
       </div>
 
       {/* Search input */}
@@ -206,7 +294,7 @@ export function RepoList({ groups, syncedRepos, totalCount }: RepoListProps) {
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setVisibleCount(PAGE_SIZE); }}
             placeholder="Search repositories..."
             className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#86D5F4] focus:outline-none focus:ring-1 focus:ring-[#86D5F4] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-[#86D5F4] dark:focus:ring-[#86D5F4]"
           />
@@ -224,13 +312,15 @@ export function RepoList({ groups, syncedRepos, totalCount }: RepoListProps) {
         </div>
       </div>
 
-      {filteredGroups.length === 0 ? (
+      {loading ? (
+        <RepoListSkeleton />
+      ) : paginatedGroups.length === 0 ? (
         <p className="py-8 text-center text-sm text-zinc-400 dark:text-zinc-500">
           No repositories match &ldquo;{search}&rdquo;
         </p>
       ) : (
         <div className="flex flex-col gap-10">
-          {filteredGroups.map((group) => (
+          {paginatedGroups.map((group) => (
             <section key={group.owner}>
               <div className="mb-3 flex items-center gap-2">
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
@@ -270,6 +360,15 @@ export function RepoList({ groups, syncedRepos, totalCount }: RepoListProps) {
               )}
             </section>
           ))}
+
+          {hasMore && (
+            <button
+              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+              className="mx-auto rounded-lg border border-zinc-200 px-6 py-2.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+            >
+              Show more ({filteredCount - visibleCount} remaining)
+            </button>
+          )}
         </div>
       )}
     </>

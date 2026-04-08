@@ -13,12 +13,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts";
 import { RepoList } from "./repo-list";
 import { Logo } from "@/components/logo";
-import {
-  getRepos,
-  getUsername,
-  groupRepos,
-  LANGUAGE_COLORS,
-} from "@/lib/dashboard";
+import { getReposByName, LANGUAGE_COLORS } from "@/lib/dashboard";
 import { timeAgo } from "@/lib/format";
 import type { Comment } from "@/lib/comments";
 import type { Share } from "@/lib/shares";
@@ -102,36 +97,28 @@ export default async function Dashboard() {
 
   const userId = session.user?.id || "";
 
-  // Batch 1: core data
-  const [repos, username, syncedRepos, sharedWithMe] = await Promise.all([
-    getRepos(session.accessToken),
-    getUsername(session.accessToken),
+  // All DB queries + pinned repo metadata in parallel — no bulk GitHub calls
+  const [syncedRepos, sharedWithMe, myShares] = await Promise.all([
     getSyncedRepos(),
     userId ? listSharesWithMe(userId) : Promise.resolve([]),
-  ]);
-
-  // Batch 2: activity data (depends on syncedRepos)
-  const [recentComments, openCommentCount, myShares] = await Promise.all([
-    getRecentCommentsForRepos(syncedRepos, 5),
-    countOpenCommentsForRepos(syncedRepos),
     userId ? listShares(userId) : Promise.resolve([]),
   ]);
 
-  const groups = groupRepos(repos, username);
-  const firstName = session.user?.name?.split(" ")[0] || username;
+  // Fetch pinned repo metadata + activity data (depends on syncedRepos)
+  const [syncedRepoData, recentComments, openCommentCount] = await Promise.all([
+    getReposByName(session.accessToken, syncedRepos),
+    getRecentCommentsForRepos(syncedRepos, 5),
+    countOpenCommentsForRepos(syncedRepos),
+  ]);
+
+  const firstName = session.user?.name?.split(" ")[0] || "there";
   const greeting = getGreeting();
   const userAvatar = session.user?.image || null;
-
-  // Build rich data for pinned repos
-  const repoMap = new Map(repos.map((r) => [r.full_name, r]));
-  const syncedRepoData = syncedRepos
-    .map((name) => repoMap.get(name))
-    .filter(Boolean);
 
   const activity = buildActivityItems(
     recentComments,
     myShares,
-    session.user?.name || username,
+    session.user?.name || firstName,
     userAvatar,
   );
 
@@ -217,10 +204,10 @@ export default async function Dashboard() {
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {syncedRepoData.map((repo) => {
-                const [owner, repoName] = repo!.full_name.split("/");
+                const [owner, repoName] = repo.full_name.split("/");
                 return (
                   <Link
-                    key={repo!.full_name}
+                    key={repo.full_name}
                     href={`/repos/${owner}/${repoName}`}
                     className="group flex flex-col gap-2 rounded-lg border border-zinc-200 border-l-[3px] border-l-[#86D5F4] px-4 py-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:border-l-[#86D5F4] dark:hover:bg-zinc-900"
                   >
@@ -230,7 +217,7 @@ export default async function Dashboard() {
                           {owner}/
                         </span>
                         <span className="text-sm font-medium">{repoName}</span>
-                        {repo!.private && (
+                        {repo.private && (
                           <span className="rounded-full border border-zinc-300 px-1.5 py-0.5 text-[10px] text-zinc-400 dark:border-zinc-600 dark:text-zinc-500">
                             private
                           </span>
@@ -246,25 +233,25 @@ export default async function Dashboard() {
                         <path d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z" />
                       </svg>
                     </div>
-                    {repo!.description && (
+                    {repo.description && (
                       <p className="line-clamp-1 text-sm text-zinc-500 dark:text-zinc-400">
-                        {repo!.description}
+                        {repo.description}
                       </p>
                     )}
                     <div className="flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
-                      {repo!.language && (
+                      {repo.language && (
                         <span className="flex items-center gap-1.5">
                           <span
                             className="inline-block h-2 w-2 rounded-full"
                             style={{
                               backgroundColor:
-                                LANGUAGE_COLORS[repo!.language] || "#6b7280",
+                                LANGUAGE_COLORS[repo.language] || "#6b7280",
                             }}
                           />
-                          {repo!.language}
+                          {repo.language}
                         </span>
                       )}
-                      <span>Pushed {timeAgo(repo!.pushed_at)}</span>
+                      <span>Pushed {timeAgo(repo.pushed_at)}</span>
                     </div>
                   </Link>
                 );
@@ -387,12 +374,8 @@ export default async function Dashboard() {
           </div>
         )}
 
-        {/* All repos */}
-        <RepoList
-          groups={groups}
-          syncedRepos={syncedRepos}
-          totalCount={repos.length}
-        />
+        {/* All repos — loaded on demand */}
+        <RepoList syncedRepos={syncedRepos} />
       </main>
     </div>
     </KeyboardShortcutsProvider>

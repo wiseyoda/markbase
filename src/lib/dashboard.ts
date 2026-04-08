@@ -115,6 +115,30 @@ export async function getUsername(accessToken: string): Promise<string> {
   return user.login;
 }
 
+/** Fetch metadata for a small set of repos by full_name (e.g. pinned repos). */
+export async function getReposByName(
+  accessToken: string,
+  fullNames: string[],
+): Promise<GitHubRepo[]> {
+  if (fullNames.length === 0) return [];
+
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    Accept: "application/vnd.github.v3+json",
+  };
+
+  const results = await Promise.all(
+    fullNames.map((name) =>
+      fetch(githubApiUrl(`/repos/${name}`), {
+        headers,
+        next: { revalidate: 60 },
+      }).then((res) => (res.ok ? (res.json() as Promise<GitHubRepo>) : null)),
+    ),
+  );
+
+  return results.filter((r): r is GitHubRepo => r !== null);
+}
+
 export function groupRepos(
   repos: GitHubRepo[],
   username: string,
