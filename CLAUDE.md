@@ -21,7 +21,9 @@ pnpm test:e2e         # E2E tests (Playwright, requires build + Docker)
 ```
 src/
 ├── app/
-│   ├── page.tsx                    # Landing (sign in + product preview)
+│   ├── page.tsx                    # Landing page (hero, animated demo, feature sections)
+│   ├── product-demo.tsx            # Animated three-pane product walkthrough (client)
+│   ├── scroll-reveal.tsx           # IntersectionObserver scroll reveal (client)
 │   ├── dashboard/                  # Your repos, shared with me, all repos (with search)
 │   │   ├── page.tsx                # Server component — data fetching
 │   │   ├── repo-list.tsx           # Client component — search/filter
@@ -29,7 +31,10 @@ src/
 │   ├── repos/[owner]/[repo]/       # Authenticated repo viewer
 │   │   ├── layout.tsx              # Header + sidebar + command palette providers
 │   │   ├── [...path]/page.tsx      # Markdown viewer + comments + history
-│   │   ├── [...path]/comment-rail.tsx  # Comment system (desktop rail + mobile sheet)
+│   │   ├── [...path]/comment-rail.tsx  # Comment rail orchestrator (imports context/thread/form)
+│   │   ├── [...path]/comment-context.tsx  # CommentProvider + CommentToggle
+│   │   ├── [...path]/comment-thread.tsx   # CommentThread component
+│   │   ├── [...path]/comment-form.tsx     # NewCommentForm component
 │   │   ├── sidebar.tsx             # File tree (uses shared FileTree component)
 │   │   ├── share-dialog.tsx        # Share modal / bottom sheet
 │   │   └── command-palette-wrapper.tsx  # Cmd+K palette with file search
@@ -66,6 +71,7 @@ src/
 │   ├── markdown.ts     # TOC extraction, heading slugs, link resolution
 │   ├── shares.ts       # Share CRUD + encrypted tokens
 │   ├── synced-repos.ts
+│   ├── tree.ts         # TreeNode type + buildTree (shared by repo + share routes)
 │   ├── test-auth.ts    # Test-mode auth cookie encode/decode
 │   ├── users.ts
 │   └── mcp/            # MCP server internals
@@ -78,6 +84,7 @@ src/
 See `.env.example` for all required variables. Key notes:
 - `PRISMA_DATABASE_URL` is preferred over `POSTGRES_URL` (Prisma Accelerate proxy)
 - `AUTH_BYPASS=true` + `GITHUB_PAT` for local dev without OAuth
+- With AUTH_BYPASS, visit `/?preview` to view the landing page (dev only)
 - `SHARE_ENCRYPTION_KEY` must be 64-char hex (openssl rand -hex 32)
 
 ## Tech Stack
@@ -92,6 +99,7 @@ Next.js 16, Auth.js v5 beta, Tailwind v4 (class-based dark mode), postgres.js, r
 - Panel state: sessionStorage `markbase-sidebar` and `markbase-comments` via useSyncExternalStore
 - Touch targets: 44px minimum on coarse pointers
 - One accent family: blue #86D5F4. Green for inline code only.
+- `#86D5F4` is too washed out on white — use `text-sky-500 dark:text-[#86D5F4]` for readable accent text
 
 ## MCP Server
 
@@ -99,11 +107,11 @@ Remote HTTP MCP server at `/api/mcp` with GitHub OAuth (stateless, Vercel-compat
 
 **Tools:** `list_files_with_comments`, `get_comments`, `add_comment`, `reply_to_comment`, `resolve_comment`, `bulk_resolve_comments`, `reply_and_resolve`, `unresolve_comment`, `delete_comment`
 
-**Add to Claude Code:** `claude mcp add --transport http markbase https://markbase-github.vercel.app/api/mcp`
+**Add to Claude Code:** `claude mcp add --transport http markbase https://markbase.io/api/mcp`
 
 ## Testing
 
-**Unit + Integration** (Vitest): `pnpm test:unit` — 30 test files, 111 tests, 99%+ coverage.
+**Unit + Integration** (Vitest): `pnpm test:unit` — 30 test files, 132 tests, 99%+ coverage.
 - Config: `vitest.config.mts`, setup in `tests/setup/`
 - Unit tests: `tests/unit/` — pure logic, mocked dependencies
 - Integration tests: `tests/integration/` — hit real Postgres via testcontainers
@@ -137,5 +145,9 @@ Remote HTTP MCP server at `/api/mcp` with GitHub OAuth (stateless, Vercel-compat
 - Comment positions use `getBoundingClientRect()` not `offsetParent` — scroll container has no CSS position
 - Share `created_at` is a `Date` object from postgres.js, not a string — use `new Date(v).getTime()` for comparisons
 - `initialComments` prop must be synced into state via `useEffect` (streaming can deliver component before data)
-- Production: https://markbase-github.vercel.app
+- MCP OAuth `redirect_uri` restricted to localhost/127.0.0.1 only
+- `ignoreDbError` only swallows known idempotent Postgres error codes (42701, 42710, etc.)
+- Comment actions (unresolve, restore) require user to be author or repo owner
+- `TreeNode`/`buildTree` live in `src/lib/tree.ts` — don't import from route files
+- Production: https://markbase.io
 - Repo: wiseyoda/markbase

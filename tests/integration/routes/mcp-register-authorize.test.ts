@@ -106,7 +106,7 @@ describe("MCP registration and authorization routes", () => {
     );
 
     expect(response.headers.get("location")).toContain(
-      encodeURIComponent("https://markbase-github.vercel.app/api/mcp/callback"),
+      encodeURIComponent("https://markbase.io/api/mcp/callback"),
     );
   });
 

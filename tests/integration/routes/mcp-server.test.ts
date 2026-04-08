@@ -245,7 +245,7 @@ describe("MCP JSON-RPC route", () => {
     );
 
     expect(response.headers.get("WWW-Authenticate")).toContain(
-      "https://markbase-github.vercel.app/.well-known/oauth-protected-resource",
+      "https://markbase.io/.well-known/oauth-protected-resource",
     );
   });
 });

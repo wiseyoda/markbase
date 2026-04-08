@@ -4,7 +4,7 @@ import { githubWebUrl } from "@/lib/github-config";
 import type { OAuthState } from "@/lib/mcp/types";
 
 const BASE_URL =
-  process.env.NEXTAUTH_URL || "https://markbase-github.vercel.app";
+  process.env.NEXTAUTH_URL || "https://markbase.io";
 const GITHUB_ID = process.env.GITHUB_ID!;
 
 export async function GET(req: NextRequest) {

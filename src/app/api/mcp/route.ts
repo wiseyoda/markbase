@@ -4,7 +4,7 @@ import { getToolsList, executeTool } from "@/lib/mcp/tools";
 import type { McpContext, JsonRpcRequest, JsonRpcResponse } from "@/lib/mcp/types";
 
 const BASE_URL =
-  process.env.NEXTAUTH_URL || "https://markbase-github.vercel.app";
+  process.env.NEXTAUTH_URL || "https://markbase.io";
 
 const PROTOCOL_VERSION = "2025-03-26";
 const SERVER_INFO = { name: "markbase", version: "1.0.0" };

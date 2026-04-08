@@ -4,7 +4,7 @@
   <p><strong>Browse, share, and discuss markdown files from GitHub.</strong></p>
   <p>Beautiful rendering. Expiring share links. Inline comments anchored to text.</p>
 
-  <a href="https://markbase-github.vercel.app">Website</a> &middot;
+  <a href="https://markbase.io">Website</a> &middot;
   <a href="#features">Features</a> &middot;
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#mcp-server">MCP Server</a>
@@ -13,7 +13,7 @@
   <br />
 
   <a href="https://github.com/wiseyoda/markbase/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
-  <a href="https://markbase-github.vercel.app"><img alt="Deploy" src="https://img.shields.io/badge/deployed%20on-Vercel-black.svg" /></a>
+  <a href="https://markbase.io"><img alt="Deploy" src="https://img.shields.io/badge/deployed%20on-Vercel-black.svg" /></a>
 </div>
 
 <br />
@@ -42,7 +42,7 @@ Markbase connects to your GitHub repos and gives your markdown files a proper re
 
 ### Production
 
-Sign in at **[markbase-github.vercel.app](https://markbase-github.vercel.app)** with your GitHub account. Read-only access — your repos stay untouched.
+Sign in at **[markbase.io](https://markbase.io)** with your GitHub account. Read-only access — your repos stay untouched.
 
 ### Local Development
 
@@ -76,7 +76,7 @@ For local dev without OAuth, set `AUTH_BYPASS=true` and `GITHUB_PAT` in `.env.lo
 Markbase exposes a remote MCP server for managing inline comments from AI tools.
 
 ```bash
-claude mcp add --transport http markbase https://markbase-github.vercel.app/api/mcp
+claude mcp add --transport http markbase https://markbase.io/api/mcp
 ```
 
 **Tools:** `get_comments`, `add_comment`, `reply_to_comment`, `resolve_comment`, `bulk_resolve_comments`, `reply_and_resolve`, `unresolve_comment`, `delete_comment`, `list_files_with_comments`

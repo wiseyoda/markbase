@@ -68,10 +68,10 @@ describe("static route handlers", () => {
     );
 
     expect((await authorizationServer().json()).issuer).toBe(
-      "https://markbase-github.vercel.app",
+      "https://markbase.io",
     );
     expect((await protectedResource().json()).resource).toBe(
-      "https://markbase-github.vercel.app/api/mcp",
+      "https://markbase.io/api/mcp",
     );
   });
 });
