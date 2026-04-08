@@ -53,15 +53,11 @@ export default async function SharedFilePage({
   const isSignedIn = !!session?.user?.id;
   const share = await getShare(id);
 
-  if (!share || (share.type !== "repo" && share.type !== "folder")) {
-    console.error(`[share-404] id=${id} share=${share ? `type=${share.type}` : "null (expired/deleted/not found)"}`);
-    notFound();
-  }
+  if (!share || (share.type !== "repo" && share.type !== "folder")) notFound();
 
   // User-targeted shares require the correct user to be signed in
   if (share.shared_with) {
     if (!isSignedIn || session.user.id !== share.shared_with) {
-      console.error(`[share-404] id=${id} shared_with=${share.shared_with} user=${session?.user?.id || "anon"}`);
       notFound();
     }
   }
@@ -72,7 +68,6 @@ export default async function SharedFilePage({
   // For folder shares, verify the path is within the shared folder
   if (share.type === "folder" && share.file_path) {
     if (!filePath.startsWith(share.file_path + "/")) {
-      console.error(`[share-404] id=${id} folder scope mismatch: path="${filePath}" expected prefix="${share.file_path}/"`);
       notFound();
     }
   }
