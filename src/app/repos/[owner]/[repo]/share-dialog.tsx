@@ -434,6 +434,7 @@ function ShareModal({
           <h2 className="text-lg font-semibold">Share</h2>
           <button
             onClick={onClose}
+            aria-label="Close share dialog"
             className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
           >
             &times;

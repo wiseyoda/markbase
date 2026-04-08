@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { diffLines } from "diff";
 import { fetchFileHistory, fetchFileAtCommit } from "./history-actions";
 import { formatDate } from "@/lib/format";
+import { buildDiffLines, type DiffLine } from "@/lib/history";
 import { Tooltip } from "@/components/tooltip";
 import type { FileCommit } from "@/lib/github";
 
@@ -87,23 +87,7 @@ function HistoryPanel({
 
       if (newContent !== null) {
         setFullContent(newContent);
-        const changes = diffLines(oldContent || "", newContent);
-        const lines: DiffLine[] = [];
-
-        for (const change of changes) {
-          const text = change.value.replace(/\n$/, "");
-          const splitLines = text.split("\n");
-          for (const line of splitLines) {
-            if (change.added) {
-              lines.push({ type: "add", text: line });
-            } else if (change.removed) {
-              lines.push({ type: "remove", text: line });
-            } else {
-              lines.push({ type: "context", text: line });
-            }
-          }
-        }
-        setDiffData(lines);
+        setDiffData(buildDiffLines(oldContent || "", newContent));
       }
       setDiffLoading(false);
     },
@@ -124,6 +108,7 @@ function HistoryPanel({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close history panel"
             className="rounded-md p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
           >
             <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
@@ -294,9 +279,3 @@ function HistoryPanel({
     document.body,
   );
 }
-
-interface DiffLine {
-  type: "add" | "remove" | "context";
-  text: string;
-}
-

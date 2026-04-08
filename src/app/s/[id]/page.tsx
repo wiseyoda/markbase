@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import { notFound, redirect } from "next/navigation";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -50,6 +51,13 @@ export default async function SharePage({
 
   if (!share) notFound();
 
+  if (share.shared_with) {
+    const session = await auth();
+    if (!session?.user?.id || session.user.id !== share.shared_with) {
+      notFound();
+    }
+  }
+
   const [owner, repo] = share.repo.split("/");
 
   // File share: render the single file
@@ -62,7 +70,7 @@ export default async function SharePage({
       share.file_path,
     );
 
-    if (!content) notFound();
+    if (content === null) notFound();
 
     return (
       <div className="flex min-h-screen flex-col">

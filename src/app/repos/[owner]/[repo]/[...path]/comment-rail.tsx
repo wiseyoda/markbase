@@ -22,30 +22,17 @@ import {
 import type { Comment } from "@/lib/comments";
 import { relativeTime } from "@/lib/format";
 import { useIsDesktop } from "@/hooks/use-media-query";
+import {
+  buildSelectionPopupState,
+  calculateCommentPositions,
+  clearCommentHighlights,
+  highlightText,
+  withRetry,
+} from "@/lib/comment-dom";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useToast } from "@/components/toast";
 import { Tooltip } from "@/components/tooltip";
-
-/* ------------------------------------------------------------------ */
-/* Retry wrapper for transient network failures                       */
-/* ------------------------------------------------------------------ */
-
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  retries = 2,
-  delay = 1000,
-): Promise<T> {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      return await fn();
-    } catch (e) {
-      if (i === retries) throw e;
-      await new Promise((r) => setTimeout(r, delay * (i + 1)));
-    }
-  }
-  throw new Error("unreachable");
-}
 
 /* ------------------------------------------------------------------ */
 /* Context: shared open/close state between CommentToggle and Rail    */
@@ -225,17 +212,7 @@ export function CommentRail({
     const article = document.getElementById(articleId);
     if (!article) return;
 
-    // Clear existing highlights
-    article.querySelectorAll(".comment-highlight").forEach((el) => {
-      const parent = el.parentNode;
-      if (parent) {
-        parent.replaceChild(
-          document.createTextNode(el.textContent || ""),
-          el,
-        );
-        parent.normalize();
-      }
-    });
+    clearCommentHighlights(article);
 
     // Add highlights for each quoted comment
     const quotes = comments
@@ -258,65 +235,29 @@ export function CommentRail({
 
     const handleMouseUp = (e: MouseEvent) => {
       const selection = window.getSelection();
-      if (!selection || selection.isCollapsed) {
+      if (!selection) {
         setSelectionPopup(null);
         return;
       }
 
-      const text = selection.toString().trim();
-      if (!text || text.length < 3) {
-        setSelectionPopup(null);
-        return;
-      }
-
-      // Check if selection is within the article
-      const range = selection.getRangeAt(0);
-      if (!article.contains(range.commonAncestorContainer)) {
-        setSelectionPopup(null);
-        return;
-      }
-
-      // Get character offset of selection within article text
-      const offset = getTextOffset(article, range);
-      const fullText = article.textContent || "";
-      const start = Math.max(0, offset - 40);
-      const end = Math.min(fullText.length, offset + text.length + 40);
-      const context = fullText.slice(start, end);
-
-      setSelectionPopup({
-        x: e.clientX,
-        y: e.clientY - 40,
-        text,
-        context,
-        offset,
-      });
+      setSelectionPopup(
+        buildSelectionPopupState(article, selection, e.clientX, e.clientY),
+      );
     };
 
     const handleContextMenu = (e: MouseEvent) => {
       const selection = window.getSelection();
-      if (!selection || selection.isCollapsed) return;
-
-      const text = selection.toString().trim();
-      if (!text || text.length < 3) return;
-
-      const range = selection.getRangeAt(0);
-      if (!article.contains(range.commonAncestorContainer)) return;
+      if (!selection) return;
+      const popup = buildSelectionPopupState(
+        article,
+        selection,
+        e.clientX,
+        e.clientY,
+      );
+      if (!popup) return;
 
       e.preventDefault();
-
-      const offset = getTextOffset(article, range);
-      const fullText = article.textContent || "";
-      const start = Math.max(0, offset - 40);
-      const end = Math.min(fullText.length, offset + text.length + 40);
-      const context = fullText.slice(start, end);
-
-      setSelectionPopup({
-        x: e.clientX,
-        y: e.clientY - 40,
-        text,
-        context,
-        offset,
-      });
+      setSelectionPopup(popup);
     };
 
     article.addEventListener("mouseup", handleMouseUp);
@@ -342,32 +283,7 @@ export function CommentRail({
     ) as HTMLElement | null;
     if (!article || !scrollContainer) return;
 
-    // Calculate article's offset within the scroll container so
-    // comment cards align with highlights, not the article origin
-    let articleOffset = 0;
-    let walk: HTMLElement | null = article;
-    while (walk && walk !== scrollContainer) {
-      articleOffset += walk.offsetTop;
-      walk = walk.offsetParent as HTMLElement | null;
-    }
-
-    const newPositions: Record<string, number> = {};
-    for (const comment of unresolved) {
-      if (!comment.quote) continue;
-      const highlight = article.querySelector(
-        `[data-comment-id="${comment.id}"]`,
-      ) as HTMLElement | null;
-      if (highlight) {
-        let offset = 0;
-        let el: HTMLElement | null = highlight;
-        while (el && el !== article) {
-          offset += el.offsetTop;
-          el = el.offsetParent as HTMLElement | null;
-        }
-        newPositions[comment.id] = articleOffset + offset;
-      }
-    }
-    setPositions(newPositions);
+    setPositions(calculateCommentPositions(article, scrollContainer, unresolved));
   }, [unresolved, articleId]);
 
   useEffect(() => {
@@ -1109,107 +1025,4 @@ function NewCommentForm({
       </div>
     </div>
   );
-}
-
-/** Find and highlight text in an article element */
-/** Get the character offset of a Range's start within a root element's text */
-function getTextOffset(root: HTMLElement, range: Range): number {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let offset = 0;
-
-  while (walker.nextNode()) {
-    const node = walker.currentNode as Text;
-    if (node === range.startContainer) {
-      return offset + range.startOffset;
-    }
-    offset += (node.textContent || "").length;
-  }
-  return offset;
-}
-
-function highlightText(
-  root: HTMLElement,
-  text: string,
-  commentId: string,
-  offsetHint?: number,
-) {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const textNodes: Text[] = [];
-
-  while (walker.nextNode()) {
-    textNodes.push(walker.currentNode as Text);
-  }
-
-  // Build concatenated text with node boundaries
-  let accumulated = "";
-  const nodeMap: { node: Text; start: number; end: number }[] = [];
-
-  for (const node of textNodes) {
-    const content = node.textContent || "";
-    nodeMap.push({
-      node,
-      start: accumulated.length,
-      end: accumulated.length + content.length,
-    });
-    accumulated += content;
-  }
-
-  // Find the match closest to the offset hint
-  let matchStart = -1;
-  let matchLen = text.length;
-  if (offsetHint !== undefined) {
-    // Search near the hint first
-    const searchFrom = Math.max(0, offsetHint - 20);
-    const nearIdx = accumulated.indexOf(text, searchFrom);
-    if (nearIdx !== -1 && Math.abs(nearIdx - offsetHint) < 200) {
-      matchStart = nearIdx;
-    }
-  }
-  // Fallback to first match
-  if (matchStart === -1) {
-    matchStart = accumulated.indexOf(text);
-  }
-  // Fallback: strip block-boundary whitespace that selection.toString() adds
-  // between block elements (\n) and table cells (\t) but the tree walker omits
-  if (matchStart === -1) {
-    const stripped = text.replace(/[\n\t\r]/g, "");
-    if (stripped !== text) {
-      matchLen = stripped.length;
-      if (offsetHint !== undefined) {
-        const searchFrom = Math.max(0, offsetHint - 20);
-        const nearIdx = accumulated.indexOf(stripped, searchFrom);
-        if (nearIdx !== -1 && Math.abs(nearIdx - offsetHint) < 200) {
-          matchStart = nearIdx;
-        }
-      }
-      if (matchStart === -1) {
-        matchStart = accumulated.indexOf(stripped);
-      }
-    }
-  }
-  if (matchStart === -1) return;
-  const matchEnd = matchStart + matchLen;
-
-  // Find nodes that overlap with the match
-  for (const { node, start, end } of nodeMap) {
-    if (end <= matchStart || start >= matchEnd) continue;
-
-    const nodeStart = Math.max(0, matchStart - start);
-    const nodeEnd = Math.min(node.textContent!.length, matchEnd - start);
-
-    const range = document.createRange();
-    range.setStart(node, nodeStart);
-    range.setEnd(node, nodeEnd);
-
-    const highlight = document.createElement("mark");
-    highlight.className =
-      "comment-highlight bg-yellow-200/30 dark:bg-yellow-500/20 cursor-pointer rounded-sm";
-    highlight.dataset.commentId = commentId;
-
-    try {
-      range.surroundContents(highlight);
-    } catch {
-      // Can't surround if range crosses element boundaries
-    }
-  }
 }

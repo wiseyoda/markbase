@@ -150,7 +150,6 @@ export async function listShares(ownerId: string): Promise<Share[]> {
 export async function deleteShare(
   id: string,
   ownerId: string,
-  _isOwner: boolean = false,
 ): Promise<boolean> {
   const sql = getDb();
   const rows = await sql`

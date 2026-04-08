@@ -64,14 +64,19 @@ export function BottomSheet({
     () => null,
   );
 
-  // Respond to prop changes by moving to the appropriate transition phase.
-  // We derive the next phase from (open, currentPhase) without calling
-  // setState in an effect -- instead we compute it during render.
-  if (open && (phase === "closed" || phase === "closing")) {
-    setPhase("opening");
-  } else if (!open && (phase === "open" || phase === "opening")) {
-    setPhase("closing");
-  }
+  useEffect(() => {
+    if (open && (phase === "closed" || phase === "closing")) {
+      const frame = requestAnimationFrame(() => {
+        setPhase("opening");
+      });
+      return () => cancelAnimationFrame(frame);
+    } else if (!open && (phase === "open" || phase === "opening")) {
+      const frame = requestAnimationFrame(() => {
+        setPhase("closing");
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [open, phase]);
 
   // "opening" -> "open": after one animation frame so the browser paints
   // the off-screen position first, enabling the CSS transition.

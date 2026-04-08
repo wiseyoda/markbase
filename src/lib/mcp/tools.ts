@@ -37,7 +37,7 @@ const TOOLS: McpToolDefinition[] = [
       },
       required: ["repo"],
     },
-    async execute(args, _context) {
+    async execute(args) {
       const repo = args.repo as string;
       const branch = (args.branch as string) || "main";
       const folder = (args.folder as string) || "";
@@ -97,7 +97,7 @@ const TOOLS: McpToolDefinition[] = [
       },
       required: ["repo", "path"],
     },
-    async execute(args, _context) {
+    async execute(args) {
       const repo = args.repo as string;
       const branch = (args.branch as string) || "main";
       const path = args.path as string;

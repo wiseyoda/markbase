@@ -1,3 +1,5 @@
+import { githubApiUrl } from "./github-config";
+
 interface TreeItem {
   path: string;
   mode: string;
@@ -18,7 +20,7 @@ export async function getDefaultBranch(
   repo: string,
 ): Promise<string> {
   const res = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}`,
+    githubApiUrl(`/repos/${owner}/${repo}`),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -40,7 +42,7 @@ export async function getMarkdownTree(
   branch: string,
 ): Promise<MarkdownFile[]> {
   const res = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
+    githubApiUrl(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -53,7 +55,8 @@ export async function getMarkdownTree(
   if (!res.ok) return [];
 
   const data = await res.json();
-  return (data.tree as TreeItem[])
+  const tree = Array.isArray(data?.tree) ? (data.tree as TreeItem[]) : [];
+  return tree
     .filter((item) => item.type === "blob" && item.path.endsWith(".md"))
     .map((item) => ({ path: item.path, sha: item.sha }));
 }
@@ -66,7 +69,9 @@ export async function getFileContent(
   path: string,
 ): Promise<string | null> {
   const res = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
+    githubApiUrl(
+      `/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
+    ),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -98,7 +103,9 @@ export async function getFileHistory(
   path: string,
 ): Promise<FileCommit[]> {
   const res = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}&path=${encodeURIComponent(path)}&per_page=30`,
+    githubApiUrl(
+      `/repos/${owner}/${repo}/commits?sha=${branch}&path=${encodeURIComponent(path)}&per_page=30`,
+    ),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -134,7 +141,9 @@ export async function getLastModified(
   path: string,
 ): Promise<string | null> {
   const res = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}&path=${encodeURIComponent(path)}&per_page=1`,
+    githubApiUrl(
+      `/repos/${owner}/${repo}/commits?sha=${branch}&path=${encodeURIComponent(path)}&per_page=1`,
+    ),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -160,7 +169,7 @@ export async function getFileAtCommit(
   path: string,
 ): Promise<string | null> {
   const res = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${sha}`,
+    githubApiUrl(`/repos/${owner}/${repo}/contents/${path}?ref=${sha}`),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,

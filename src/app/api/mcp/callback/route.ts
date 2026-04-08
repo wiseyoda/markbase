@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { decodeOAuthState, encodeAuthCode } from "@/lib/mcp/oauth";
+import { githubApiUrl, githubWebUrl } from "@/lib/github-config";
 import { upsertUser } from "@/lib/users";
 
 const GITHUB_ID = process.env.GITHUB_ID!;
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Exchange GitHub authorization code for access token
-  const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+  const tokenRes = await fetch(githubWebUrl("/login/oauth/access_token"), {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
   const accessToken: string = tokenData.access_token;
 
   // Fetch GitHub user profile
-  const userRes = await fetch("https://api.github.com/user", {
+  const userRes = await fetch(githubApiUrl("/user"), {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: "application/vnd.github+json",

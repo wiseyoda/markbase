@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { createShare, deleteShare } from "@/lib/shares";
+import { githubApiUrl } from "@/lib/github-config";
 
 export interface GitHubUserResult {
   login: string;
@@ -36,14 +37,10 @@ export async function createShareAction(opts: {
 
 export async function deleteShareAction(
   shareId: string,
-  repoOwner?: string,
 ): Promise<boolean> {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
-  const isOwner = repoOwner
-    ? session.user?.name?.toLowerCase() === repoOwner.toLowerCase()
-    : false;
-  return deleteShare(shareId, session.user.id, isOwner);
+  return deleteShare(shareId, session.user.id);
 }
 
 export async function searchGitHubUsers(
@@ -63,7 +60,9 @@ export async function searchGitHubUsers(
 
   // Then search GitHub for additional results
   const res = await fetch(
-    `https://api.github.com/search/users?q=${encodeURIComponent(query)}&per_page=5`,
+    githubApiUrl(
+      `/search/users?q=${encodeURIComponent(query)}&per_page=5`,
+    ),
     {
       headers: {
         Authorization: `Bearer ${session.accessToken}`,

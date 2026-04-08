@@ -8,6 +8,8 @@ import { auth, signIn } from "@/auth";
 import { getShare } from "@/lib/shares";
 import { getFileContent, getMarkdownTree } from "@/lib/github";
 import { buildTree } from "@/app/repos/[owner]/[repo]/layout";
+import { githubRawUrl } from "@/lib/github-config";
+import { resolveShareMarkdownLink } from "@/lib/markdown";
 import {
   SharedSidebar,
   SharedSidebarProvider,
@@ -22,42 +24,6 @@ import { HistoryButton } from "@/app/repos/[owner]/[repo]/[...path]/history-pane
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getComments, buildFileKey, countOpenComments } from "@/lib/comments";
 import "highlight.js/styles/github-dark.css";
-
-function resolveShareLink(
-  href: string,
-  currentPath: string,
-  shareId: string,
-  folderScope: string | null,
-): { url: string; inScope: boolean } {
-  if (
-    href.startsWith("http") ||
-    href.startsWith("#") ||
-    href.startsWith("mailto:")
-  ) {
-    return { url: href, inScope: true };
-  }
-
-  const currentDir = currentPath.split("/").slice(0, -1).join("/");
-  const parts = (currentDir ? `${currentDir}/${href}` : href).split("/");
-  const resolved: string[] = [];
-
-  for (const part of parts) {
-    if (part === "..") resolved.pop();
-    else if (part !== ".") resolved.push(part);
-  }
-
-  const resolvedPath = resolved.join("/");
-
-  if (resolvedPath.endsWith(".md")) {
-    // Check if link is within folder scope
-    if (folderScope && !resolvedPath.startsWith(folderScope + "/")) {
-      return { url: resolvedPath, inScope: false };
-    }
-    return { url: `/s/${shareId}/${resolvedPath}`, inScope: true };
-  }
-
-  return { url: href, inScope: true };
-}
 
 export default async function SharedFilePage({
   params,
@@ -104,7 +70,7 @@ export default async function SharedFilePage({
         : Promise.resolve({}),
     ]);
 
-  if (!content) notFound();
+  if (content === null) notFound();
 
   const folderScope = share.type === "folder" ? share.file_path : null;
 
@@ -133,7 +99,7 @@ export default async function SharedFilePage({
   const components: Components = {
     a: ({ href, children, ...props }) => {
       const { url, inScope } = href
-        ? resolveShareLink(href, filePath, id, folderScope)
+        ? resolveShareMarkdownLink(href, filePath, id, folderScope)
         : { url: "#", inScope: true };
 
       // Out-of-scope .md links -- render as muted text
@@ -171,7 +137,7 @@ export default async function SharedFilePage({
         const imgPath = currentDir
           ? `${currentDir}/${resolvedSrc}`
           : resolvedSrc;
-        resolvedSrc = `https://raw.githubusercontent.com/${owner}/${repo}/${share.branch}/${imgPath}`;
+        resolvedSrc = githubRawUrl(owner, repo, share.branch, imgPath);
       }
       return (
         // eslint-disable-next-line @next/next/no-img-element

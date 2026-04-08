@@ -2,6 +2,29 @@ import postgres from "postgres";
 
 let sql: ReturnType<typeof postgres> | null = null;
 
+function ignoreNotice() {}
+
+async function ignoreDbError(promise: Promise<unknown>) {
+  try {
+    await promise;
+  } catch {
+    // Best-effort migration path for optional schema changes.
+  }
+}
+
+function resolveSsl(): false | "require" {
+  const ssl = process.env.POSTGRES_SSL;
+  if (ssl === "false" || ssl === "disable" || process.env.NODE_ENV === "test") {
+    return false;
+  }
+  return "require";
+}
+
+function resolveMaxConnections(): number {
+  const parsed = Number(process.env.POSTGRES_POOL_MAX || "5");
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5;
+}
+
 export function getDb() {
   if (sql) return sql;
 
@@ -9,13 +32,20 @@ export function getDb() {
   if (!url) throw new Error("No database URL found in env");
 
   sql = postgres(url, {
-    ssl: "require",
-    max: 1,
+    ssl: resolveSsl(),
+    max: resolveMaxConnections(),
     idle_timeout: 20,
     connect_timeout: 30,
     prepare: false,
+    onnotice: ignoreNotice,
   });
   return sql;
+}
+
+export async function resetDb() {
+  if (!sql) return;
+  await sql.end({ timeout: 1 });
+  sql = null;
 }
 
 export async function initDb() {
@@ -35,13 +65,13 @@ export async function initDb() {
     )
   `;
   // Migrate existing constraint to support folder type
-  await db`
+  await ignoreDbError(db`
     ALTER TABLE shares DROP CONSTRAINT IF EXISTS shares_type_check
-  `.catch(() => {});
-  await db`
+  `);
+  await ignoreDbError(db`
     ALTER TABLE shares ADD CONSTRAINT shares_type_check
     CHECK (type IN ('file', 'repo', 'folder'))
-  `.catch(() => {});
+  `);
   await db`
     CREATE TABLE IF NOT EXISTS comments (
       id TEXT PRIMARY KEY,
@@ -62,20 +92,20 @@ export async function initDb() {
   await db`
     CREATE INDEX IF NOT EXISTS idx_comments_file_key ON comments(file_key)
   `;
-  await db`
+  await ignoreDbError(db`
     CREATE INDEX IF NOT EXISTS idx_comments_file_key_prefix ON comments(file_key text_pattern_ops)
-  `.catch(() => {});
+  `);
   await db`
     CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON comments(parent_id)
   `;
   // Migrate FK to CASCADE delete
-  await db`
+  await ignoreDbError(db`
     ALTER TABLE comments DROP CONSTRAINT IF EXISTS comments_parent_id_fkey
-  `.catch(() => {});
-  await db`
+  `);
+  await ignoreDbError(db`
     ALTER TABLE comments ADD CONSTRAINT comments_parent_id_fkey
     FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE
-  `.catch(() => {});
+  `);
   await db`
     CREATE TABLE IF NOT EXISTS synced_repos (
       user_id TEXT NOT NULL,
@@ -94,27 +124,27 @@ export async function initDb() {
       last_login TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
-  await db`
+  await ignoreDbError(db`
     CREATE INDEX IF NOT EXISTS idx_users_login ON users(login)
-  `.catch(() => {});
+  `);
   // Add shared_with column for user-targeted shares
-  await db`
+  await ignoreDbError(db`
     ALTER TABLE shares ADD COLUMN IF NOT EXISTS shared_with TEXT
-  `.catch(() => {});
-  await db`
+  `);
+  await ignoreDbError(db`
     ALTER TABLE shares ADD COLUMN IF NOT EXISTS shared_with_name TEXT
-  `.catch(() => {});
-  await db`
+  `);
+  await ignoreDbError(db`
     CREATE INDEX IF NOT EXISTS idx_shares_shared_with ON shares(shared_with)
-  `.catch(() => {});
+  `);
   // Composite index for countOpenComments and getCommentsByPrefix hot path
-  await db`
+  await ignoreDbError(db`
     CREATE INDEX IF NOT EXISTS idx_comments_file_key_open
     ON comments(file_key, created_at DESC)
     WHERE resolved_at IS NULL AND parent_id IS NULL
-  `.catch(() => {});
+  `);
   // Soft-delete support for comments
-  await db`
+  await ignoreDbError(db`
     ALTER TABLE comments ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ
-  `.catch(() => {});
+  `);
 }

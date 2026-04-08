@@ -16,66 +16,14 @@ import { CopyButton } from "./copy-button";
 import { CommentRail, CommentProvider, CommentToggle } from "./comment-rail";
 import { HistoryButton } from "./history-panel";
 import { relativeTime, formatBytes, readingTime } from "@/lib/format";
+import {
+  extractToc,
+  resolveRelativeMarkdownLink,
+  slugifyHeading,
+} from "@/lib/markdown";
+import { githubRawUrl } from "@/lib/github-config";
 import { getComments, buildFileKey } from "@/lib/comments";
 import "highlight.js/styles/github-dark.css";
-
-function resolveRelativeLink(
-  href: string,
-  currentPath: string,
-  owner: string,
-  repo: string,
-): string {
-  if (
-    href.startsWith("http") ||
-    href.startsWith("#") ||
-    href.startsWith("mailto:")
-  ) {
-    return href;
-  }
-
-  const currentDir = currentPath.split("/").slice(0, -1).join("/");
-  const parts = (currentDir ? `${currentDir}/${href}` : href).split("/");
-  const resolved: string[] = [];
-
-  for (const part of parts) {
-    if (part === "..") resolved.pop();
-    else if (part !== ".") resolved.push(part);
-  }
-
-  const resolvedPath = resolved.join("/");
-
-  if (resolvedPath.endsWith(".md")) {
-    return `/repos/${owner}/${repo}/${resolvedPath}`;
-  }
-
-  return href;
-}
-
-interface TocEntry {
-  level: number;
-  text: string;
-  slug: string;
-}
-
-function extractToc(markdown: string): TocEntry[] {
-  const entries: TocEntry[] = [];
-  const lines = markdown.split("\n");
-
-  for (const line of lines) {
-    const match = line.match(/^(#{1,4})\s+(.+)$/);
-    if (match) {
-      const level = match[1].length;
-      const text = match[2].replace(/[*_`~\[\]]/g, "");
-      const slug = text
-        .toLowerCase()
-        .replace(/[^\w\s-]/g, "")
-        .replace(/\s+/g, "-");
-      entries.push({ level, text, slug });
-    }
-  }
-
-  return entries;
-}
 
 export default async function MarkdownViewPage({
   params,
@@ -124,7 +72,7 @@ export default async function MarkdownViewPage({
   const components: Components = {
     a: ({ href, children, ...props }) => {
       const resolved = href
-        ? resolveRelativeLink(href, filePath, owner, repo)
+        ? resolveRelativeMarkdownLink(href, filePath, owner, repo)
         : "#";
       const isInternal = resolved.startsWith("/repos/");
 
@@ -155,7 +103,7 @@ export default async function MarkdownViewPage({
         const imgPath = currentDir
           ? `${currentDir}/${resolvedSrc}`
           : resolvedSrc;
-        resolvedSrc = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${imgPath}`;
+        resolvedSrc = githubRawUrl(owner, repo, branch, imgPath);
       }
       return (
         // eslint-disable-next-line @next/next/no-img-element
@@ -193,22 +141,22 @@ export default async function MarkdownViewPage({
     },
     h1: ({ children, ...props }) => {
       const text = String(children).replace(/[*_`~\[\]]/g, "");
-      const id = text.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+      const id = slugifyHeading(text);
       return <h1 id={id} {...props}>{children}</h1>;
     },
     h2: ({ children, ...props }) => {
       const text = String(children).replace(/[*_`~\[\]]/g, "");
-      const id = text.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+      const id = slugifyHeading(text);
       return <h2 id={id} {...props}>{children}</h2>;
     },
     h3: ({ children, ...props }) => {
       const text = String(children).replace(/[*_`~\[\]]/g, "");
-      const id = text.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+      const id = slugifyHeading(text);
       return <h3 id={id} {...props}>{children}</h3>;
     },
     h4: ({ children, ...props }) => {
       const text = String(children).replace(/[*_`~\[\]]/g, "");
-      const id = text.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+      const id = slugifyHeading(text);
       return <h4 id={id} {...props}>{children}</h4>;
     },
   };

@@ -69,7 +69,7 @@ export async function deleteCommentAction(
   // Check if current user is the repo owner (GitHub username match)
   const session = await auth();
   const isOwner = repoOwner
-    ? session?.user?.name?.toLowerCase() === repoOwner.toLowerCase()
+    ? session?.user?.login?.toLowerCase() === repoOwner.toLowerCase()
     : false;
   return softDeleteComment(commentId, user.id, isOwner);
 }

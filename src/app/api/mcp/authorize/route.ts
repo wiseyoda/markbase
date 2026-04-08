@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { encodeOAuthState } from "@/lib/mcp/oauth";
+import { githubWebUrl } from "@/lib/github-config";
 import type { OAuthState } from "@/lib/mcp/types";
 
 const BASE_URL =
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest) {
   const encryptedState = encodeOAuthState(oauthState);
 
   const githubUrl =
-    `https://github.com/login/oauth/authorize` +
+    githubWebUrl("/login/oauth/authorize") +
     `?client_id=${GITHUB_ID}` +
     `&redirect_uri=${encodeURIComponent(`${BASE_URL}/api/mcp/callback`)}` +
     `&scope=${encodeURIComponent("read:user user:email repo")}` +

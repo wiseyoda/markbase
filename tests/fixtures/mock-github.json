@@ -1,0 +1,141 @@
+{
+  "users": {
+    "owner-token": {
+      "id": 101,
+      "login": "owner-user",
+      "name": "Owner User",
+      "avatar_url": "https://example.com/owner.png"
+    },
+    "recipient-token": {
+      "id": 202,
+      "login": "recipient-user",
+      "name": "Recipient User",
+      "avatar_url": "https://example.com/recipient.png"
+    },
+    "oauth-access-token": {
+      "id": 101,
+      "login": "owner-user",
+      "name": "Owner User",
+      "avatar_url": "https://example.com/owner.png"
+    }
+  },
+  "repos": [
+    {
+      "id": 1,
+      "name": "notes",
+      "full_name": "owner-user/notes",
+      "description": "Primary markdown knowledge base",
+      "html_url": "https://github.com/owner-user/notes",
+      "private": true,
+      "archived": false,
+      "language": "TypeScript",
+      "default_branch": "main",
+      "created_at": "2026-01-01T00:00:00.000Z",
+      "updated_at": "2026-01-02T00:00:00.000Z",
+      "pushed_at": "2026-01-03T00:00:00.000Z",
+      "size": 2048,
+      "stargazers_count": 2,
+      "forks_count": 1,
+      "open_issues_count": 1,
+      "watchers_count": 2,
+      "topics": ["docs", "markdown"],
+      "owner": {
+        "login": "owner-user",
+        "type": "User"
+      }
+    },
+    {
+      "id": 2,
+      "name": "archived-docs",
+      "full_name": "acme/archived-docs",
+      "description": "Archived documentation repository",
+      "html_url": "https://github.com/acme/archived-docs",
+      "private": false,
+      "archived": true,
+      "language": "Markdown",
+      "default_branch": "main",
+      "created_at": "2025-12-01T00:00:00.000Z",
+      "updated_at": "2025-12-03T00:00:00.000Z",
+      "pushed_at": "2025-12-05T00:00:00.000Z",
+      "size": 512,
+      "stargazers_count": 0,
+      "forks_count": 0,
+      "open_issues_count": 0,
+      "watchers_count": 0,
+      "topics": [],
+      "owner": {
+        "login": "acme",
+        "type": "Organization"
+      }
+    }
+  ],
+  "trees": {
+    "owner-user/notes@main": [
+      { "path": "README.md", "sha": "sha-readme", "type": "blob" },
+      { "path": "docs/guide.md", "sha": "sha-guide", "type": "blob" },
+      { "path": "empty.md", "sha": "sha-empty", "type": "blob" },
+      { "path": "images/diagram.png", "sha": "sha-image", "type": "blob" }
+    ],
+    "acme/archived-docs@main": [
+      { "path": "README.md", "sha": "sha-archived-readme", "type": "blob" }
+    ]
+  },
+  "contents": {
+    "owner-user/notes@main:README.md": "# Welcome\n\nSee [guide](docs/guide.md).\n\n## Intro\nSome introduction text.\n\n## Details\nMore detail here.\n\n## Summary\nDone.\n",
+    "owner-user/notes@main:docs/guide.md": "# Guide\n\nReference material.\n",
+    "owner-user/notes@main:empty.md": "",
+    "acme/archived-docs@main:README.md": "# Archived\n\nRead-only notes.\n",
+    "owner-user/notes@c3:README.md": "# Welcome\n\nSee [guide](docs/guide.md).\n\n## Intro\nSome introduction text.\n\n## Details\nLatest detail here.\n\n## Summary\nDone.\n",
+    "owner-user/notes@c2:README.md": "# Welcome\n\n## Intro\nSome introduction text.\n\n## Details\nEarlier detail here.\n",
+    "owner-user/notes@c1:README.md": "# Welcome\n\n## Intro\nDraft.\n"
+  },
+  "commits": {
+    "owner-user/notes@main:README.md": [
+      {
+        "sha": "c3",
+        "commit": {
+          "message": "Refine README details\n\nFull body",
+          "author": { "date": "2026-01-03T00:00:00.000Z" }
+        },
+        "author": {
+          "login": "owner-user",
+          "avatar_url": "https://example.com/owner.png"
+        }
+      },
+      {
+        "sha": "c2",
+        "commit": {
+          "message": "Add detailed section",
+          "author": { "date": "2026-01-02T00:00:00.000Z" }
+        },
+        "author": {
+          "login": "owner-user",
+          "avatar_url": "https://example.com/owner.png"
+        }
+      },
+      {
+        "sha": "c1",
+        "commit": {
+          "message": "Initial README",
+          "author": { "date": "2026-01-01T00:00:00.000Z" }
+        },
+        "author": {
+          "login": "owner-user",
+          "avatar_url": "https://example.com/owner.png"
+        }
+      }
+    ]
+  },
+  "searchUsers": [
+    {
+      "login": "recipient-user",
+      "id": 202,
+      "avatar_url": "https://example.com/recipient.png"
+    },
+    {
+      "login": "reviewer-user",
+      "id": 303,
+      "avatar_url": "https://example.com/reviewer.png"
+    }
+  ]
+}
