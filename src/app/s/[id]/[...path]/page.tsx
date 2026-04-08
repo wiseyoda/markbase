@@ -63,7 +63,7 @@ export default async function SharedFilePage({
   }
 
   const [owner, repo] = share.repo.split("/");
-  const filePath = pathSegments.join("/");
+  const filePath = pathSegments.map(decodeURIComponent).join("/");
 
   // For folder shares, verify the path is within the shared folder
   if (share.type === "folder" && share.file_path) {

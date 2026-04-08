@@ -50,7 +50,7 @@ export default async function MarkdownViewPage({
   if (!session) redirect("/");
 
   const { owner, repo, path: pathSegments } = await params;
-  const filePath = pathSegments.join("/");
+  const filePath = pathSegments.map(decodeURIComponent).join("/");
   const branch = await getDefaultBranch(session.accessToken, owner, repo);
 
   const fullRepo = `${owner}/${repo}`;
