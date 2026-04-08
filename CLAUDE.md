@@ -134,5 +134,8 @@ Remote HTTP MCP server at `/api/mcp` with GitHub OAuth (stateless, Vercel-compat
 - Sidebar `closeSidebar` must check `window.innerWidth < 1024` — only close on mobile/tablet
 - `next.config.ts` allows `avatars.githubusercontent.com` for `next/image`
 - `file_key` format is `owner/repo/branch/path` — when building URLs for `/repos/owner/repo/path`, skip index 2 (branch)
+- Comment positions use `getBoundingClientRect()` not `offsetParent` — scroll container has no CSS position
+- Share `created_at` is a `Date` object from postgres.js, not a string — use `new Date(v).getTime()` for comparisons
+- `initialComments` prop must be synced into state via `useEffect` (streaming can deliver component before data)
 - Production: https://markbase-github.vercel.app
 - Repo: wiseyoda/markbase
