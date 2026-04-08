@@ -24,9 +24,9 @@ src/
 │   ├── page.tsx                    # Landing page (hero, animated demo, feature sections)
 │   ├── product-demo.tsx            # Animated three-pane product walkthrough (client)
 │   ├── scroll-reveal.tsx           # IntersectionObserver scroll reveal (client)
-│   ├── dashboard/                  # Your repos, shared with me, all repos (with search)
-│   │   ├── page.tsx                # Server component — data fetching
-│   │   ├── repo-list.tsx           # Client component — search/filter
+│   ├── dashboard/                  # Your repos, activity, stats (pinned repos only)
+│   │   ├── page.tsx                # Server component — DB + pinned repo metadata only
+│   │   ├── repo-list.tsx           # Client component — on-demand GitHub repo browser
 │   │   └── loading.tsx             # Skeleton loader
 │   ├── repos/[owner]/[repo]/       # Authenticated repo viewer
 │   │   ├── layout.tsx              # Header + sidebar + command palette providers
@@ -44,6 +44,8 @@ src/
 │   ├── error.tsx                   # Error boundary
 │   └── api/
 │       ├── init-db/                # DB migrations
+│       ├── repos/                  # On-demand GitHub repo list (client-fetched)
+│       ├── github/webhook/         # GitHub push webhook → cache invalidation
 │       └── mcp/                    # MCP server (JSON-RPC + OAuth)
 ├── components/
 │   ├── bottom-sheet.tsx            # Mobile bottom sheet with gestures
@@ -55,15 +57,18 @@ src/
 │   ├── theme-provider.tsx          # Light/dark/system with localStorage
 │   ├── theme-toggle.tsx            # Sun/monitor/moon cycle button
 │   ├── toast.tsx                   # Toast notifications with undo actions
-│   └── tooltip.tsx                 # Hover/long-press tooltips
+│   ├── tooltip.tsx                 # Hover/long-press tooltips
+│   └── github-refresh-button.tsx   # Manual cache refresh button (client)
 ├── hooks/
 │   └── use-media-query.ts          # useIsMobile, useIsDesktop (useSyncExternalStore)
 ├── lib/
 │   ├── comment-dom.ts  # Comment highlight/selection DOM helpers (extracted from comment-rail)
 │   ├── comments.ts     # Threaded comments (soft delete + restore)
 │   ├── crypto.ts       # AES-256-GCM
-│   ├── dashboard.ts    # GitHub repo fetching + grouping + LANGUAGE_COLORS
-│   ├── db.ts           # Postgres + migrations (comments have deleted_at for soft delete)
+│   ├── dashboard.ts    # GitHub repo fetching + grouping (server-only, imports github-cache)
+│   ├── db.ts           # Postgres + migrations + withDbRetry for serverless
+│   ├── github-cache.ts # Next.js tag-based cache for GitHub API (repo/branch/file/history)
+│   ├── language-colors.ts # LANGUAGE_COLORS constant (client-safe, extracted from dashboard)
 │   ├── format.ts       # Shared formatting (timeAgo, formatBytes, readingTime, etc.)
 │   ├── github-config.ts # GitHub API/Web/Raw base URL config (env-overridable for tests)
 │   ├── github.ts       # GitHub API (tree, content, commits)
@@ -86,10 +91,11 @@ See `.env.example` for all required variables. Key notes:
 - `AUTH_BYPASS=true` + `GITHUB_PAT` for local dev without OAuth
 - With AUTH_BYPASS, visit `/?preview` to view the landing page (dev only)
 - `SHARE_ENCRYPTION_KEY` must be 64-char hex (openssl rand -hex 32)
+- `GITHUB_WEBHOOK_SECRET` (optional) for push-triggered cache invalidation
 
 ## Tech Stack
 
-Next.js 16, Auth.js v5 beta, Tailwind v4 (class-based dark mode), postgres.js, react-markdown, diff
+Next.js 16, Auth.js v5 beta, Tailwind v4 (class-based dark mode), postgres.js, react-markdown, rehype-raw, rehype-sanitize, diff
 
 ## Design System
 
@@ -111,7 +117,7 @@ Remote HTTP MCP server at `/api/mcp` with GitHub OAuth (stateless, Vercel-compat
 
 ## Testing
 
-**Unit + Integration** (Vitest): `pnpm test:unit` — 30 test files, 132 tests, 99%+ coverage.
+**Unit + Integration** (Vitest): `pnpm test:unit` — 34 test files, 160 tests.
 - Config: `vitest.config.mts`, setup in `tests/setup/`
 - Unit tests: `tests/unit/` — pure logic, mocked dependencies
 - Integration tests: `tests/integration/` — hit real Postgres via testcontainers
@@ -144,7 +150,12 @@ Remote HTTP MCP server at `/api/mcp` with GitHub OAuth (stateless, Vercel-compat
 - `file_key` format is `owner/repo/branch/path` — when building URLs for `/repos/owner/repo/path`, skip index 2 (branch)
 - Comment positions use `getBoundingClientRect()` not `offsetParent` — scroll container has no CSS position
 - Share `created_at` is a `Date` object from postgres.js, not a string — use `new Date(v).getTime()` for comparisons
-- `initialComments` prop must be synced into state via `useEffect` (streaming can deliver component before data)
+- `initialComments` prop synced via render-time state derivation (not useEffect — React 19 lint)
+- File paths with spaces: encode with `encodeURI()` for GitHub API/redirects, decode `[...path]` params with `decodeURIComponent`
+- `LANGUAGE_COLORS` lives in `language-colors.ts` (client-safe) — do NOT import from `dashboard.ts` in client components
+- `github-cache.ts` imports `next/cache` (server-only) — never import transitively from client components
+- Dashboard SSR does NOT call `getRepos()` — repos load on-demand via `/api/repos` client fetch
+- DB `withDbRetry()` wraps server actions for automatic retry on CONNECT_TIMEOUT
 - MCP OAuth `redirect_uri` restricted to localhost/127.0.0.1 only
 - `ignoreDbError` only swallows known idempotent Postgres error codes (42701, 42710, etc.)
 - Comment actions (unresolve, restore) require user to be author or repo owner
