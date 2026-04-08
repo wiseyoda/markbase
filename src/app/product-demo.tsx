@@ -73,9 +73,9 @@ export function ProductDemo() {
             </h3>
 
             <div className={`${fade} mt-4 space-y-2`} style={d(650)}>
-              <div className="h-2.5 w-[85%] rounded bg-zinc-100 dark:bg-zinc-800/60" />
-              <div className="h-2.5 w-[65%] rounded bg-zinc-100 dark:bg-zinc-800/60" />
-              <div className="h-2.5 w-[72%] rounded bg-zinc-100 dark:bg-zinc-800/60" />
+              <div className="h-2.5 w-[85%] rounded bg-zinc-200/70 dark:bg-zinc-800/60" />
+              <div className="h-2.5 w-[65%] rounded bg-zinc-200/70 dark:bg-zinc-800/60" />
+              <div className="h-2.5 w-[72%] rounded bg-zinc-200/70 dark:bg-zinc-800/60" />
             </div>
 
             <div
@@ -84,11 +84,11 @@ export function ProductDemo() {
             >
               <div className="space-y-1.5 font-mono text-xs text-zinc-400 dark:text-zinc-500">
                 <span className="block">
-                  <span className="text-[#86D5F4]">const</span> targets =
+                  <span className="text-sky-500 dark:text-[#86D5F4]">const</span> targets =
                   getQ3Goals();
                 </span>
                 <span className="block">
-                  <span className="text-[#86D5F4]">await</span>{" "}
+                  <span className="text-sky-500 dark:text-[#86D5F4]">await</span>{" "}
                   syncReport(targets);
                 </span>
                 <span className="block">

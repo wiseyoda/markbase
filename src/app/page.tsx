@@ -43,7 +43,7 @@ export default async function Home(props: {
               style={{ "--stagger": 0 } as React.CSSProperties}
             >
               Your markdown deserves{" "}
-              <span className="text-[#86D5F4]">
+              <span className="text-sky-500 dark:text-[#86D5F4]">
                 better than raw GitHub.
               </span>
             </h1>
@@ -201,14 +201,14 @@ function RenderingDemo() {
         </p>
         <div className="rounded-lg bg-zinc-50 p-3 font-mono text-xs dark:bg-zinc-900">
           <div className="text-zinc-500 dark:text-zinc-400">
-            <span className="text-[#86D5F4]">function</span>{" "}
+            <span className="text-sky-500 dark:text-[#86D5F4]">function</span>{" "}
             <span className="text-zinc-700 dark:text-zinc-300">
               calculateTarget
             </span>
             {"() {"}
           </div>
           <div className="pl-4 text-zinc-500 dark:text-zinc-400">
-            <span className="text-[#86D5F4]">return</span> pipeline *
+            <span className="text-sky-500 dark:text-[#86D5F4]">return</span> pipeline *
             closeRate;
           </div>
           <div className="text-zinc-500 dark:text-zinc-400">{"}"}</div>
