@@ -46,6 +46,7 @@ src/
 │   ├── confirm-dialog.tsx          # Confirmation dialog
 │   ├── file-tree.tsx               # Shared file tree (used by sidebar + shared-sidebar)
 │   ├── keyboard-shortcuts.tsx      # "?" shortcut reference sheet
+│   ├── logo.tsx                    # Shared brand logo (next/image, configurable size)
 │   ├── theme-provider.tsx          # Light/dark/system with localStorage
 │   ├── theme-toggle.tsx            # Sun/monitor/moon cycle button
 │   ├── toast.tsx                   # Toast notifications with undo actions
@@ -56,7 +57,7 @@ src/
 │   ├── comment-dom.ts  # Comment highlight/selection DOM helpers (extracted from comment-rail)
 │   ├── comments.ts     # Threaded comments (soft delete + restore)
 │   ├── crypto.ts       # AES-256-GCM
-│   ├── dashboard.ts    # GitHub repo fetching + grouping (extracted from dashboard page)
+│   ├── dashboard.ts    # GitHub repo fetching + grouping + LANGUAGE_COLORS
 │   ├── db.ts           # Postgres + migrations (comments have deleted_at for soft delete)
 │   ├── format.ts       # Shared formatting (timeAgo, formatBytes, readingTime, etc.)
 │   ├── github-config.ts # GitHub API/Web/Raw base URL config (env-overridable for tests)
@@ -102,7 +103,7 @@ Remote HTTP MCP server at `/api/mcp` with GitHub OAuth (stateless, Vercel-compat
 
 ## Testing
 
-**Unit + Integration** (Vitest): `pnpm test:unit` — 28 test files, 109 tests, 99%+ coverage.
+**Unit + Integration** (Vitest): `pnpm test:unit` — 30 test files, 111 tests, 99%+ coverage.
 - Config: `vitest.config.mts`, setup in `tests/setup/`
 - Unit tests: `tests/unit/` — pure logic, mocked dependencies
 - Integration tests: `tests/integration/` — hit real Postgres via testcontainers
@@ -131,5 +132,7 @@ Remote HTTP MCP server at `/api/mcp` with GitHub OAuth (stateless, Vercel-compat
 - Auth bypass (AUTH_BYPASS=true + GITHUB_PAT) for local dev — doesn't work with MCP
 - React 19 lint: use `useSyncExternalStore` for browser API reads, not `useState` + `useEffect`
 - Sidebar `closeSidebar` must check `window.innerWidth < 1024` — only close on mobile/tablet
+- `next.config.ts` allows `avatars.githubusercontent.com` for `next/image`
+- `file_key` format is `owner/repo/branch/path` — when building URLs for `/repos/owner/repo/path`, skip index 2 (branch)
 - Production: https://markbase-github.vercel.app
 - Repo: wiseyoda/markbase
