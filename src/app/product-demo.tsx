@@ -42,7 +42,7 @@ export function ProductDemo() {
         active ? "opacity-100 scale-100" : "opacity-0 scale-[0.97]"
       }`}
     >
-      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="overflow-hidden rounded-2xl border border-zinc-300/80 bg-white dark:border-zinc-700/80 dark:bg-zinc-950">
         <div className="flex min-h-[340px]">
           {/* File sidebar */}
           <div className="hidden w-44 shrink-0 border-r border-zinc-100 p-5 sm:block dark:border-zinc-800/50">

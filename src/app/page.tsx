@@ -10,9 +10,16 @@ export const metadata: Metadata = {
   title: "markbase — Browse, share, and discuss markdown from GitHub",
 };
 
-export default async function Home() {
+export default async function Home(props: {
+  searchParams: Promise<{ preview?: string }>;
+}) {
+  const params = await props.searchParams;
   const session = await auth();
-  if (session) redirect("/dashboard");
+
+  // In dev, /?preview skips auth redirect so you can view the landing page
+  const isPreview =
+    process.env.NODE_ENV === "development" && params.preview !== undefined;
+  if (session && !isPreview) redirect("/dashboard");
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -73,28 +80,24 @@ export default async function Home() {
         </section>
 
         {/* Product walkthrough */}
-        <section className="mx-auto w-full max-w-5xl px-6 mt-20 sm:mt-28 sm:px-8">
+        <section className="mx-auto w-full max-w-5xl px-6 mt-16 sm:mt-24 sm:px-8">
           <ProductDemo />
         </section>
 
-        {/* Feature: Rendering */}
-        <ScrollReveal>
-          <section className="mx-auto w-full max-w-5xl px-6 mt-28 sm:mt-36 sm:px-8">
-            <FeatureSection
-              label="Rendering"
-              title="Typography that does your docs justice."
-              description="Syntax highlighting, tables, task lists, and code blocks — rendered with the same care you put into writing them."
-            >
-              <RenderingDemo />
-            </FeatureSection>
-          </section>
-        </ScrollReveal>
+        {/* Feature: Rendering — always visible, pulls you to scroll */}
+        <section className="mx-auto w-full max-w-5xl px-6 mt-16 sm:mt-20 sm:px-8">
+          <FeatureSection
+            title="Typography that does your docs justice."
+            description="Syntax highlighting, tables, task lists, and code blocks — rendered with the same care you put into writing them."
+          >
+            <RenderingDemo />
+          </FeatureSection>
+        </section>
 
         {/* Feature: Sharing */}
         <ScrollReveal>
-          <section className="mx-auto w-full max-w-5xl px-6 mt-28 sm:mt-36 sm:px-8">
+          <section className="mx-auto w-full max-w-5xl px-6 mt-20 sm:mt-24 sm:px-8">
             <FeatureSection
-              label="Sharing"
               title="Share a file, folder, or entire repo."
               description="Generate links that expire. Choose who sees what. Stop pasting docs into Slack threads."
               reversed
@@ -106,9 +109,8 @@ export default async function Home() {
 
         {/* Feature: Comments */}
         <ScrollReveal>
-          <section className="mx-auto w-full max-w-5xl px-6 mt-28 sm:mt-36 sm:px-8">
+          <section className="mx-auto w-full max-w-5xl px-6 mt-20 sm:mt-24 sm:px-8">
             <FeatureSection
-              label="Comments"
               title="Discuss the text, not around it."
               description={
                 "Select any passage and leave a comment. Threads stay " +
@@ -122,7 +124,7 @@ export default async function Home() {
 
         {/* Bottom CTA */}
         <ScrollReveal>
-          <section className="mx-auto w-full max-w-5xl px-6 mt-28 sm:mt-36 sm:px-8 text-center">
+          <section className="mx-auto w-full max-w-5xl px-6 mt-20 sm:mt-24 sm:px-8 text-center">
             <p className="text-lg font-medium text-zinc-400 dark:text-zinc-500">
               Built for teams who think in markdown.
             </p>
@@ -145,7 +147,7 @@ export default async function Home() {
         </ScrollReveal>
 
         {/* Footer */}
-        <footer className="mt-16 pb-12 text-center sm:mt-24">
+        <footer className="mt-16 pb-12 text-center sm:mt-20">
           <p className="text-xs text-zinc-400 dark:text-zinc-500">
             &copy; {new Date().getFullYear()} markbase
           </p>
@@ -158,13 +160,11 @@ export default async function Home() {
 /* ─── Feature section layout ─── */
 
 function FeatureSection({
-  label,
   title,
   description,
   children,
   reversed = false,
 }: {
-  label: string;
   title: string;
   description: string;
   children: React.ReactNode;
@@ -173,10 +173,7 @@ function FeatureSection({
   return (
     <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
       <div className={reversed ? "lg:order-2" : ""}>
-        <p className="text-xs font-medium uppercase tracking-widest text-[#86D5F4]">
-          {label}
-        </p>
-        <h2 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
+        <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
           {title}
         </h2>
         <p className="mt-4 text-base leading-relaxed text-zinc-500 dark:text-zinc-400">
@@ -190,9 +187,10 @@ function FeatureSection({
 
 /* ─── Feature demos ─── */
 
+/** Document-style container: white bg, thin border */
 function RenderingDemo() {
   return (
-    <div className="rounded-xl bg-zinc-50 p-5 sm:p-6 dark:bg-zinc-900/50">
+    <div className="rounded-xl border border-zinc-200 bg-white p-5 sm:p-6 dark:border-zinc-800 dark:bg-zinc-950">
       <div className="space-y-4">
         <h3 className="text-base font-semibold text-sky-900 dark:text-[#86D5F4]">
           Q3 Revenue Targets
@@ -201,7 +199,7 @@ function RenderingDemo() {
           Based on current pipeline velocity and projected close rates,
           we need to adjust targets for the enterprise segment.
         </p>
-        <div className="rounded-lg bg-white p-3 font-mono text-xs dark:bg-zinc-950">
+        <div className="rounded-lg bg-zinc-50 p-3 font-mono text-xs dark:bg-zinc-900">
           <div className="text-zinc-500 dark:text-zinc-400">
             <span className="text-[#86D5F4]">function</span>{" "}
             <span className="text-zinc-700 dark:text-zinc-300">
@@ -216,32 +214,37 @@ function RenderingDemo() {
           <div className="text-zinc-500 dark:text-zinc-400">{"}"}</div>
         </div>
         <div className="flex items-center gap-5 text-sm text-zinc-600 dark:text-zinc-400">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked
-              readOnly
-              className="accent-[#86D5F4]"
-            />
+          <span className="flex items-center gap-2">
+            <span className="flex h-4 w-4 items-center justify-center rounded border border-[#86D5F4] bg-[#86D5F4]/10">
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#86D5F4"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+            </span>
             Update projections
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              readOnly
-              className="accent-[#86D5F4]"
-            />
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="h-4 w-4 rounded border border-zinc-300 dark:border-zinc-600" />
             Review with team
-          </label>
+          </span>
         </div>
       </div>
     </div>
   );
 }
 
+/** Accent-tinted container: subtle blue wash */
 function SharingDemo() {
   return (
-    <div className="rounded-xl bg-zinc-50 p-5 sm:p-6 dark:bg-zinc-900/50">
+    <div className="rounded-xl border border-[#86D5F4]/15 bg-[#86D5F4]/[0.03] p-5 sm:p-6 dark:border-[#86D5F4]/10 dark:bg-[#86D5F4]/[0.03]">
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -255,7 +258,7 @@ function SharingDemo() {
           <code className="flex-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
             markbase.app/s/a3f2b8c1
           </code>
-          <span className="shrink-0 text-xs font-medium text-[#4ab3de] dark:text-[#86D5F4]">
+          <span className="shrink-0 cursor-default text-xs font-medium text-[#4ab3de] dark:text-[#86D5F4]">
             Copy
           </span>
         </div>
@@ -265,10 +268,10 @@ function SharingDemo() {
               Shared with
             </span>
             <div className="flex -space-x-1.5">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#86D5F4]/20 text-[9px] font-bold text-[#86D5F4] ring-2 ring-zinc-50 dark:ring-zinc-900/50">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#86D5F4]/20 text-[9px] font-bold text-[#86D5F4] ring-2 ring-white dark:ring-zinc-950">
                 P
               </span>
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-200 text-[9px] font-bold text-zinc-500 ring-2 ring-zinc-50 dark:bg-zinc-700 dark:text-zinc-300 dark:ring-zinc-900/50">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-200 text-[9px] font-bold text-zinc-500 ring-2 ring-white dark:bg-zinc-700 dark:text-zinc-300 dark:ring-zinc-950">
                 B
               </span>
             </div>
@@ -282,6 +285,7 @@ function SharingDemo() {
   );
 }
 
+/** Neutral container: zinc background */
 function CommentsDemo() {
   return (
     <div className="rounded-xl bg-zinc-50 p-5 sm:p-6 dark:bg-zinc-900/50">
@@ -310,7 +314,7 @@ function CommentsDemo() {
               Agreed — let&apos;s prioritize this in Thursday&apos;s sync.
             </p>
           </div>
-          <div className="flex items-center gap-2 border-t border-zinc-100 pt-2 dark:border-zinc-800/50">
+          <div className="flex cursor-default items-center gap-2 border-t border-zinc-100 pt-2 dark:border-zinc-800/50">
             <CheckIcon />
             <span className="text-[11px] font-medium text-[#4ab3de] dark:text-[#86D5F4]">
               Resolve
