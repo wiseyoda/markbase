@@ -1,7 +1,4 @@
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import { expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
-import postgres from "postgres";
 import { encodeTestAuthCookie, TEST_AUTH_COOKIE, type TestAuthPayload } from "@/lib/test-auth";
 
 export const ownerUser: TestAuthPayload = {
@@ -25,23 +22,9 @@ export const otherUser: TestAuthPayload = {
   accessToken: "other-token",
 };
 
-export async function resetApp() {
-  const envFile = resolve(process.cwd(), ".e2e-test-env.json");
-  const env = JSON.parse(await readFile(envFile, "utf8")) as {
-    postgresUrl: string;
-  };
-  const sql = postgres(env.postgresUrl, {
-    ssl: false,
-    max: 1,
-    connect_timeout: 5,
-    prepare: false,
-  });
-  await sql`
-    TRUNCATE TABLE comments, shares, synced_repos, users
-    RESTART IDENTITY CASCADE
-  `;
-  await sql.end({ timeout: 1 });
-  expect(true).toBeTruthy();
+export async function resetApp(request: import("@playwright/test").APIRequestContext) {
+  const res = await request.post("/api/test/reset");
+  expect(res.ok()).toBeTruthy();
 }
 
 export async function loginAs(page: Page, user: TestAuthPayload) {

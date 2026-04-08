@@ -51,7 +51,7 @@ describe("share actions", () => {
     });
 
     expect(shareId).toHaveLength(12);
-    await expect(deleteShareAction(shareId, "owner-user")).resolves.toBe(true);
+    await expect(deleteShareAction(shareId)).resolves.toBe(true);
   });
 
   it("rejects unauthenticated share deletion", async () => {

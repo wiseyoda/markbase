@@ -44,12 +44,13 @@ describe("auth", () => {
     vi.resetModules();
     nextAuthMock.mockReset();
     cookiesMock.mockReset();
-    delete process.env.AUTH_BYPASS;
-    delete process.env.GITHUB_PAT;
-    delete process.env.GITHUB_BYPASS_USER_ID;
-    delete process.env.GITHUB_BYPASS_LOGIN;
-    delete process.env.NODE_ENV;
-    delete process.env.MARKBASE_TEST_MODE;
+    const env = process.env as Record<string, string | undefined>;
+    delete env.AUTH_BYPASS;
+    delete env.GITHUB_PAT;
+    delete env.GITHUB_BYPASS_USER_ID;
+    delete env.GITHUB_BYPASS_LOGIN;
+    delete env.NODE_ENV;
+    delete env.MARKBASE_TEST_MODE;
   });
 
   afterEach(() => {
@@ -96,7 +97,7 @@ describe("auth", () => {
     });
     cookiesMock.mockResolvedValue({ get: () => undefined });
     process.env.AUTH_BYPASS = "true";
-    process.env.NODE_ENV = "development";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "development";
     process.env.GITHUB_PAT = "owner-token";
     process.env.GITHUB_BYPASS_USER_ID = "1";
     process.env.GITHUB_BYPASS_LOGIN = "owner-user";
@@ -122,7 +123,7 @@ describe("auth", () => {
     });
     cookiesMock.mockResolvedValue({ get: () => undefined });
     process.env.AUTH_BYPASS = "true";
-    process.env.NODE_ENV = "development";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "development";
 
     const { auth } = await import("@/auth");
 
@@ -149,7 +150,7 @@ describe("auth", () => {
 
   it("runs jwt and session callbacks", async () => {
     const upsertUserMock = vi.fn().mockResolvedValue(undefined);
-    let capturedConfig: AuthConfig;
+    let capturedConfig!: AuthConfig;
 
     vi.doMock("@/lib/users", () => ({
       upsertUser: upsertUserMock,
@@ -220,7 +221,7 @@ describe("auth", () => {
 
   it("ignores invalid cookies and user upsert failures", async () => {
     const upsertUserMock = vi.fn().mockRejectedValue(new Error("db down"));
-    let capturedConfig: AuthConfig;
+    let capturedConfig!: AuthConfig;
     const nextAuthHandler = vi.fn().mockResolvedValue({ ok: true });
 
     vi.doMock("@/lib/users", () => ({
@@ -291,7 +292,7 @@ describe("auth", () => {
   });
 
   it("leaves sessions without a user object unchanged", async () => {
-    let capturedConfig: AuthConfig;
+    let capturedConfig!: AuthConfig;
 
     nextAuthMock.mockImplementation((config) => {
       capturedConfig = config;

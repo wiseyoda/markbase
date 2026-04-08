@@ -6,9 +6,10 @@ describe("db config", () => {
   afterEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    delete process.env.POSTGRES_URL;
-    delete process.env.POSTGRES_SSL;
-    delete process.env.NODE_ENV;
+    const env = process.env as Record<string, string | undefined>;
+    delete env.POSTGRES_URL;
+    delete env.POSTGRES_SSL;
+    delete env.NODE_ENV;
   });
 
   it("uses required SSL by default and disables it in test mode", async () => {
@@ -20,7 +21,7 @@ describe("db config", () => {
       default: postgresMock,
     }));
     process.env.POSTGRES_URL = "postgres://example.com/markbase";
-    process.env.NODE_ENV = "production";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
 
     let dbModule = await import("@/lib/db");
     dbModule.getDb();
@@ -35,7 +36,7 @@ describe("db config", () => {
     vi.doMock("postgres", () => ({
       default: postgresMock,
     }));
-    process.env.NODE_ENV = "test";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "test";
     dbModule = await import("@/lib/db");
     dbModule.getDb();
 
