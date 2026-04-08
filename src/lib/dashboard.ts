@@ -1,5 +1,38 @@
 import { githubApiUrl } from "./github-config";
 
+export const LANGUAGE_COLORS: Record<string, string> = {
+  TypeScript: "#3178c6",
+  JavaScript: "#f1e05a",
+  Python: "#3572A5",
+  Rust: "#dea584",
+  Go: "#00ADD8",
+  Java: "#b07219",
+  Ruby: "#701516",
+  "C#": "#178600",
+  "C++": "#f34b7d",
+  C: "#555555",
+  Swift: "#F05138",
+  Kotlin: "#A97BFF",
+  PHP: "#4F5D95",
+  Shell: "#89e051",
+  Dart: "#00B4AB",
+  Scala: "#c22d40",
+  Lua: "#000080",
+  Elixir: "#6e4a7e",
+  Haskell: "#5e5086",
+  R: "#198CE7",
+  Vue: "#41b883",
+  HTML: "#e34c26",
+  CSS: "#563d7c",
+  SCSS: "#c6538c",
+  Markdown: "#083fa1",
+  Dockerfile: "#384d54",
+  HCL: "#844FBA",
+  Nix: "#7e7eff",
+  Zig: "#ec915c",
+  OCaml: "#3be133",
+};
+
 export interface GitHubRepo {
   id: number;
   name: string;

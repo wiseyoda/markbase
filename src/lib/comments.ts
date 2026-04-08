@@ -300,6 +300,42 @@ export async function getCommentsByPrefix(
   return { comments: topLevel, nextCursor };
 }
 
+/** Fetch recent top-level comments across multiple repos, newest first. */
+export async function getRecentCommentsForRepos(
+  repos: string[],
+  limit: number = 5,
+): Promise<Comment[]> {
+  if (repos.length === 0) return [];
+  const db = getDb();
+  const prefixes = repos.map((r) => r + "/%");
+  const rows = await db`
+    SELECT * FROM comments
+    WHERE file_key LIKE ANY(${prefixes})
+      AND parent_id IS NULL
+      AND deleted_at IS NULL
+    ORDER BY created_at DESC
+    LIMIT ${limit}
+  `;
+  return rows.map(rowToComment);
+}
+
+/** Count open (unresolved) top-level comments across multiple repos. */
+export async function countOpenCommentsForRepos(
+  repos: string[],
+): Promise<number> {
+  if (repos.length === 0) return 0;
+  const db = getDb();
+  const prefixes = repos.map((r) => r + "/%");
+  const rows = await db`
+    SELECT COUNT(*)::int as count FROM comments
+    WHERE file_key LIKE ANY(${prefixes})
+      AND parent_id IS NULL
+      AND resolved_at IS NULL
+      AND deleted_at IS NULL
+  `;
+  return (rows[0]?.count as number) ?? 0;
+}
+
 /** Count open (unresolved) comments per file key prefix, with latest activity */
 export async function countOpenComments(
   fileKeyPrefix: string,

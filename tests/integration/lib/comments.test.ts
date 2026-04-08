@@ -5,7 +5,9 @@ import { getDb } from "@/lib/db";
 import {
   buildFileKey,
   countOpenComments,
+  countOpenCommentsForRepos,
   createComment,
+  getRecentCommentsForRepos,
   getCommentById,
   getComments,
   getCommentsByPrefix,
@@ -198,5 +200,51 @@ describe("comments", () => {
     `;
 
     await expect(purgeDeletedComments()).resolves.toBe(1);
+  });
+
+  it("fetches recent comments and counts across repos", async () => {
+    const fk1 = await buildFileKey("owner-user/notes", "main", "README.md");
+    const fk2 = await buildFileKey("owner-user/other", "main", "docs.md");
+
+    await createComment({
+      fileKey: fk1,
+      authorId: "1",
+      authorName: "Owner",
+      authorAvatar: null,
+      quote: null,
+      quoteContext: null,
+      body: "Comment in notes",
+      parentId: null,
+    });
+    await createComment({
+      fileKey: fk2,
+      authorId: "1",
+      authorName: "Owner",
+      authorAvatar: null,
+      quote: null,
+      quoteContext: null,
+      body: "Comment in other",
+      parentId: null,
+    });
+
+    // getRecentCommentsForRepos
+    const recent = await getRecentCommentsForRepos(
+      ["owner-user/notes", "owner-user/other"],
+      10,
+    );
+    expect(recent).toHaveLength(2);
+    expect(recent[0].body).toBe("Comment in other"); // newest first
+
+    expect(await getRecentCommentsForRepos([], 10)).toEqual([]);
+    expect(await getRecentCommentsForRepos(["no-match/repo"], 10)).toEqual([]);
+
+    // countOpenCommentsForRepos
+    const count = await countOpenCommentsForRepos([
+      "owner-user/notes",
+      "owner-user/other",
+    ]);
+    expect(count).toBe(2);
+
+    expect(await countOpenCommentsForRepos([])).toBe(0);
   });
 });

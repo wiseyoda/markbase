@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { timeAgo, formatSize, formatDate } from "@/lib/format";
+import { timeAgo, formatSize } from "@/lib/format";
+import { LANGUAGE_COLORS } from "@/lib/dashboard";
 import { SyncButton } from "./sync-button";
 
 interface GitHubRepo {
@@ -81,20 +82,24 @@ function RepoCard({ repo, synced }: { repo: GitHubRepo; synced: boolean }) {
         </p>
       )}
 
-      {/* Row 3: Language + branch */}
-      <div className="hidden sm:flex sm:opacity-0 sm:transition-opacity sm:group-hover/card:opacity-100 items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
+      {/* Row 3: Language + pushed time */}
+      <div className="flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
         {repo.language && (
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-current" />
+          <span className="flex items-center gap-1.5">
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: LANGUAGE_COLORS[repo.language] || "#6b7280" }}
+            />
             {repo.language}
           </span>
         )}
-        <span>{repo.default_branch}</span>
+        <span>Pushed {timeAgo(repo.pushed_at)}</span>
+        <span className="hidden sm:inline">{formatSize(repo.size)}</span>
       </div>
 
       {/* Row 4: Stats (only if any > 0) */}
       {hasStats && (
-        <div className="hidden sm:flex sm:opacity-0 sm:transition-opacity sm:group-hover/card:opacity-100 items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
+        <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
           {repo.stargazers_count > 0 && (
             <span className="flex items-center gap-1">
               <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
@@ -145,14 +150,6 @@ function RepoCard({ repo, synced }: { repo: GitHubRepo; synced: boolean }) {
         </div>
       )}
 
-      {/* Row 6: Footer metadata */}
-      <div className="flex items-center gap-2 text-xs text-zinc-400 dark:text-zinc-500">
-        <span>Pushed {timeAgo(repo.pushed_at)}</span>
-        <span className="hidden sm:inline">·</span>
-        <span className="hidden sm:inline">Created {formatDate(repo.created_at)}</span>
-        <span className="hidden sm:inline">·</span>
-        <span className="hidden sm:inline">{formatSize(repo.size)}</span>
-      </div>
     </div>
   );
 }
@@ -211,7 +208,7 @@ export function RepoList({ groups, syncedRepos, totalCount }: RepoListProps) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search repositories..."
-            className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-500"
+            className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#86D5F4] focus:outline-none focus:ring-1 focus:ring-[#86D5F4] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-[#86D5F4] dark:focus:ring-[#86D5F4]"
           />
           {search && (
             <button

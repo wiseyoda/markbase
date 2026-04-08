@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getRepos, getUsername, groupRepos, type GitHubRepo } from "@/lib/dashboard";
+import { getRepos, getUsername, groupRepos, LANGUAGE_COLORS, type GitHubRepo } from "@/lib/dashboard";
 
 function makeRepo(
   owner: string,
@@ -122,5 +122,11 @@ describe("dashboard helpers", () => {
     );
 
     expect(groups.map((group) => group.owner)).toEqual(["owner-user", "alpha"]);
+  });
+
+  it("exports a non-empty language color map", () => {
+    expect(Object.keys(LANGUAGE_COLORS).length).toBeGreaterThan(10);
+    expect(LANGUAGE_COLORS.TypeScript).toBe("#3178c6");
+    expect(LANGUAGE_COLORS.Python).toBe("#3572A5");
   });
 });
