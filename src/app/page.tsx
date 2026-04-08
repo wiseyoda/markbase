@@ -1,4 +1,9 @@
+import type { Metadata } from "next";
 import { auth, signIn } from "@/auth";
+
+export const metadata: Metadata = {
+  title: "markbase — Browse, share, and discuss markdown from GitHub",
+};
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Logo } from "@/components/logo";
 import { redirect } from "next/navigation";

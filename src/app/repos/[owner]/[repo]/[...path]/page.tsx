@@ -1,5 +1,16 @@
+import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { redirect, notFound } from "next/navigation";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ owner: string; repo: string; path: string[] }>;
+}): Promise<Metadata> {
+  const { owner, repo, path: segments } = await params;
+  const fileName = segments[segments.length - 1];
+  return { title: `${fileName} — ${owner}/${repo}` };
+}
 import Link from "next/link";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";

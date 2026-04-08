@@ -1,6 +1,16 @@
+import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { getDefaultBranch, getMarkdownTree } from "@/lib/github";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ owner: string; repo: string }>;
+}): Promise<Metadata> {
+  const { owner, repo } = await params;
+  return { title: `${owner}/${repo}` };
+}
 
 export default async function RepoIndexPage({
   params,

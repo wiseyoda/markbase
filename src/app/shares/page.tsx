@@ -1,4 +1,9 @@
+import type { Metadata } from "next";
 import { auth } from "@/auth";
+
+export const metadata: Metadata = {
+  title: "Shared links",
+};
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { listShares } from "@/lib/shares";

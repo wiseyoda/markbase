@@ -1,4 +1,9 @@
+import type { Metadata } from "next";
 import { auth, signOut } from "@/auth";
+
+export const metadata: Metadata = {
+  title: "Dashboard",
+};
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSyncedRepos } from "@/lib/synced-repos";

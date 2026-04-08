@@ -16,7 +16,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "markbase",
+  title: {
+    default: "markbase",
+    template: "%s — markbase",
+  },
   description: "Browse and share your markdown files across GitHub repos.",
   icons: {
     icon: [

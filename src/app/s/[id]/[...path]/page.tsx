@@ -1,11 +1,24 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { getShare } from "@/lib/shares";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string; path: string[] }>;
+}): Promise<Metadata> {
+  const { id, path: segments } = await params;
+  const share = await getShare(id);
+  if (!share) return { title: "Shared file" };
+  const fileName = segments[segments.length - 1];
+  return { title: `${fileName} — ${share.repo} (shared)` };
+}
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import type { Components } from "react-markdown";
 import { auth, signIn } from "@/auth";
-import { getShare } from "@/lib/shares";
 import { getFileContent, getMarkdownTree } from "@/lib/github";
 import { buildTree } from "@/app/repos/[owner]/[repo]/layout";
 import { githubRawUrl } from "@/lib/github-config";
