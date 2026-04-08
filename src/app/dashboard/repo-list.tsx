@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { timeAgo, formatSize } from "@/lib/format";
-import { LANGUAGE_COLORS } from "@/lib/dashboard";
+import { LANGUAGE_COLORS } from "@/lib/language-colors";
 import { SyncButton } from "./sync-button";
 
 interface GitHubRepo {
