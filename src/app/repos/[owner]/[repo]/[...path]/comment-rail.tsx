@@ -273,6 +273,7 @@ export function CommentRail({
 
   // Calculate absolute Y positions of highlights in the content scroll container
   const [positions, setPositions] = useState<Record<string, number>>({});
+  const [contentHeight, setContentHeight] = useState(0);
   const railRef = useRef<HTMLDivElement>(null);
   const cardsContainerRef = useRef<HTMLDivElement>(null);
 
@@ -283,6 +284,7 @@ export function CommentRail({
     ) as HTMLElement | null;
     if (!article || !scrollContainer) return;
 
+    setContentHeight(scrollContainer.scrollHeight);
     setPositions(calculateCommentPositions(article, scrollContainer, unresolved));
   }, [unresolved, articleId]);
 
@@ -303,26 +305,24 @@ export function CommentRail({
     const cards = Array.from(
       container.querySelectorAll<HTMLElement>("[data-comment-card]"),
     );
-    if (cards.length < 2) return;
 
-    cards.sort(
-      (a, b) => parseFloat(a.style.top) - parseFloat(b.style.top),
-    );
+    if (cards.length > 1) {
+      cards.sort(
+        (a, b) => parseFloat(a.style.top) - parseFloat(b.style.top),
+      );
 
-    let lastBottom = 0;
-    const MIN_GAP = 8;
+      let lastBottom = 0;
+      const MIN_GAP = 8;
 
-    for (const card of cards) {
-      const currentTop = parseFloat(card.style.top);
-      const adjustedTop = Math.max(currentTop, lastBottom + MIN_GAP);
-      if (adjustedTop !== currentTop) {
-        card.style.top = `${adjustedTop}px`;
+      for (const card of cards) {
+        const currentTop = parseFloat(card.style.top);
+        const adjustedTop = Math.max(currentTop, lastBottom + MIN_GAP);
+        if (adjustedTop !== currentTop) {
+          card.style.top = `${adjustedTop}px`;
+        }
+        lastBottom = adjustedTop + card.offsetHeight;
       }
-      lastBottom = adjustedTop + card.offsetHeight;
     }
-
-    // Extend container to fit all cards
-    container.style.minHeight = `${lastBottom + 100}px`;
   }, [positions, comments]);
 
   // Scroll sync: when content scrolls, set rail scrollTop to match
@@ -562,9 +562,9 @@ export function CommentRail({
               </div>
             )}
 
-            {/* Positioned comments container — same height as content */}
+            {/* Positioned comments container — match content scroll height */}
             {anchored.length > 0 && (
-              <div ref={cardsContainerRef} className="relative" style={{ minHeight: Math.max(0, ...Object.values(positions)) + 200 }}>
+              <div ref={cardsContainerRef} className="relative" style={{ minHeight: contentHeight }}>
                 {[...anchored]
                   .sort((a, b) => (positions[a.id] || 0) - (positions[b.id] || 0))
                   .map((comment) => (
