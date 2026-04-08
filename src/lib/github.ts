@@ -91,7 +91,7 @@ export async function getFileContent(
 ): Promise<string | null> {
   const res = await fetch(
     githubApiUrl(
-      `/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
+      `/repos/${owner}/${repo}/contents/${encodeURI(path)}?ref=${branch}`,
     ),
     {
       cache: "force-cache",
@@ -202,7 +202,7 @@ export async function getFileAtCommit(
   path: string,
 ): Promise<string | null> {
   const res = await fetch(
-    githubApiUrl(`/repos/${owner}/${repo}/contents/${path}?ref=${sha}`),
+    githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeURI(path)}?ref=${sha}`),
     {
       cache: "force-cache",
       headers: {
