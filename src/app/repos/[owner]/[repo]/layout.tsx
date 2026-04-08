@@ -5,6 +5,10 @@ import { getDefaultBranch, getMarkdownTree } from "@/lib/github";
 import { Sidebar, SidebarProvider, SidebarToggle } from "./sidebar";
 import { ShareButton, ShareProvider } from "./share-dialog";
 import { countOpenComments } from "@/lib/comments";
+import { listSharesForRepo } from "@/lib/shares";
+import { withDbRetry } from "@/lib/db";
+import { expireGitHubBranchCache } from "@/lib/github-cache";
+import { ViewSharesButton } from "./view-shares-modal";
 import { buildTree } from "@/lib/tree";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Tooltip } from "@/components/tooltip";
@@ -27,10 +31,18 @@ export default async function RepoLayout({
   const fullRepo = `${owner}/${repo}`;
   const fileKeyPrefix = `${fullRepo}/${branch}/`;
 
-  const [files, commentCounts] = await Promise.all([
+  const userId = session.user?.id || "";
+
+  const [files, commentCounts, repoShares] = await Promise.all([
     getMarkdownTree(session.accessToken, owner, repo, branch),
-    countOpenComments(fileKeyPrefix),
+    withDbRetry(() => countOpenComments(fileKeyPrefix)),
+    withDbRetry(() => listSharesForRepo(userId, fullRepo)),
   ]);
+
+  const refreshTree = async () => {
+    "use server";
+    expireGitHubBranchCache(owner, repo, branch);
+  };
 
   // Convert file_key based counts to path-based counts
   const pathCounts: Record<string, number> = {};
@@ -71,6 +83,7 @@ export default async function RepoLayout({
             repo={`${owner}/${repo}`}
             branch={branch}
           />
+          <ViewSharesButton shares={repoShares} />
           <ThemeToggle />
           <Tooltip content="Dashboard">
             <Link
@@ -93,6 +106,7 @@ export default async function RepoLayout({
           repo={repo}
           fileCount={fileCount}
           commentCounts={pathCounts}
+          refreshAction={refreshTree}
         />
         <main id="main-content" className="flex-1 overflow-y-auto">
           {children}

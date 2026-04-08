@@ -7,6 +7,7 @@ import {
   createContext,
   useCallback,
   useMemo,
+  useTransition,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
@@ -122,14 +123,16 @@ interface SidebarProps {
   repo: string;
   fileCount: number;
   commentCounts?: Record<string, number>;
+  refreshAction?: () => Promise<void>;
 }
 
-export function Sidebar({ tree, owner, repo, fileCount, commentCounts = {} }: SidebarProps) {
+export function Sidebar({ tree, owner, repo, fileCount, commentCounts = {}, refreshAction }: SidebarProps) {
   const { open, setOpen } = useSidebar();
   const isMobile = useIsMobile();
   const pathname = usePathname();
   const router = useRouter();
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [isRefreshing, startRefresh] = useTransition();
   const { openShare } = useShareDialog();
 
   const basePath = `/repos/${owner}/${repo}`;
@@ -246,6 +249,14 @@ export function Sidebar({ tree, owner, repo, fileCount, commentCounts = {} }: Si
     [openShare],
   );
 
+  const handleRefresh = useCallback(() => {
+    if (!refreshAction) return;
+    startRefresh(async () => {
+      await refreshAction();
+      router.refresh();
+    });
+  }, [refreshAction, router]);
+
   const fileTreeContent = (
     <FileTree
       nodes={tree}
@@ -257,6 +268,8 @@ export function Sidebar({ tree, owner, repo, fileCount, commentCounts = {} }: Si
       folderContextMenuItems={folderContextMenuItems}
       searchInputRef={searchInputRef}
       fileCount={fileCount}
+      onRefresh={refreshAction ? handleRefresh : undefined}
+      isRefreshing={isRefreshing}
     />
   );
 

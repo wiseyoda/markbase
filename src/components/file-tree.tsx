@@ -95,6 +95,8 @@ export interface FileTreeProps {
   folderContextMenuItems?: (node: TreeNode) => ContextMenuItem[];
   searchInputRef?: React.RefObject<HTMLInputElement | null>;
   fileCount?: number;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export function FileTree({
@@ -107,6 +109,8 @@ export function FileTree({
   folderContextMenuItems,
   searchInputRef,
   fileCount,
+  onRefresh,
+  isRefreshing,
 }: FileTreeProps) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => filterTree(nodes, search), [nodes, search]);
@@ -123,11 +127,32 @@ export function FileTree({
             placeholder="Search files..."
             className="w-full rounded-md border border-zinc-200 bg-zinc-50 py-1.5 pl-2.5 pr-10 text-sm text-zinc-700 placeholder-zinc-400 outline-none transition-colors focus:border-blue-400 focus:ring-1 focus:ring-blue-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder-zinc-500 dark:focus:border-blue-500 dark:focus:ring-blue-500"
           />
-          {fileCount != null && (
-            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-zinc-400 dark:text-zinc-500">
-              {fileCount}
-            </span>
-          )}
+          <span className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+            {fileCount != null && (
+              <span className="text-[11px] text-zinc-400 dark:text-zinc-500">
+                {fileCount}
+              </span>
+            )}
+            {onRefresh && (
+              <button
+                type="button"
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                aria-label="Refresh file list"
+                className="inline-flex items-center justify-center rounded p-0.5 text-zinc-400 transition-colors hover:text-zinc-600 disabled:opacity-50 dark:text-zinc-500 dark:hover:text-zinc-300"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  className={isRefreshing ? "animate-spin" : ""}
+                >
+                  <path d="M8 2.5a5.487 5.487 0 00-4.131 1.869l1.204 1.204A.25.25 0 014.896 6H1.25A.25.25 0 011 5.75V2.104a.25.25 0 01.427-.177l1.38 1.38A7.001 7.001 0 0115 8a.75.75 0 01-1.5 0A5.5 5.5 0 008 2.5zM2.5 8a.75.75 0 00-1.5 0 7.001 7.001 0 0012.193 4.693l1.38 1.38a.25.25 0 00.427-.177V10.25a.25.25 0 00-.25-.25h-3.646a.25.25 0 00-.177.427l1.204 1.204A5.5 5.5 0 012.5 8z" />
+                </svg>
+              </button>
+            )}
+          </span>
         </div>
       </div>
       <nav className="flex-1 overflow-y-auto px-2 py-2">
