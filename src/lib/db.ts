@@ -87,7 +87,7 @@ export function getDb() {
     max: resolveMaxConnections(),
     idle_timeout: 20,
     max_lifetime: 60 * 5,
-    connect_timeout: 10,
+    connect_timeout: 15,
     prepare: false,
     onnotice: ignoreNotice,
     connection: { application_name: "markbase" },
