@@ -5,6 +5,7 @@ import { listShares } from "@/lib/shares";
 import { ShareActions } from "./share-actions-client";
 import { timeAgo, expiryLabel } from "@/lib/format";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Logo } from "@/components/logo";
 
 export default async function SharesPage() {
   const session = await auth();
@@ -26,7 +27,8 @@ export default async function SharesPage() {
     <div className="flex flex-1 flex-col">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-4 sm:px-6 py-3 dark:border-zinc-800">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard" className="text-lg font-semibold">
+          <Link href="/dashboard" className="flex items-center gap-2 text-lg font-semibold">
+            <Logo size={24} />
             markbase
           </Link>
           <span className="text-zinc-300 dark:text-zinc-600">/</span>

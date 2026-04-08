@@ -12,11 +12,9 @@ function ignoreNotice() {}
 async function ignoreDbError(promise: Promise<unknown>) {
   try {
     await promise;
-  } catch (error: unknown) {
-    const msg = String((error as { message?: string }).message || error);
-    if (process.env.NODE_ENV !== "test") {
-      console.warn("[initDb] migration step skipped:", msg);
-    }
+  } catch {
+    // Expected: idempotent migration steps (duplicate column, constraint already
+    // exists, etc.). Swallowed intentionally — initDb is designed to be re-runnable.
   }
 }
 

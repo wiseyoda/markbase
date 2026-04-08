@@ -1,5 +1,6 @@
 import { auth, signIn } from "@/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Logo } from "@/components/logo";
 import { redirect } from "next/navigation";
 
 export default async function Home() {
@@ -15,7 +16,8 @@ export default async function Home() {
         {/* Hero */}
         <div className="mx-auto w-full max-w-6xl px-6 pt-16 sm:px-8 sm:pt-24 lg:pt-32">
           <div className="max-w-2xl max-lg:mx-auto max-lg:text-center">
-            <h1 className="text-5xl font-bold tracking-tight sm:text-6xl">
+            <h1 className="flex items-center gap-4 text-5xl font-bold tracking-tight max-lg:justify-center sm:text-6xl">
+              <Logo size={56} />
               markbase
             </h1>
             <p className="mt-4 max-w-lg text-lg text-zinc-500 max-lg:mx-auto sm:text-xl dark:text-zinc-400">

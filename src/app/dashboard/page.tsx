@@ -6,6 +6,7 @@ import { listSharesWithMe } from "@/lib/shares";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts";
 import { RepoList } from "./repo-list";
+import { Logo } from "@/components/logo";
 import { getRepos, getUsername, groupRepos } from "@/lib/dashboard";
 
 export default async function Dashboard() {
@@ -29,7 +30,10 @@ export default async function Dashboard() {
     <KeyboardShortcutsProvider>
     <div className="flex flex-1 flex-col">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-4 sm:px-6 py-3 dark:border-zinc-800">
-        <h1 className="text-lg font-semibold">markbase</h1>
+        <h1 className="flex items-center gap-2 text-lg font-semibold">
+          <Logo size={24} />
+          markbase
+        </h1>
         <div className="flex flex-wrap items-center gap-4">
           <Link
             href="/shares"

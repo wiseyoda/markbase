@@ -7,6 +7,7 @@ import type { Components } from "react-markdown";
 import { getShare } from "@/lib/shares";
 import { getFileContent, getMarkdownTree } from "@/lib/github";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Logo } from "@/components/logo";
 import "highlight.js/styles/github-dark.css";
 
 // For file shares: disable .md links (render as muted text)
@@ -76,7 +77,10 @@ export default async function SharePage({
       <div className="flex min-h-screen flex-col">
         <header className="flex items-center justify-between border-b border-zinc-200 px-4 sm:px-6 py-3 dark:border-zinc-800">
           <div className="flex items-center gap-2 text-sm">
-            <span className="font-semibold">markbase</span>
+            <span className="flex items-center gap-1.5 font-semibold">
+              <Logo />
+              markbase
+            </span>
             <span className="text-zinc-300 dark:text-zinc-600">/</span>
             <span className="truncate max-w-[250px] text-zinc-500 sm:max-w-none dark:text-zinc-400">
               {share.repo}

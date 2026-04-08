@@ -18,6 +18,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "markbase",
   description: "Browse and share your markdown files across GitHub repos.",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
+  manifest: "/site.webmanifest",
 };
 
 const THEME_SCRIPT = `

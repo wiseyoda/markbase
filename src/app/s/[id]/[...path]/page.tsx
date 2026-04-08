@@ -10,6 +10,7 @@ import { getFileContent, getMarkdownTree } from "@/lib/github";
 import { buildTree } from "@/app/repos/[owner]/[repo]/layout";
 import { githubRawUrl } from "@/lib/github-config";
 import { resolveShareMarkdownLink } from "@/lib/markdown";
+import { Logo } from "@/components/logo";
 import {
   SharedSidebar,
   SharedSidebarProvider,
@@ -158,7 +159,10 @@ export default async function SharedFilePage({
           <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 sm:px-6 py-3 dark:border-zinc-800">
             <div className="flex items-center gap-2 text-sm">
               {showSidebar && <SharedSidebarToggle />}
-              <span className="font-semibold">markbase</span>
+              <span className="flex items-center gap-1.5 font-semibold">
+                <Logo />
+                markbase
+              </span>
               <span className="text-zinc-300 dark:text-zinc-600">/</span>
               <span className="truncate max-w-[120px] text-zinc-500 sm:max-w-none dark:text-zinc-400">
                 {share.repo}

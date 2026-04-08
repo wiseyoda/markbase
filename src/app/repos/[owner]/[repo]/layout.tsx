@@ -8,6 +8,7 @@ import { ShareButton, ShareProvider } from "./share-dialog";
 import { countOpenComments } from "@/lib/comments";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Tooltip } from "@/components/tooltip";
+import { Logo } from "@/components/logo";
 import { CommandPaletteWrapper } from "./command-palette-wrapper";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts";
 
@@ -107,7 +108,8 @@ export default async function RepoLayout({
       <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 sm:px-6 py-3 dark:border-zinc-800">
         <div className="flex min-w-0 items-center gap-2 text-sm">
           <SidebarToggle />
-          <Link href="/dashboard" className="shrink-0 font-semibold">
+          <Link href="/dashboard" className="flex shrink-0 items-center gap-1.5 font-semibold">
+            <Logo />
             markbase
           </Link>
           <span className="shrink-0 text-zinc-300 dark:text-zinc-600">/</span>
