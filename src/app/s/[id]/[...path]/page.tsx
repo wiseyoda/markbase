@@ -39,6 +39,8 @@ import {
 import { HistoryButton } from "@/app/repos/[owner]/[repo]/[...path]/history-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getComments, buildFileKey, countOpenComments } from "@/lib/comments";
+import { refreshGitHubDocumentCache } from "@/lib/github-cache";
+import { GitHubRefreshButton } from "@/components/github-refresh-button";
 import "highlight.js/styles/github-dark.css";
 
 export default async function SharedFilePage({
@@ -114,6 +116,24 @@ export default async function SharedFilePage({
   const unresolvedCount = initialComments.filter(
     (c) => !c.resolved_at,
   ).length;
+
+  const refreshAction = async () => {
+    "use server";
+
+    const latestShare = await getShare(id);
+    if (!latestShare || (latestShare.type !== "repo" && latestShare.type !== "folder")) {
+      notFound();
+    }
+
+    if (latestShare.shared_with) {
+      const refreshSession = await auth();
+      if (!refreshSession?.user?.id || refreshSession.user.id !== latestShare.shared_with) {
+        notFound();
+      }
+    }
+
+    refreshGitHubDocumentCache(owner, repo, latestShare.branch, filePath);
+  };
 
   const components: Components = {
     a: ({ href, children, ...props }) => {
@@ -240,6 +260,7 @@ export default async function SharedFilePage({
                     {filePath}
                   </span>
                   <div className="flex shrink-0 items-center gap-3">
+                    {isSignedIn && <GitHubRefreshButton action={refreshAction} />}
                     {isSignedIn && <CommentToggle />}
                     {isSignedIn && (
                       <HistoryButton

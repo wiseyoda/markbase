@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getRepos, getUsername, groupRepos, LANGUAGE_COLORS, type GitHubRepo } from "@/lib/dashboard";
+import { getRepos, getReposByName, getUsername, groupRepos, LANGUAGE_COLORS, type GitHubRepo } from "@/lib/dashboard";
 
 function makeRepo(
   owner: string,
@@ -131,5 +131,25 @@ describe("dashboard helpers", () => {
     expect(Object.keys(LANGUAGE_COLORS).length).toBeGreaterThan(10);
     expect(LANGUAGE_COLORS.TypeScript).toBe("#3178c6");
     expect(LANGUAGE_COLORS.Python).toBe("#3572A5");
+  });
+
+  it("fetches repos by name individually", async () => {
+    const repo1 = makeRepo("owner", "repo1", "2026-01-01T00:00:00.000Z");
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => repo1 })
+      .mockResolvedValueOnce({ ok: false });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const results = await getReposByName("token", ["owner/repo1", "owner/missing"]);
+
+    expect(results).toHaveLength(1);
+    expect(results[0].full_name).toBe("owner/repo1");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns empty array for empty input", async () => {
+    const results = await getReposByName("token", []);
+    expect(results).toEqual([]);
   });
 });

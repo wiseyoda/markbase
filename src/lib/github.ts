@@ -1,4 +1,11 @@
 import { githubApiUrl } from "./github-config";
+import {
+  getGitHubBranchTags,
+  getGitHubCommitFileTags,
+  getGitHubFileHistoryTags,
+  getGitHubFileTags,
+  getGitHubRepoTags,
+} from "./github-cache";
 
 interface TreeItem {
   path: string;
@@ -28,11 +35,15 @@ export async function getDefaultBranch(
   const res = await fetch(
     githubApiUrl(`/repos/${owner}/${repo}`),
     {
+      cache: "force-cache",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/vnd.github.v3+json",
       },
-      next: { revalidate: 300 },
+      next: {
+        revalidate: 300,
+        tags: getGitHubRepoTags(owner, repo),
+      },
     },
   );
 
@@ -50,11 +61,15 @@ export async function getMarkdownTree(
   const res = await fetch(
     githubApiUrl(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`),
     {
+      cache: "force-cache",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/vnd.github.v3+json",
       },
-      next: { revalidate: 60 },
+      next: {
+        revalidate: 60,
+        tags: getGitHubBranchTags(owner, repo, branch),
+      },
     },
   );
 
@@ -79,11 +94,15 @@ export async function getFileContent(
       `/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
     ),
     {
+      cache: "force-cache",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/vnd.github.raw+json",
       },
-      next: { revalidate: 60 },
+      next: {
+        revalidate: 60,
+        tags: getGitHubFileTags(owner, repo, branch, path),
+      },
     },
   );
 
@@ -113,11 +132,15 @@ export async function getFileHistory(
       `/repos/${owner}/${repo}/commits?sha=${branch}&path=${encodeURIComponent(path)}&per_page=30`,
     ),
     {
+      cache: "force-cache",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/vnd.github.v3+json",
       },
-      next: { revalidate: 60 },
+      next: {
+        revalidate: 60,
+        tags: getGitHubFileHistoryTags(owner, repo, branch, path),
+      },
     },
   );
 
@@ -151,11 +174,15 @@ export async function getLastModified(
       `/repos/${owner}/${repo}/commits?sha=${branch}&path=${encodeURIComponent(path)}&per_page=1`,
     ),
     {
+      cache: "force-cache",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/vnd.github.v3+json",
       },
-      next: { revalidate: 60 },
+      next: {
+        revalidate: 60,
+        tags: getGitHubFileHistoryTags(owner, repo, branch, path),
+      },
     },
   );
 
@@ -177,11 +204,15 @@ export async function getFileAtCommit(
   const res = await fetch(
     githubApiUrl(`/repos/${owner}/${repo}/contents/${path}?ref=${sha}`),
     {
+      cache: "force-cache",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/vnd.github.raw+json",
       },
-      next: { revalidate: 300 },
+      next: {
+        revalidate: 300,
+        tags: getGitHubCommitFileTags(owner, repo, sha, path),
+      },
     },
   );
 

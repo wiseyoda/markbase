@@ -100,6 +100,7 @@ export function getDb() {
  * the caller should reset the pool and may retry.
  */
 export function isTransientDbError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
   const code = (error as { code?: string }).code;
   return !!code && TRANSIENT_ERRORS.has(code);
 }

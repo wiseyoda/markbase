@@ -25,6 +25,7 @@ import {
   getMarkdownTree,
   getLastModified,
 } from "@/lib/github";
+import { refreshGitHubDocumentCache } from "@/lib/github-cache";
 import { CopyButton } from "./copy-button";
 import { CommentRail, CommentProvider, CommentToggle } from "./comment-rail";
 import { HistoryButton } from "./history-panel";
@@ -37,6 +38,7 @@ import {
 } from "@/lib/markdown";
 import { githubRawUrl } from "@/lib/github-config";
 import { getComments, buildFileKey } from "@/lib/comments";
+import { GitHubRefreshButton } from "@/components/github-refresh-button";
 import "highlight.js/styles/github-dark.css";
 
 export default async function MarkdownViewPage({
@@ -179,6 +181,15 @@ export default async function MarkdownViewPage({
     (c) => !c.resolved_at,
   ).length;
 
+  const refreshAction = async () => {
+    "use server";
+
+    const refreshSession = await auth();
+    if (!refreshSession?.accessToken) redirect("/");
+
+    refreshGitHubDocumentCache(owner, repo, branch, filePath);
+  };
+
   return (
     <CommentProvider initialCount={unresolvedCount}>
       <div id="main-content" className="flex h-full">
@@ -193,6 +204,7 @@ export default async function MarkdownViewPage({
                 <span>· {readingTime(content)}</span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                <GitHubRefreshButton action={refreshAction} />
                 <CommentToggle />
                 <HistoryButton
                   owner={owner}

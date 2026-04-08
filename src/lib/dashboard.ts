@@ -1,4 +1,5 @@
 import { githubApiUrl } from "./github-config";
+import { getGitHubRepoTags } from "./github-cache";
 
 export const LANGUAGE_COLORS: Record<string, string> = {
   TypeScript: "#3178c6",
@@ -80,7 +81,11 @@ export async function getRepos(accessToken: string): Promise<GitHubRepo[]> {
   // Fetch first page to get pagination info
   const firstRes = await fetch(
     githubApiUrl("/user/repos?per_page=100&sort=pushed&page=1"),
-    { headers, next: { revalidate: 60 } },
+    {
+      cache: "force-cache",
+      headers,
+      next: { revalidate: 60 },
+    },
   );
   if (!firstRes.ok) return [];
 
@@ -95,7 +100,11 @@ export async function getRepos(accessToken: string): Promise<GitHubRepo[]> {
     Array.from({ length: lastPage - 1 }, (_, i) =>
       fetch(
         githubApiUrl(`/user/repos?per_page=100&sort=pushed&page=${i + 2}`),
-        { headers, next: { revalidate: 60 } },
+        {
+          cache: "force-cache",
+          headers,
+          next: { revalidate: 60 },
+        },
       ).then((res) => (res.ok ? (res.json() as Promise<GitHubRepo[]>) : [])),
     ),
   );
@@ -105,6 +114,7 @@ export async function getRepos(accessToken: string): Promise<GitHubRepo[]> {
 
 export async function getUsername(accessToken: string): Promise<string> {
   const res = await fetch(githubApiUrl("/user"), {
+    cache: "force-cache",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: "application/vnd.github.v3+json",
@@ -129,10 +139,17 @@ export async function getReposByName(
 
   const results = await Promise.all(
     fullNames.map((name) =>
-      fetch(githubApiUrl(`/repos/${name}`), {
-        headers,
-        next: { revalidate: 60 },
-      }).then((res) => (res.ok ? (res.json() as Promise<GitHubRepo>) : null)),
+      {
+        const [owner, repo] = name.split("/");
+        return fetch(githubApiUrl(`/repos/${name}`), {
+          cache: "force-cache",
+          headers,
+          next: {
+            revalidate: 60,
+            tags: getGitHubRepoTags(owner, repo),
+          },
+        }).then((res) => (res.ok ? (res.json() as Promise<GitHubRepo>) : null));
+      }
     ),
   );
 

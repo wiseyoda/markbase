@@ -22,8 +22,10 @@ export async function generateMetadata({
 }
 import { markdownSanitizeSchema } from "@/lib/markdown";
 import { getFileContent, getMarkdownTree } from "@/lib/github";
+import { refreshGitHubDocumentCache } from "@/lib/github-cache";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Logo } from "@/components/logo";
+import { GitHubRefreshButton } from "@/components/github-refresh-button";
 import "highlight.js/styles/github-dark.css";
 
 // For file shares: disable .md links (render as muted text)
@@ -68,9 +70,11 @@ export default async function SharePage({
 
   if (!share) notFound();
 
+  const session = await auth();
+  const isSignedIn = !!session?.user?.id;
+
   if (share.shared_with) {
-    const session = await auth();
-    if (!session?.user?.id || session.user.id !== share.shared_with) {
+    if (!isSignedIn || session.user.id !== share.shared_with) {
       notFound();
     }
   }
@@ -79,6 +83,29 @@ export default async function SharePage({
 
   // File share: render the single file
   if (share.type === "file" && share.file_path) {
+    const refreshAction = async () => {
+      "use server";
+
+      const latestShare = await getShare(id);
+      if (!latestShare || latestShare.type !== "file" || !latestShare.file_path) {
+        notFound();
+      }
+
+      if (latestShare.shared_with) {
+        const refreshSession = await auth();
+        if (!refreshSession?.user?.id || refreshSession.user.id !== latestShare.shared_with) {
+          notFound();
+        }
+      }
+
+      refreshGitHubDocumentCache(
+        owner,
+        repo,
+        latestShare.branch,
+        latestShare.file_path,
+      );
+    };
+
     const content = await getFileContent(
       share.accessToken,
       owner,
@@ -110,6 +137,7 @@ export default async function SharePage({
             <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
               shared
             </span>
+            {isSignedIn && <GitHubRefreshButton action={refreshAction} />}
             <ThemeToggle />
           </div>
         </header>
