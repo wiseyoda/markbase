@@ -47,9 +47,10 @@ function buildActivityItems(
   const items: ActivityItem[] = [];
 
   for (const c of comments) {
+    // file_key format: owner/repo/branch/path/to/file.md
     const parts = c.file_key.split("/");
     const repo = `${parts[0]}/${parts[1]}`;
-    const filePath = parts.slice(2).join("/");
+    const filePath = parts.slice(3).join("/");
     const fileName = parts[parts.length - 1];
     items.push({
       type: "comment",
