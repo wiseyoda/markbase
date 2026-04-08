@@ -5,10 +5,13 @@ Vercel-hosted web app that lets users sign in with GitHub, browse markdown files
 ## Quick Reference
 
 ```bash
-pnpm dev          # Start dev server (localhost:3000)
-pnpm build        # Production build
-pnpm lint         # ESLint
-npx tsc --noEmit  # Type check
+pnpm dev              # Start dev server (localhost:3000)
+pnpm build            # Production build
+pnpm lint             # ESLint
+npx tsc --noEmit      # Type check
+pnpm test:unit        # Unit + integration tests (Vitest, coverage enforced)
+pnpm test:unit:watch  # Watch mode
+pnpm test:e2e         # E2E tests (Playwright, requires build + Docker)
 ```
 
 **After DB schema changes:** Hit `/api/init-db` (local or production) to run migrations.
@@ -50,17 +53,23 @@ src/
 ├── hooks/
 │   └── use-media-query.ts          # useIsMobile, useIsDesktop (useSyncExternalStore)
 ├── lib/
-│   ├── format.ts      # Shared formatting (timeAgo, formatBytes, readingTime, etc.)
-│   ├── github.ts      # GitHub API (tree, content, commits)
-│   ├── db.ts          # Postgres + migrations (comments have deleted_at for soft delete)
-│   ├── shares.ts      # Share CRUD + encrypted tokens
-│   ├── comments.ts    # Threaded comments (soft delete + restore)
-│   ├── crypto.ts      # AES-256-GCM
+│   ├── comment-dom.ts  # Comment highlight/selection DOM helpers (extracted from comment-rail)
+│   ├── comments.ts     # Threaded comments (soft delete + restore)
+│   ├── crypto.ts       # AES-256-GCM
+│   ├── dashboard.ts    # GitHub repo fetching + grouping (extracted from dashboard page)
+│   ├── db.ts           # Postgres + migrations (comments have deleted_at for soft delete)
+│   ├── format.ts       # Shared formatting (timeAgo, formatBytes, readingTime, etc.)
+│   ├── github-config.ts # GitHub API/Web/Raw base URL config (env-overridable for tests)
+│   ├── github.ts       # GitHub API (tree, content, commits)
+│   ├── history.ts      # Diff line computation (extracted from history-panel)
+│   ├── markdown.ts     # TOC extraction, heading slugs, link resolution
+│   ├── shares.ts       # Share CRUD + encrypted tokens
 │   ├── synced-repos.ts
+│   ├── test-auth.ts    # Test-mode auth cookie encode/decode
 │   ├── users.ts
-│   └── mcp/           # MCP server internals
-├── auth.ts            # Auth config + bypass mode
-└── proxy.ts           # Route protection
+│   └── mcp/            # MCP server internals
+├── auth.ts             # Auth config + bypass + test mode
+└── proxy.ts            # Route protection
 ```
 
 ## Environment Variables
@@ -90,6 +99,28 @@ Remote HTTP MCP server at `/api/mcp` with GitHub OAuth (stateless, Vercel-compat
 **Tools:** `list_files_with_comments`, `get_comments`, `add_comment`, `reply_to_comment`, `resolve_comment`, `bulk_resolve_comments`, `reply_and_resolve`, `unresolve_comment`, `delete_comment`
 
 **Add to Claude Code:** `claude mcp add --transport http markbase https://markbase-github.vercel.app/api/mcp`
+
+## Testing
+
+**Unit + Integration** (Vitest): `pnpm test:unit` — 28 test files, 109 tests, 99%+ coverage.
+- Config: `vitest.config.mts`, setup in `tests/setup/`
+- Unit tests: `tests/unit/` — pure logic, mocked dependencies
+- Integration tests: `tests/integration/` — hit real Postgres via testcontainers
+- Integration helper: `tests/helpers/postgres.ts` — `useTestDatabase()` hook spins up a container
+- Coverage thresholds enforced: 99% lines/functions, 93% branches, 98% statements
+
+**E2E** (Playwright): `pnpm test:e2e` — requires `pnpm build` first + Docker for Postgres.
+- Config: `playwright.config.ts`, tests in `tests/e2e/`
+- `scripts/test-app-server.mjs` starts: mock GitHub server (port 4100), testcontainers Postgres, Next.js production server (port 3101)
+- GitHub API is fully mocked via env vars (`GITHUB_API_BASE_URL`, `GITHUB_WEB_BASE_URL`, `GITHUB_RAW_BASE_URL`)
+- Test auth: cookie-based (`markbase-test-session`) — no real OAuth needed
+- Test fixtures: `tests/fixtures/mock-github.json`
+- `MARKBASE_TEST_MODE=true` enables test auth and `/api/test/reset` endpoint
+
+**Key patterns:**
+- GitHub URLs use `github-config.ts` helpers (not hardcoded), enabling test mock servers
+- `process.env.NODE_ENV` is read-only in TS strict mode — cast via `(process.env as Record<string, string | undefined>)` in tests
+- Auth supports three modes: NextAuth (production), bypass (local dev), test cookie (tests)
 
 ## Key Constraints
 

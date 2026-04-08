@@ -1,111 +1,95 @@
 # Session Handoff
 
-> Updated 2026-04-07 after session 3 (full UI/UX overhaul, responsive design, design system).
+> Updated 2026-04-07 after session 4 (production test suite + type fixes + merge).
 > Read this first in the next session.
 
 ## Current State
 
-Markbase has been through a complete UI/UX overhaul. The app is responsive across mobile/tablet/desktop, has a manual theme toggle, command palette (Cmd+K), keyboard shortcuts, soft-delete comments with undo, loading skeletons, error boundaries, and a consolidated single-toolbar header. Nielsen heuristic score improved from 20/40 to ~29/40. CRA MCP server configured in `.mcp.json`. Design context persisted in `.impeccable.md`.
+Markbase has a comprehensive test suite: 28 Vitest test files (109 tests, 99%+ coverage) covering unit + integration, plus 3 Playwright E2E specs covering the full app flow, MCP OAuth/JSON-RPC, and targeted share access control. Production code was refactored for testability (extracted lib modules, configurable GitHub URLs, test auth mode).
 
 ## What Was Done This Session
 
-**Foundation (12 new files):**
-- `src/lib/format.ts` — shared formatting utilities (consolidated 4 duplicate timeAgo implementations)
-- `src/hooks/use-media-query.ts` — SSR-safe responsive hooks via useSyncExternalStore
-- `src/components/theme-provider.tsx` — light/dark/system theme with localStorage
-- `src/components/theme-toggle.tsx` — sun/monitor/moon cycle button with tooltip
-- `src/components/bottom-sheet.tsx` — mobile bottom sheet with drag-to-dismiss gestures
-- `src/components/confirm-dialog.tsx` — responsive confirm (bottom sheet mobile, modal desktop)
-- `src/components/toast.tsx` — toast notification system with undo action support
-- `src/app/not-found.tsx`, `error.tsx`, `[...path]/error.tsx` — custom error pages
-- `src/app/dashboard/loading.tsx`, `[...path]/loading.tsx` — loading skeletons
+**Test Suite (by codex agent):**
+- Full Vitest config with coverage thresholds (99% lines/functions, 93% branches)
+- Playwright config with testcontainers Postgres + mock GitHub HTTP server
+- Unit tests: auth, proxy, crypto, format, github-config, dashboard, comment-dom, history, markdown, test-auth, db-config, MCP jwt/oauth/tools
+- Integration tests: comments, shares, synced-repos, users, db init/reset, share-actions, comment-actions, history-actions, MCP routes (register, authorize, callback, token, server)
+- E2E tests: landing page, full user flow (add repo, browse, history, share), targeted share access control, MCP OAuth + JSON-RPC flow
 
-**Responsive Redesign (every page):**
-- Dashboard: repo search with instant filter, responsive grid, condensed mobile cards, renamed "Sync" to "Add"
-- Repo viewer: sidebar toggle in header (left side, panel icon), bottom sheet on mobile, file search in sidebar
-- Comment rail: bottom sheet on mobile, delete confirmations, hover-reveal actions, 30s polling
-- Share dialog: bottom sheet on mobile, toast feedback, 44px touch targets
-- History panel: vertical stacking on mobile
-- Shared viewer: full mobile support added (was completely missing)
+**Production Code Refactors (by codex agent, for testability):**
+- Extracted `src/lib/github-config.ts` — env-overridable GitHub API/Web/Raw base URLs
+- Extracted `src/lib/dashboard.ts` — repo fetching + grouping (from dashboard page)
+- Extracted `src/lib/comment-dom.ts` — DOM helpers (from comment-rail)
+- Extracted `src/lib/history.ts` — diff computation (from history-panel)
+- Extracted `src/lib/markdown.ts` — TOC, heading slugs, link resolution (from page.tsx)
+- Added `src/lib/test-auth.ts` — cookie-based test auth
+- Added `src/app/api/test/reset/route.ts` — DB reset endpoint (test mode only)
+- Auth now supports 3 modes: NextAuth (production), bypass (dev), test cookie (tests)
+- `comment-rail.tsx` reduced from ~900 to ~700 lines via extraction
+- Added `user.login` to session type and JWT callbacks
+- Fixed `deleteShare` — removed unused `_isOwner` parameter
+- Fixed shared file access control (checks `shared_with` on share page)
+- Added aria-labels to close buttons
+- `bottom-sheet.tsx` phase transitions moved to useEffect+rAF (was synchronous in render)
+- `db.ts` SSL/pool config now env-driven, added `resetDb()`, `ignoreDbError()` helper
 
-**Design System:**
-- Class-based dark mode (`@variant dark` + `.dark` class) replacing media query approach
-- FOUC prevention via `next/script` `beforeInteractive`
-- Design tokens: `--surface`, `--border`, `--text-primary/secondary/muted`
-- Fixed font bug (body was overriding Geist Sans with Arial)
-- Removed rainbow HR gradient (now blue-only)
-- Touch target utility for coarse pointers
-
-**Road to 40 (second round):**
-- Command palette (Cmd+K) with file search, recent files, navigation actions
-- Keyboard shortcuts: /, ?, J/K, Cmd+Enter, Escape
-- `src/components/keyboard-shortcuts.tsx` — "?" shortcut reference sheet
-- `src/components/tooltip.tsx` — hover/long-press tooltips on all icon buttons
-- `src/components/file-tree.tsx` — shared base extracted from sidebar + shared-sidebar
-- Soft delete: `deleted_at` column on comments, `softDeleteComment`, `restoreComment`, undo toast
-- Comment draft auto-save in sessionStorage
-- Optimistic comment insertion
-- Auto-retry with exponential backoff for transient failures
-- Dashboard empty state, comment rail onboarding hint, share dialog read-only hint
-- Repo card stats progressive disclosure (hover-reveal on desktop)
-- Landing page: feature accent rhythm, mockup cursor blink animation
-
-**Header Consolidation:**
-- Eliminated the breadcrumb bar (was a second toolbar below the header)
-- File path + metadata now inline text in the content area
-- Removed SharesDropdown from header (accessible via /shares page)
-- Removed branch badge from header
-- Dashboard link became a home icon with tooltip
-- Sidebar toggle moved to LEFT side of header with panel icon
-
-**Bug Fixes:**
-- Sidebar stays open on desktop when navigating between files (closeSidebar only fires on mobile)
-- Panel state persists via sessionStorage + useSyncExternalStore (no hydration mismatch)
-- Empty img src no longer causes page re-download
-- Hydration errors fixed (replaced raw `<script>` with next/script, useSyncExternalStore for browser reads)
+**Type Fixes (by claude, review):**
+- Fixed 14 TypeScript errors in test files
+- `resetApp()` simplified to use `/api/test/reset` endpoint instead of direct Postgres
+- Fixed `process.env.NODE_ENV` read-only property errors with type assertions
+- Fixed `deleteShareAction` call site (removed extra arg matching production change)
+- Added definite assignment assertions for test capture variables
 
 ## Key Decisions
 
-- **useSyncExternalStore for browser state** — React 19's `react-hooks/set-state-in-effect` lint rule forbids setState in useEffect. All sessionStorage/localStorage/matchMedia reads use useSyncExternalStore + StorageEvent dispatch pattern.
-- **"Add" not "Sync"** — renamed because syncing implies two-way; the action just pins a repo for quick access.
-- **Soft delete over client-side delay** — user chose server-side soft delete (deleted_at column) over client-side 5-second delay. More robust, enables future purge job.
-- **30s polling not SSE** — simpler than server-sent events, no backend changes needed, adequate for the use case.
-- **Header consolidation** — user looked at the screenshot and said "it looks like we tacked on features." Merged three chrome layers into one toolbar.
-- **Sidebar toggle on LEFT** — user feedback: "I shouldn't have to drag my mouse across the entire screen."
+- **GitHub URL abstraction** — all GitHub API calls now go through `github-config.ts` helpers, enabling full mock server injection via env vars. No hardcoded `api.github.com` URLs remain.
+- **Test auth via cookie** — `MARKBASE_TEST_MODE=true` enables a base64url cookie-based auth bypass, separate from the dev bypass mode. Cleaner than trying to mock NextAuth in E2E.
+- **Testcontainers for Postgres** — both integration tests and E2E use real Postgres in Docker containers. No sqlite-in-memory or mock DB.
+- **Coverage thresholds enforced** — 99% lines, 99% functions, 93% branches, 98% statements. Tests must maintain this bar.
 
 ## What Failed
 
-- **Raw `<script>` in layout.tsx** — Next.js 16 doesn't allow `<script>` tags in server components. Error: "Scripts inside React components are never executed when rendering on the client." Fixed with `next/script` `strategy="beforeInteractive"`.
-- **sessionStorage in useState initializer** — Caused hydration mismatch (server renders default, client renders stored value). Fixed with useSyncExternalStore pattern.
-- **Sidebar closing on desktop file navigation** — `onNavigate` callback called `closeSidebar` unconditionally. Had to add `window.innerWidth < 1024` check.
-- **Empty img src warning** — Markdown with image tags missing src passed `""` to `<img>`. Fixed with early `return null`.
+- **14 TypeScript errors shipped** — codex agent didn't run `tsc --noEmit` before committing. Fixed in review.
+  - `resetApp()` had wrong signature (took no args but was called with Playwright request context)
+  - `deleteShareAction` call had extra arg (matching old signature before codex removed the parameter)
+  - `process.env.NODE_ENV` is read-only in TypeScript strict mode
+  - `let capturedConfig` used before assignment (needs `!` definite assignment assertion)
 
 ## Deferred / Backlog
 
-- **Real-time comments via SSE/WebSocket** — polling at 30s is adequate for now, true real-time deferred
+- **Real-time comments via SSE/WebSocket** — polling at 30s is adequate for now
 - **Notifications** — notify doc owner of new comments
 - **Duplicate share detection** — can create multiple identical shares without warning
 - **Search in content** — full-text search across markdown content (Cmd+K only searches filenames)
 - **MCP token refresh** — JWTs expire after 8h
 - **Auth code replay prevention** — stateless codes can be reused within 10min TTL
-- **Purge job for soft-deleted comments** — `purgeDeletedComments()` function exists but no cron trigger
-- **In-app feature tour** — first-time onboarding is empty state hints only, no guided walkthrough
+- **Purge job for soft-deleted comments** — function exists but no cron trigger
+- **In-app feature tour** — first-time onboarding is empty state hints only
+- **Semantic search** — embeddings + pgvector for cross-repo search
+- **Doc analytics** — view counts, share engagement, trending, staleness detection
+- **AI summarization** — "What is this page saying?" helper
+- **Download/export** — PDF/DOCX/ZIP export of files, folders, repos
+- **Live editing** — browser-based markdown editing with GitHub commit backend
+- **Extended MCP** — content + search tools (not just comments)
 
 ## Traps for Next Session
 
 1. **Run `/api/init-db`** after any DB schema changes — both local and production
-2. **React 19 lint rule** — never use `setState` in `useEffect` body. Use `useSyncExternalStore` for external state reads. This rule is strict and will fail CI.
-3. **Sidebar closeSidebar** — must check `window.innerWidth < 1024`. Only close overlay on mobile/tablet, never on desktop.
-4. **Panel state via StorageEvent dispatch** — writing to sessionStorage doesn't trigger useSyncExternalStore automatically. Must `window.dispatchEvent(new StorageEvent("storage", { key }))` after writes.
-5. **next/script not raw script** — use `<Script strategy="beforeInteractive">` for head scripts in Next.js 16 layouts.
-6. **comment-rail.tsx is ~900 lines** — the largest file. Consider extraction if adding more features.
-7. **Two sidebar implementations** — `sidebar.tsx` and `shared-sidebar.tsx` now share `FileTree` but still have parallel Provider/Toggle/rendering logic. Could be unified further.
-8. **Prisma Accelerate flakiness** — occasional transient "Failed to connect" errors. Auto-retry with backoff mitigates but doesn't eliminate.
-9. **CRA MCP** configured in `.mcp.json` — restart Claude Code to pick up new MCP server.
+2. **React 19 lint rule** — never `setState` in `useEffect`. Use `useSyncExternalStore`.
+3. **Sidebar closeSidebar** — must check `window.innerWidth < 1024`. Only close on mobile.
+4. **Panel state via StorageEvent dispatch** — must dispatch after sessionStorage writes.
+5. **next/script not raw script** — use `<Script strategy="beforeInteractive">` in layouts.
+6. **comment-rail.tsx is ~700 lines** — reduced from 900 but still the largest file.
+7. **Two sidebar implementations** — `sidebar.tsx` and `shared-sidebar.tsx` share `FileTree` but have parallel Provider/Toggle logic.
+8. **Prisma Accelerate flakiness** — occasional transient errors. Auto-retry mitigates.
+9. **process.env.NODE_ENV is read-only** — in tests, cast to `Record<string, string | undefined>`.
+10. **E2E tests need Docker** — testcontainers requires Docker daemon running.
+11. **E2E tests need build** — `pnpm test:e2e` runs `pnpm build` first via npm script.
+12. **GitHub URLs must use github-config.ts** — never hardcode `api.github.com`. Tests mock via env vars.
 
 ## Git State
 
 - Branch: `main`
-- Latest commit: `3b0a811` — fix: don't render img element when src is empty
+- Latest commit: `6ebeb80` — fix: resolve 14 TypeScript errors in test suite
 - All changes committed and pushed to wiseyoda/markbase
 - No uncommitted changes
