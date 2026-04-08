@@ -49,3 +49,4 @@ next-env.d.ts
 .code-review-agent/archives/
 .code-review-agent/triage.yaml
 .code-review-agent/tmp/
+.gstack/

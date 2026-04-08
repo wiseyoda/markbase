@@ -380,12 +380,12 @@ body {
   scrollbar-color: #3f3f46 transparent;
 }
 
-/* ─── Landing page entrance animation ─── */
+/* ─── Landing page: hero stagger ─── */
 
-@keyframes fade-in-up {
+@keyframes landing-enter {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
@@ -393,8 +393,17 @@ body {
   }
 }
 
-.animate-fade-in-up {
-  animation: fade-in-up 0.8s ease-out;
+.landing-stagger {
+  opacity: 0;
+  animation: landing-enter 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: calc(var(--stagger, 0) * 120ms + 100ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-stagger {
+    opacity: 1;
+    animation: none;
+  }
 }
 
 /* ─── Command palette animations ─── */
