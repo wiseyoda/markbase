@@ -68,8 +68,16 @@ export default async function MarkdownViewPage({
     notFound();
   }
 
-  // Parse frontmatter
-  const { data: frontmatter, content } = matter(rawContent);
+  // Parse frontmatter — gracefully degrade on malformed YAML
+  let frontmatter: Record<string, unknown> = {};
+  let content = rawContent;
+  try {
+    const parsed = matter(rawContent);
+    frontmatter = parsed.data;
+    content = parsed.content;
+  } catch {
+    // Malformed frontmatter (e.g. duplicate keys) — render as plain markdown
+  }
   const hasFrontmatter = Object.keys(frontmatter).length > 0;
 
   // Extract TOC
