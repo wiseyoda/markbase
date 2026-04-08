@@ -78,6 +78,6 @@ Markbase is stable at https://markbase.io with 4 active users. First release v20
 ## Git State
 
 - Branch: `main`
-- Latest commit: `85541e8` — fix: CI — use npx vitest
-- HANDOFF.md and CLAUDE.md have uncommitted updates
-- Another agent may have uncommitted changes in other files
+- Latest commit: `7a4ff78` — docs: add CI status badge to README
+- Clean working tree, all pushed to origin
+- Another agent added CODE_OF_CONDUCT.md (`fee39e4`)
