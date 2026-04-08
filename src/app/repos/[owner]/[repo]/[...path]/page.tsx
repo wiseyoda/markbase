@@ -15,6 +15,8 @@ import Link from "next/link";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
 import matter from "gray-matter";
 import type { Components } from "react-markdown";
 import {
@@ -29,6 +31,7 @@ import { HistoryButton } from "./history-panel";
 import { relativeTime, formatBytes, readingTime } from "@/lib/format";
 import {
   extractToc,
+  markdownSanitizeSchema,
   resolveRelativeMarkdownLink,
   slugifyHeading,
 } from "@/lib/markdown";
@@ -255,7 +258,11 @@ export default async function MarkdownViewPage({
             <article id="markdown-content" className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
               <Markdown
                 remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeHighlight]}
+                rehypePlugins={[
+                  rehypeRaw,
+                  [rehypeSanitize, markdownSanitizeSchema],
+                  rehypeHighlight,
+                ]}
                 components={components}
               >
                 {content}

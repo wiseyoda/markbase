@@ -1,3 +1,21 @@
+import { defaultSchema } from "rehype-sanitize";
+import type { Options as SanitizeOptions } from "rehype-sanitize";
+
+/**
+ * GitHub-compatible HTML sanitization schema for react-markdown.
+ * Allows safe HTML tags (div, img, a, br, etc.) while blocking XSS vectors.
+ */
+export const markdownSanitizeSchema: SanitizeOptions = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    span: [
+      ...(defaultSchema.attributes?.span || []),
+      ["className", /^hljs/],
+    ],
+  },
+};
+
 export interface TocEntry {
   level: number;
   text: string;

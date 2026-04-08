@@ -12,6 +12,7 @@ import {
   buildFileKey,
 } from "@/lib/comments";
 import type { Comment } from "@/lib/comments";
+import { withDbRetry } from "@/lib/db";
 
 async function getUser() {
   const session = await auth();
@@ -33,16 +34,19 @@ export async function addComment(opts: {
   parentId: string | null;
 }): Promise<Comment> {
   const user = await getUser();
-  return createComment({
-    fileKey: await buildFileKey(opts.repo, opts.branch, opts.filePath),
-    authorId: user.id,
-    authorName: user.name,
-    authorAvatar: user.avatar,
-    quote: opts.quote,
-    quoteContext: opts.quoteContext,
-    body: opts.body,
-    parentId: opts.parentId,
-  });
+  const fKey = await buildFileKey(opts.repo, opts.branch, opts.filePath);
+  return withDbRetry(() =>
+    createComment({
+      fileKey: fKey,
+      authorId: user.id,
+      authorName: user.name,
+      authorAvatar: user.avatar,
+      quote: opts.quote,
+      quoteContext: opts.quoteContext,
+      body: opts.body,
+      parentId: opts.parentId,
+    }),
+  );
 }
 
 export async function fetchComments(
@@ -50,12 +54,13 @@ export async function fetchComments(
   branch: string,
   filePath: string,
 ): Promise<Comment[]> {
-  return getComments(await buildFileKey(repo, branch, filePath));
+  const fKey = await buildFileKey(repo, branch, filePath);
+  return withDbRetry(() => getComments(fKey));
 }
 
 export async function resolveCommentAction(commentId: string): Promise<boolean> {
   const user = await getUser();
-  return resolveComment(commentId, user.id);
+  return withDbRetry(() => resolveComment(commentId, user.id));
 }
 
 export async function unresolveCommentAction(
@@ -64,14 +69,16 @@ export async function unresolveCommentAction(
 ): Promise<boolean> {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
-  const comment = await getCommentById(commentId);
-  if (!comment) return false;
-  const isAuthor = comment.author_id === session.user.id;
-  const isOwner = repoOwner
-    ? session.user.login?.toLowerCase() === repoOwner.toLowerCase()
-    : false;
-  if (!isAuthor && !isOwner) throw new Error("Not authorized");
-  return unresolveComment(commentId);
+  return withDbRetry(async () => {
+    const comment = await getCommentById(commentId);
+    if (!comment) return false;
+    const isAuthor = comment.author_id === session.user.id;
+    const isOwner = repoOwner
+      ? session.user.login?.toLowerCase() === repoOwner.toLowerCase()
+      : false;
+    if (!isAuthor && !isOwner) throw new Error("Not authorized");
+    return unresolveComment(commentId);
+  });
 }
 
 export async function deleteCommentAction(
@@ -83,7 +90,7 @@ export async function deleteCommentAction(
   const isOwner = repoOwner
     ? session.user.login?.toLowerCase() === repoOwner.toLowerCase()
     : false;
-  return softDeleteComment(commentId, session.user.id, isOwner);
+  return withDbRetry(() => softDeleteComment(commentId, session.user.id, isOwner));
 }
 
 export async function restoreCommentAction(
@@ -92,12 +99,14 @@ export async function restoreCommentAction(
 ): Promise<boolean> {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
-  const comment = await getCommentById(commentId, { includeDeleted: true });
-  if (!comment) return false;
-  const isAuthor = comment.author_id === session.user.id;
-  const isOwner = repoOwner
-    ? session.user.login?.toLowerCase() === repoOwner.toLowerCase()
-    : false;
-  if (!isAuthor && !isOwner) throw new Error("Not authorized");
-  return restoreComment(commentId);
+  return withDbRetry(async () => {
+    const comment = await getCommentById(commentId, { includeDeleted: true });
+    if (!comment) return false;
+    const isAuthor = comment.author_id === session.user.id;
+    const isOwner = repoOwner
+      ? session.user.login?.toLowerCase() === repoOwner.toLowerCase()
+      : false;
+    if (!isAuthor && !isOwner) throw new Error("Not authorized");
+    return restoreComment(commentId);
+  });
 }

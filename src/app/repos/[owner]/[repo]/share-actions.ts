@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { createShare, deleteShare } from "@/lib/shares";
+import { withDbRetry } from "@/lib/db";
 import { githubApiUrl } from "@/lib/github-config";
 
 export interface GitHubUserResult {
@@ -22,17 +23,19 @@ export async function createShareAction(opts: {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
 
-  return createShare({
-    type: opts.type,
-    ownerId: session.user.id,
-    repo: opts.repo,
-    branch: opts.branch,
-    filePath: opts.filePath,
-    accessToken: session.accessToken,
-    expiresIn: opts.expiresIn,
-    sharedWith: opts.sharedWith,
-    sharedWithName: opts.sharedWithName,
-  });
+  return withDbRetry(() =>
+    createShare({
+      type: opts.type,
+      ownerId: session.user.id,
+      repo: opts.repo,
+      branch: opts.branch,
+      filePath: opts.filePath,
+      accessToken: session.accessToken,
+      expiresIn: opts.expiresIn,
+      sharedWith: opts.sharedWith,
+      sharedWithName: opts.sharedWithName,
+    }),
+  );
 }
 
 export async function deleteShareAction(
@@ -40,7 +43,7 @@ export async function deleteShareAction(
 ): Promise<boolean> {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
-  return deleteShare(shareId, session.user.id);
+  return withDbRetry(() => deleteShare(shareId, session.user.id));
 }
 
 export async function searchGitHubUsers(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import Link from "next/link";
 
 const FRAGMENTS = [
@@ -32,11 +32,8 @@ const MESSAGES = [
 export function NotFoundContent() {
   const [messageIndex, setMessageIndex] = useState(0);
   const [visible, setVisible] = useState(true);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const noop = useCallback(() => () => {}, []);
+  const mounted = useSyncExternalStore(noop, () => true, () => false);
 
   useEffect(() => {
     const interval = setInterval(() => {

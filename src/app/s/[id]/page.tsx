@@ -4,6 +4,8 @@ import { notFound, redirect } from "next/navigation";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
 import type { Components } from "react-markdown";
 import { getShare } from "@/lib/shares";
 
@@ -18,6 +20,7 @@ export async function generateMetadata({
   const name = share.file_path?.split("/").pop() || share.repo;
   return { title: `${name} — ${share.repo} (shared)` };
 }
+import { markdownSanitizeSchema } from "@/lib/markdown";
 import { getFileContent, getMarkdownTree } from "@/lib/github";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Logo } from "@/components/logo";
@@ -114,7 +117,11 @@ export default async function SharePage({
           <article className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
             <Markdown
               remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeHighlight]}
+              rehypePlugins={[
+                rehypeRaw,
+                [rehypeSanitize, markdownSanitizeSchema],
+                rehypeHighlight,
+              ]}
               components={fileShareComponents()}
             >
               {content}

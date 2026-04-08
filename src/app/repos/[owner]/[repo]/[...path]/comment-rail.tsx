@@ -91,13 +91,17 @@ export function CommentRail({
     setCount(comments.filter((c) => !c.resolved_at).length);
   }, [comments, setCount]);
 
-  // Sync server-provided comments into state when they arrive
-  // (handles streaming where component mounts before data is ready)
+  // Sync server-provided comments when props change (render-time derivation,
+  // handles streaming where component mounts before data is ready)
+  const [prevInitial, setPrevInitial] = useState(initialComments);
+  if (initialComments && initialComments.length > 0 && initialComments !== prevInitial) {
+    setPrevInitial(initialComments);
+    setComments(initialComments);
+  }
+
+  // Fetch fallback when no initial comments are provided
   useEffect(() => {
-    if (initialComments && initialComments.length > 0) {
-      setComments(initialComments);
-      return;
-    }
+    if (initialComments && initialComments.length > 0) return;
     let cancelled = false;
     withRetry(() => fetchComments(repo, branch, filePath))
       .then((data) => {

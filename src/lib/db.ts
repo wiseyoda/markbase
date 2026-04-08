@@ -37,8 +37,42 @@ function resolveSsl(): false | "require" {
 }
 
 function resolveMaxConnections(): number {
-  const parsed = Number(process.env.POSTGRES_POOL_MAX || "5");
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5;
+  const envMax = process.env.POSTGRES_POOL_MAX;
+  if (envMax) {
+    const parsed = Number(envMax);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  }
+  // Serverless (Vercel) should use 1 connection per instance;
+  // local dev can afford a small pool
+  return process.env.VERCEL ? 1 : 3;
+}
+
+/** Connection errors that warrant resetting the pool */
+const TRANSIENT_ERRORS = new Set([
+  "CONNECT_TIMEOUT",
+  "CONNECTION_CLOSED",
+  "CONNECTION_ENDED",
+  "CONNECTION_DESTROYED",
+]);
+
+function validateUrl(url: string): void {
+  if (url.startsWith("prisma://")) {
+    throw new Error(
+      "PRISMA_DATABASE_URL uses prisma:// scheme which is incompatible with " +
+      "postgres.js. Use a postgresql:// connection string (e.g. from Prisma " +
+      "Accelerate's 'Direct connection' URL, or set POSTGRES_URL instead).",
+    );
+  }
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname) {
+      throw new Error(`Database URL has no hostname: ${parsed.protocol}//???`);
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("PRISMA_DATABASE_URL"))
+      throw e;
+    throw new Error(`Invalid database URL: ${(e as Error).message}`);
+  }
 }
 
 export function getDb() {
@@ -46,22 +80,58 @@ export function getDb() {
 
   const url = process.env.PRISMA_DATABASE_URL || process.env.POSTGRES_URL;
   if (!url) throw new Error("No database URL found in env");
+  validateUrl(url);
 
   sql = postgres(url, {
     ssl: resolveSsl(),
     max: resolveMaxConnections(),
     idle_timeout: 20,
-    connect_timeout: 30,
+    max_lifetime: 60 * 5,
+    connect_timeout: 10,
     prepare: false,
     onnotice: ignoreNotice,
+    connection: { application_name: "markbase" },
   });
   return sql;
 }
 
+/**
+ * Check if an error is a transient connection failure. When true,
+ * the caller should reset the pool and may retry.
+ */
+export function isTransientDbError(error: unknown): boolean {
+  const code = (error as { code?: string }).code;
+  return !!code && TRANSIENT_ERRORS.has(code);
+}
+
+/**
+ * Force-close the connection pool. Called on fatal connection errors
+ * so the next request creates a fresh client instead of reusing a
+ * broken singleton.
+ */
 export async function resetDb() {
   if (!sql) return;
-  await sql.end({ timeout: 1 });
+  await sql.end({ timeout: 1 }).catch(() => {});
   sql = null;
+}
+
+/**
+ * Run a database operation with automatic retry on transient connection errors.
+ * On the first CONNECT_TIMEOUT / CONNECTION_CLOSED, resets the pool and retries once.
+ */
+export async function withDbRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (isTransientDbError(error)) {
+      console.warn(
+        `[db] Transient error (${(error as { code?: string }).code}), resetting pool and retrying`,
+      );
+      await resetDb();
+      return fn();
+    }
+    throw error;
+  }
 }
 
 export async function initDb() {

@@ -17,12 +17,14 @@ export async function generateMetadata({
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
 import type { Components } from "react-markdown";
 import { auth, signIn } from "@/auth";
 import { getFileContent, getMarkdownTree } from "@/lib/github";
 import { buildTree } from "@/lib/tree";
 import { githubRawUrl } from "@/lib/github-config";
-import { resolveShareMarkdownLink } from "@/lib/markdown";
+import { markdownSanitizeSchema, resolveShareMarkdownLink } from "@/lib/markdown";
 import { Logo } from "@/components/logo";
 import {
   SharedSidebar,
@@ -258,7 +260,11 @@ export default async function SharedFilePage({
                   >
                     <Markdown
                       remarkPlugins={[remarkGfm]}
-                      rehypePlugins={[rehypeHighlight]}
+                      rehypePlugins={[
+                        rehypeRaw,
+                        [rehypeSanitize, markdownSanitizeSchema],
+                        rehypeHighlight,
+                      ]}
                       components={components}
                     >
                       {content}
