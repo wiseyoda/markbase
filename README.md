@@ -12,6 +12,7 @@
   <br />
   <br />
 
+  <a href="https://github.com/wiseyoda/markbase/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/wiseyoda/markbase/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="https://github.com/wiseyoda/markbase/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
   <a href="https://markbase.io"><img alt="Deploy" src="https://img.shields.io/badge/deployed%20on-Vercel-black.svg" /></a>
 </div>
