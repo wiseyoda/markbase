@@ -8,6 +8,7 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import type { Components } from "react-markdown";
 import { getShare } from "@/lib/shares";
+import { withDbRetry } from "@/lib/db";
 
 export async function generateMetadata({
   params,
@@ -72,7 +73,7 @@ export default async function SharePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const share = await getShare(id);
+  const share = await withDbRetry(() => getShare(id));
 
   if (!share) notFound();
 

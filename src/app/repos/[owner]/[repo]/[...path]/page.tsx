@@ -38,6 +38,7 @@ import {
 } from "@/lib/markdown";
 import { githubRawUrl } from "@/lib/github-config";
 import { getComments, buildFileKey } from "@/lib/comments";
+import { withDbRetry } from "@/lib/db";
 import { GitHubRefreshButton } from "@/components/github-refresh-button";
 import "highlight.js/styles/github-dark.css";
 
@@ -59,7 +60,7 @@ export default async function MarkdownViewPage({
   const [rawContent, files, initialComments, lastModified] = await Promise.all([
     getFileContent(session.accessToken, owner, repo, branch, filePath),
     getMarkdownTree(session.accessToken, owner, repo, branch),
-    getComments(fKey),
+    withDbRetry(() => getComments(fKey)),
     getLastModified(session.accessToken, owner, repo, branch, filePath),
   ]);
 

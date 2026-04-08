@@ -7,6 +7,7 @@ export const metadata: Metadata = {
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { listShares } from "@/lib/shares";
+import { withDbRetry } from "@/lib/db";
 import { ShareActions } from "./share-actions-client";
 import { timeAgo, expiryLabel } from "@/lib/format";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -18,7 +19,7 @@ export default async function SharesPage() {
   const userId = session.user?.id;
   if (!userId) redirect("/");
 
-  const shares = await listShares(userId);
+  const shares = await withDbRetry(() => listShares(userId));
 
   // Group by repo
   const byRepo = new Map<string, typeof shares>();

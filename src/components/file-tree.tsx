@@ -131,7 +131,22 @@ export function FileTree({
         </div>
       </div>
       <nav className="flex-1 overflow-y-auto px-2 py-2">
-        {filtered.length === 0 ? (
+        {filtered.length === 0 && nodes.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-2 py-8 text-center">
+            <svg
+              width="28"
+              height="28"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              className="text-zinc-300 dark:text-zinc-600"
+            >
+              <path d="M3.75 1.5a.25.25 0 00-.25.25v12.5c0 .138.112.25.25.25h8.5a.25.25 0 00.25-.25V6H9.75A1.75 1.75 0 018 4.25V1.5H3.75zm5.75.56v2.19c0 .138.112.25.25.25h2.19L9.5 2.06zM2 1.75C2 .784 2.784 0 3.75 0h5.086c.464 0 .909.184 1.237.513l3.414 3.414c.329.328.513.773.513 1.237v9.086A1.75 1.75 0 0112.25 16h-8.5A1.75 1.75 0 012 14.25V1.75z" />
+            </svg>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">
+              No markdown files
+            </p>
+          </div>
+        ) : filtered.length === 0 ? (
           <p className="px-2 py-4 text-center text-xs text-zinc-400 dark:text-zinc-500">
             No files match &ldquo;{search}&rdquo;
           </p>

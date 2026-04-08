@@ -9,6 +9,7 @@ import {
   getRecentCommentsForRepos,
   countOpenCommentsForRepos,
 } from "@/lib/comments";
+import { withDbRetry } from "@/lib/db";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts";
 import { RepoList } from "./repo-list";
@@ -99,16 +100,16 @@ export default async function Dashboard() {
 
   // All DB queries + pinned repo metadata in parallel — no bulk GitHub calls
   const [syncedRepos, sharedWithMe, myShares] = await Promise.all([
-    getSyncedRepos(),
-    userId ? listSharesWithMe(userId) : Promise.resolve([]),
-    userId ? listShares(userId) : Promise.resolve([]),
+    withDbRetry(() => getSyncedRepos()),
+    userId ? withDbRetry(() => listSharesWithMe(userId)) : Promise.resolve([]),
+    userId ? withDbRetry(() => listShares(userId)) : Promise.resolve([]),
   ]);
 
   // Fetch pinned repo metadata + activity data (depends on syncedRepos)
   const [syncedRepoData, recentComments, openCommentCount] = await Promise.all([
     getReposByName(session.accessToken, syncedRepos),
-    getRecentCommentsForRepos(syncedRepos, 5),
-    countOpenCommentsForRepos(syncedRepos),
+    withDbRetry(() => getRecentCommentsForRepos(syncedRepos, 5)),
+    withDbRetry(() => countOpenCommentsForRepos(syncedRepos)),
   ]);
 
   const firstName = session.user?.name?.split(" ")[0] || "there";

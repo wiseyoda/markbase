@@ -85,8 +85,8 @@ export function getDb() {
   sql = postgres(url, {
     ssl: resolveSsl(),
     max: resolveMaxConnections(),
-    idle_timeout: 20,
-    max_lifetime: 60 * 5,
+    idle_timeout: process.env.VERCEL ? 2 : 20,
+    max_lifetime: process.env.VERCEL ? 60 : 60 * 5,
     connect_timeout: 15,
     prepare: false,
     onnotice: ignoreNotice,

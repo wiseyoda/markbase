@@ -39,6 +39,7 @@ import {
 import { HistoryButton } from "@/app/repos/[owner]/[repo]/[...path]/history-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getComments, buildFileKey, countOpenComments } from "@/lib/comments";
+import { withDbRetry } from "@/lib/db";
 import { refreshGitHubDocumentCache } from "@/lib/github-cache";
 import { GitHubRefreshButton } from "@/components/github-refresh-button";
 import "highlight.js/styles/github-dark.css";
@@ -51,7 +52,7 @@ export default async function SharedFilePage({
   const { id, path: pathSegments } = await params;
   const session = await auth();
   const isSignedIn = !!session?.user?.id;
-  const share = await getShare(id);
+  const share = await withDbRetry(() => getShare(id));
 
   if (!share || (share.type !== "repo" && share.type !== "folder")) notFound();
 
@@ -85,9 +86,9 @@ export default async function SharedFilePage({
       share.type === "repo" || share.type === "folder"
         ? getMarkdownTree(share.accessToken, owner, repo, share.branch)
         : Promise.resolve([]),
-      isSignedIn ? getComments(fKey) : Promise.resolve([]),
+      isSignedIn ? withDbRetry(() => getComments(fKey)) : Promise.resolve([]),
       share.type === "repo" || share.type === "folder"
-        ? countOpenComments(fileKeyPrefix)
+        ? withDbRetry(() => countOpenComments(fileKeyPrefix))
         : Promise.resolve({}),
     ]);
 
