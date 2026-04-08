@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import type { TreeNode } from "@/app/repos/[owner]/[repo]/layout";
+import type { TreeNode } from "@/lib/tree";
 
 // ---------------------------------------------------------------------------
 // filterTree — filters tree nodes by name (shared between sidebars)

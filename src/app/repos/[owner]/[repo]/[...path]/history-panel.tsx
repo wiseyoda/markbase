@@ -97,11 +97,16 @@ function HistoryPanel({
   return createPortal(
     <>
       <div className="fixed inset-0 z-50 bg-black/60" onClick={onClose} />
-      <div className="fixed inset-2 sm:inset-4 z-50 flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="history-panel-title"
+        className="fixed inset-2 sm:inset-4 z-50 flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold">File History</h2>
+            <h2 id="history-panel-title" className="text-lg font-semibold">File History</h2>
             <span className="text-sm text-zinc-400 dark:text-zinc-500">
               {filePath}
             </span>

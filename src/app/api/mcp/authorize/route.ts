@@ -44,6 +44,28 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Validate redirect_uri against allowed patterns (localhost for MCP clients)
+  let redirectUrl: URL;
+  try {
+    redirectUrl = new URL(redirectUri);
+  } catch {
+    return NextResponse.json(
+      { error: "invalid_request", error_description: "redirect_uri is not a valid URL" },
+      { status: 400 },
+    );
+  }
+  const allowedHosts = ["localhost", "127.0.0.1", "[::1]"];
+  if (
+    !allowedHosts.includes(redirectUrl.hostname) &&
+    !redirectUri.startsWith("http://localhost:") &&
+    !redirectUri.startsWith("http://127.0.0.1:")
+  ) {
+    return NextResponse.json(
+      { error: "invalid_request", error_description: "redirect_uri not allowed" },
+      { status: 400 },
+    );
+  }
+
   const oauthState: OAuthState = {
     code_challenge: codeChallenge,
     code_challenge_method: codeChallengeMethod,

@@ -4,17 +4,27 @@ let sql: ReturnType<typeof postgres> | null = null;
 
 function ignoreNotice() {}
 
+/** Postgres error codes safe to ignore in idempotent migrations */
+const IDEMPOTENT_PG_CODES = new Set([
+  "42701", // duplicate_column
+  "42710", // duplicate_object (constraint/index already exists)
+  "42P07", // duplicate_table
+  "42704", // undefined_object (DROP IF NOT EXISTS target missing)
+  "42P01", // undefined_table
+]);
+
 /**
  * Suppress expected idempotent migration errors (duplicate column/constraint,
- * "already exists", "does not exist"). Logs a warning so real failures
- * (permissions, syntax, connection) are visible in logs rather than silently swallowed.
+ * "already exists", "does not exist"). Real failures (permissions, syntax,
+ * connection) are rethrown so initDb fails fast.
  */
 async function ignoreDbError(promise: Promise<unknown>) {
   try {
     await promise;
-  } catch {
-    // Expected: idempotent migration steps (duplicate column, constraint already
-    // exists, etc.). Swallowed intentionally — initDb is designed to be re-runnable.
+  } catch (error: unknown) {
+    const code = (error as { code?: string }).code;
+    if (code && IDEMPOTENT_PG_CODES.has(code)) return;
+    throw error;
   }
 }
 

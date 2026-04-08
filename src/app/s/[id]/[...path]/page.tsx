@@ -20,7 +20,7 @@ import rehypeHighlight from "rehype-highlight";
 import type { Components } from "react-markdown";
 import { auth, signIn } from "@/auth";
 import { getFileContent, getMarkdownTree } from "@/lib/github";
-import { buildTree } from "@/app/repos/[owner]/[repo]/layout";
+import { buildTree } from "@/lib/tree";
 import { githubRawUrl } from "@/lib/github-config";
 import { resolveShareMarkdownLink } from "@/lib/markdown";
 import { Logo } from "@/components/logo";
@@ -70,7 +70,10 @@ export default async function SharedFilePage({
 
   const fullRepo = `${owner}/${repo}`;
   const fKey = await buildFileKey(fullRepo, share.branch, filePath);
-  const fileKeyPrefix = `${fullRepo}/${share.branch}/`;
+  const fileKeyPrefix =
+    share.type === "folder" && share.file_path
+      ? `${fullRepo}/${share.branch}/${share.file_path}/`
+      : `${fullRepo}/${share.branch}/`;
 
   const [content, allFiles, initialComments, commentCounts] =
     await Promise.all([

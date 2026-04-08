@@ -6,10 +6,9 @@ export async function GET() {
     await initDb();
     return NextResponse.json({ ok: true });
   } catch (error) {
-    const url = process.env.PRISMA_DATABASE_URL || process.env.POSTGRES_URL || "(none)";
-    const redacted = url.replace(/\/\/[^@]+@/, "//***@");
+    console.error("[init-db] Database initialization failed:", error);
     return NextResponse.json(
-      { error: String(error), url_host: redacted },
+      { error: "Database initialization failed" },
       { status: 500 },
     );
   }

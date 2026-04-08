@@ -46,6 +46,9 @@ describe("dashboard helpers", () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => new Array(100).fill(makeRepo("owner-user", "notes", "2026-01-03T00:00:00.000Z")),
+        headers: new Headers({
+          link: '<https://api.github.com/user/repos?page=2>; rel="next", <https://api.github.com/user/repos?page=2>; rel="last"',
+        }),
       })
       .mockResolvedValueOnce({
         ok: true,

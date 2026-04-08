@@ -27,12 +27,13 @@ export async function upsertUser(user: {
 
 export async function searchUsers(query: string): Promise<AppUser[]> {
   if (!query || query.length < 2) return [];
+  const escaped = query.replace(/[%_\\]/g, "\\$&");
   const db = getDb();
   const rows = await db`
     SELECT id, login, name, avatar_url
     FROM users
-    WHERE login ILIKE ${"%" + query + "%"}
-       OR name ILIKE ${"%" + query + "%"}
+    WHERE login ILIKE ${"%" + escaped + "%"}
+       OR name ILIKE ${"%" + escaped + "%"}
     ORDER BY last_login DESC
     LIMIT 5
   `;

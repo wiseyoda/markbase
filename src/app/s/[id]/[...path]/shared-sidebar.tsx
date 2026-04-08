@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
-import type { TreeNode } from "@/app/repos/[owner]/[repo]/layout";
+import type { TreeNode } from "@/lib/tree";
 import { FileTree } from "@/components/file-tree";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { useIsMobile } from "@/hooks/use-media-query";

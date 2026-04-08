@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import type { TreeNode } from "./layout";
+import type { TreeNode } from "@/lib/tree";
 import { useShareDialog } from "./share-dialog";
 import { FileTree } from "@/components/file-tree";
 import type { ContextMenuItem } from "@/components/file-tree";

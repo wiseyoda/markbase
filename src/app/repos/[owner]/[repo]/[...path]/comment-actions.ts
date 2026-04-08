@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import {
   createComment,
   getComments,
+  getCommentById,
   resolveComment,
   unresolveComment,
   softDeleteComment,
@@ -57,7 +58,19 @@ export async function resolveCommentAction(commentId: string): Promise<boolean> 
   return resolveComment(commentId, user.id);
 }
 
-export async function unresolveCommentAction(commentId: string): Promise<boolean> {
+export async function unresolveCommentAction(
+  commentId: string,
+  repoOwner?: string,
+): Promise<boolean> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Not authenticated");
+  const comment = await getCommentById(commentId);
+  if (!comment) return false;
+  const isAuthor = comment.author_id === session.user.id;
+  const isOwner = repoOwner
+    ? session.user.login?.toLowerCase() === repoOwner.toLowerCase()
+    : false;
+  if (!isAuthor && !isOwner) throw new Error("Not authorized");
   return unresolveComment(commentId);
 }
 
@@ -73,7 +86,18 @@ export async function deleteCommentAction(
   return softDeleteComment(commentId, session.user.id, isOwner);
 }
 
-export async function restoreCommentAction(commentId: string): Promise<boolean> {
-  await getUser();
+export async function restoreCommentAction(
+  commentId: string,
+  repoOwner?: string,
+): Promise<boolean> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Not authenticated");
+  const comment = await getCommentById(commentId, { includeDeleted: true });
+  if (!comment) return false;
+  const isAuthor = comment.author_id === session.user.id;
+  const isOwner = repoOwner
+    ? session.user.login?.toLowerCase() === repoOwner.toLowerCase()
+    : false;
+  if (!isAuthor && !isOwner) throw new Error("Not authorized");
   return restoreComment(commentId);
 }

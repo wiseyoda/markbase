@@ -49,9 +49,9 @@ describe("comment actions", () => {
       1,
     );
     expect(await resolveCommentAction(created.id)).toBe(true);
-    expect(await unresolveCommentAction(created.id)).toBe(true);
+    expect(await unresolveCommentAction(created.id, "owner-user")).toBe(true);
     expect(await deleteCommentAction(created.id, "owner-user")).toBe(true);
-    expect(await restoreCommentAction(created.id)).toBe(true);
+    expect(await restoreCommentAction(created.id, "owner-user")).toBe(true);
   });
 
   it("rejects unauthenticated access", async () => {
@@ -68,5 +68,94 @@ describe("comment actions", () => {
         parentId: null,
       }),
     ).rejects.toThrow("Not authenticated");
+  });
+
+  it("unresolveCommentAction rejects non-author non-owner", async () => {
+    const created = await addComment({
+      repo: "owner-user/notes",
+      branch: "main",
+      filePath: "README.md",
+      quote: null,
+      quoteContext: null,
+      body: "To be resolved",
+      parentId: null,
+    });
+    await resolveCommentAction(created.id);
+
+    authMock.mockResolvedValue({
+      user: { id: "2", login: "other-user", name: "Other User", image: null },
+    });
+
+    await expect(unresolveCommentAction(created.id)).rejects.toThrow(
+      "Not authorized",
+    );
+  });
+
+  it("restoreCommentAction rejects non-author non-owner", async () => {
+    const created = await addComment({
+      repo: "owner-user/notes",
+      branch: "main",
+      filePath: "README.md",
+      quote: null,
+      quoteContext: null,
+      body: "To be deleted then restored",
+      parentId: null,
+    });
+    await deleteCommentAction(created.id, "owner-user");
+
+    authMock.mockResolvedValue({
+      user: { id: "2", login: "other-user", name: "Other User", image: null },
+    });
+
+    await expect(restoreCommentAction(created.id)).rejects.toThrow(
+      "Not authorized",
+    );
+  });
+
+  it("deleteCommentAction rejects non-author non-owner", async () => {
+    const created = await addComment({
+      repo: "owner-user/notes",
+      branch: "main",
+      filePath: "README.md",
+      quote: null,
+      quoteContext: null,
+      body: "Protected comment",
+      parentId: null,
+    });
+
+    authMock.mockResolvedValue({
+      user: { id: "2", login: "other-user", name: "Other User", image: null },
+    });
+
+    expect(await deleteCommentAction(created.id)).toBe(false);
+  });
+
+  it("repo owner can delete another user's comment", async () => {
+    const created = await addComment({
+      repo: "owner-user/notes",
+      branch: "main",
+      filePath: "README.md",
+      quote: null,
+      quoteContext: null,
+      body: "Comment by user 1",
+      parentId: null,
+    });
+
+    authMock.mockResolvedValue({
+      user: { id: "2", login: "repo-owner", name: "Repo Owner", image: null },
+    });
+
+    expect(await deleteCommentAction(created.id, "repo-owner")).toBe(true);
+  });
+
+  it("fetchComments works without authentication", async () => {
+    authMock.mockResolvedValue(null);
+
+    const comments = await fetchComments(
+      "owner-user/notes",
+      "main",
+      "README.md",
+    );
+    expect(Array.isArray(comments)).toBe(true);
   });
 });

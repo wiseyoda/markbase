@@ -199,11 +199,12 @@ export async function purgeDeletedComments(): Promise<number> {
 /** Fetch a single comment by ID */
 export async function getCommentById(
   commentId: string,
+  opts: { includeDeleted?: boolean } = {},
 ): Promise<Comment | null> {
   const db = getDb();
-  const rows = await db`
-    SELECT * FROM comments WHERE id = ${commentId} AND deleted_at IS NULL
-  `;
+  const rows = opts.includeDeleted
+    ? await db`SELECT * FROM comments WHERE id = ${commentId}`
+    : await db`SELECT * FROM comments WHERE id = ${commentId} AND deleted_at IS NULL`;
   return rows.length > 0 ? rowToComment(rows[0]) : null;
 }
 

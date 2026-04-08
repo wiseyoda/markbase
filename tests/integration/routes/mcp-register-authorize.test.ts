@@ -19,7 +19,7 @@ describe("MCP registration and authorization routes", () => {
       method: "POST",
       body: JSON.stringify({
         client_name: "My MCP Client",
-        redirect_uris: ["https://example.com/callback"],
+        redirect_uris: ["http://localhost:3000/callback"],
       }),
       headers: {
         "content-type": "application/json",
@@ -30,7 +30,7 @@ describe("MCP registration and authorization routes", () => {
     const body = await response.json();
 
     expect(body.client_name).toBe("My MCP Client");
-    expect(body.redirect_uris).toEqual(["https://example.com/callback"]);
+    expect(body.redirect_uris).toEqual(["http://localhost:3000/callback"]);
     expect(body.client_id).toHaveLength(16);
   });
 
@@ -53,7 +53,7 @@ describe("MCP registration and authorization routes", () => {
     const request = new NextRequest("https://markbase.test/api/mcp/register", {
       method: "POST",
       body: JSON.stringify({
-        redirect_uris: ["https://example.com/callback"],
+        redirect_uris: ["http://localhost:3000/callback"],
       }),
       headers: {
         "content-type": "application/json",
@@ -67,7 +67,7 @@ describe("MCP registration and authorization routes", () => {
   it("redirects to GitHub authorization with an encoded state", async () => {
     const { GET } = await import("@/app/api/mcp/authorize/route");
     const request = new NextRequest(
-      "https://markbase.test/api/mcp/authorize?response_type=code&redirect_uri=https://example.com/callback&client_id=client-1&state=client-state&code_challenge=challenge&code_challenge_method=S256",
+      "https://markbase.test/api/mcp/authorize?response_type=code&redirect_uri=http://localhost:3000/callback&client_id=client-1&state=client-state&code_challenge=challenge&code_challenge_method=S256",
     );
 
     const response = await GET(request);
@@ -82,7 +82,7 @@ describe("MCP registration and authorization routes", () => {
     const { GET } = await import("@/app/api/mcp/authorize/route");
     const response = await GET(
       new NextRequest(
-        "https://markbase.test/api/mcp/authorize?response_type=code&redirect_uri=https://example.com/callback&code_challenge=challenge&code_challenge_method=S256",
+        "https://markbase.test/api/mcp/authorize?response_type=code&redirect_uri=http://localhost:3000/callback&code_challenge=challenge&code_challenge_method=S256",
       ),
     );
 
@@ -101,7 +101,7 @@ describe("MCP registration and authorization routes", () => {
     const { GET } = await import("@/app/api/mcp/authorize/route");
     const response = await GET(
       new NextRequest(
-        "https://markbase.test/api/mcp/authorize?response_type=code&redirect_uri=https://example.com/callback&code_challenge=challenge&code_challenge_method=S256",
+        "https://markbase.test/api/mcp/authorize?response_type=code&redirect_uri=http://localhost:3000/callback&code_challenge=challenge&code_challenge_method=S256",
       ),
     );
 
@@ -119,14 +119,14 @@ describe("MCP registration and authorization routes", () => {
 
     const missingChallenge = await GET(
       new NextRequest(
-        "https://markbase.test/api/mcp/authorize?response_type=code&redirect_uri=https://example.com/callback&code_challenge_method=S256",
+        "https://markbase.test/api/mcp/authorize?response_type=code&redirect_uri=http://localhost:3000/callback&code_challenge_method=S256",
       ),
     );
     expect(missingChallenge.status).toBe(400);
 
     const invalidMethod = await GET(
       new NextRequest(
-        "https://markbase.test/api/mcp/authorize?response_type=code&redirect_uri=https://example.com/callback&code_challenge=challenge&code_challenge_method=plain",
+        "https://markbase.test/api/mcp/authorize?response_type=code&redirect_uri=http://localhost:3000/callback&code_challenge=challenge&code_challenge_method=plain",
       ),
     );
     expect(invalidMethod.status).toBe(400);
@@ -137,5 +137,15 @@ describe("MCP registration and authorization routes", () => {
       ),
     );
     expect(missingRedirect.status).toBe(400);
+
+    const disallowedRedirect = await GET(
+      new NextRequest(
+        "https://markbase.test/api/mcp/authorize?response_type=code&redirect_uri=https://evil.com/steal&code_challenge=challenge&code_challenge_method=S256",
+      ),
+    );
+    expect(disallowedRedirect.status).toBe(400);
+    expect((await disallowedRedirect.json()).error_description).toBe(
+      "redirect_uri not allowed",
+    );
   });
 });

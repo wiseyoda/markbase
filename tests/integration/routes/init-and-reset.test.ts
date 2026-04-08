@@ -14,35 +14,19 @@ describe("init and reset routes", () => {
     await expect(response.json()).resolves.toEqual({ ok: true });
   });
 
-  it("returns redacted errors from init-db", async () => {
+  it("returns generic error from init-db without leaking details", async () => {
     vi.resetModules();
     vi.doMock("@/lib/db", () => ({
       initDb: vi.fn().mockRejectedValue(new Error("boom")),
     }));
-    delete process.env.PRISMA_DATABASE_URL;
-    process.env.POSTGRES_URL = "postgresql://user:pass@example.com:5432/markbase";
 
     const { GET } = await import("@/app/api/init-db/route");
     const response = await GET();
     const body = await response.json();
 
     expect(response.status).toBe(500);
-    expect(body.url_host).toBe("postgresql://***@example.com:5432/markbase");
-    vi.doUnmock("@/lib/db");
-  });
-
-  it("uses a fallback URL label when no database URL is configured", async () => {
-    vi.resetModules();
-    vi.doMock("@/lib/db", () => ({
-      initDb: vi.fn().mockRejectedValue(new Error("boom")),
-    }));
-    delete process.env.POSTGRES_URL;
-    delete process.env.PRISMA_DATABASE_URL;
-
-    const { GET } = await import("@/app/api/init-db/route");
-    const response = await GET();
-
-    expect((await response.json()).url_host).toBe("(none)");
+    expect(body.error).toBe("Database initialization failed");
+    expect(body).not.toHaveProperty("url_host");
     vi.doUnmock("@/lib/db");
   });
 

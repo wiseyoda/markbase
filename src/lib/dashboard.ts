@@ -65,32 +65,42 @@ export interface RepoGroup {
   archived: GitHubRepo[];
 }
 
+function parseLastPage(linkHeader: string | null): number | null {
+  if (!linkHeader) return null;
+  const match = linkHeader.match(/[?&]page=(\d+)>;\s*rel="last"/);
+  return match ? Number(match[1]) : null;
+}
+
 export async function getRepos(accessToken: string): Promise<GitHubRepo[]> {
-  const repos: GitHubRepo[] = [];
-  let page = 1;
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    Accept: "application/vnd.github.v3+json",
+  };
 
-  while (true) {
-    const res = await fetch(
-      githubApiUrl(`/user/repos?per_page=100&sort=pushed&page=${page}`),
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/vnd.github.v3+json",
-        },
-        next: { revalidate: 60 },
-      },
-    );
+  // Fetch first page to get pagination info
+  const firstRes = await fetch(
+    githubApiUrl("/user/repos?per_page=100&sort=pushed&page=1"),
+    { headers, next: { revalidate: 60 } },
+  );
+  if (!firstRes.ok) return [];
 
-    if (!res.ok) break;
+  const firstBatch: GitHubRepo[] = await firstRes.json();
+  if (firstBatch.length < 100) return firstBatch;
 
-    const batch: GitHubRepo[] = await res.json();
-    repos.push(...batch);
+  // Parse Link header to determine total pages, then fetch remaining in parallel
+  const lastPage = parseLastPage(firstRes.headers.get("link"));
+  if (!lastPage || lastPage <= 1) return firstBatch;
 
-    if (batch.length < 100) break;
-    page++;
-  }
+  const remaining = await Promise.all(
+    Array.from({ length: lastPage - 1 }, (_, i) =>
+      fetch(
+        githubApiUrl(`/user/repos?per_page=100&sort=pushed&page=${i + 2}`),
+        { headers, next: { revalidate: 60 } },
+      ).then((res) => (res.ok ? (res.json() as Promise<GitHubRepo[]>) : [])),
+    ),
+  );
 
-  return repos;
+  return [firstBatch, ...remaining].flat();
 }
 
 export async function getUsername(accessToken: string): Promise<string> {
