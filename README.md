@@ -8,6 +8,12 @@
   <a href="#features">Features</a> &middot;
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#mcp-server">MCP Server</a>
+
+  <br />
+  <br />
+
+  <a href="https://github.com/wiseyoda/markbase/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
+  <a href="https://markbase-github.vercel.app"><img alt="Deploy" src="https://img.shields.io/badge/deployed%20on-Vercel-black.svg" /></a>
 </div>
 
 <br />
