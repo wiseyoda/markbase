@@ -10,10 +10,10 @@ export function getDb() {
 
   sql = postgres(url, {
     ssl: "require",
-    max: 20,
+    max: 1,
     idle_timeout: 20,
-    max_lifetime: 60 * 5,
-    connect_timeout: 10,
+    connect_timeout: 30,
+    prepare: false,
   });
   return sql;
 }
