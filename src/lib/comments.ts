@@ -207,7 +207,14 @@ export async function getCommentById(
   return rows.length > 0 ? rowToComment(rows[0]) : null;
 }
 
-/** Fetch threaded comments across multiple files by prefix, with pagination */
+/**
+ * Fetch threaded comments across multiple files by prefix, with cursor pagination.
+ * @param prefix File key prefix to match (e.g. `"owner/repo/branch/"` for repo scope).
+ * @param opts.includeResolved Include resolved comments (default: false).
+ * @param opts.limit Max top-level comments per page (default: 50).
+ * @param opts.cursor ISO timestamp cursor — pass `nextCursor` from a previous response
+ *   to fetch older comments. Results are ordered by `created_at DESC`.
+ */
 export async function getCommentsByPrefix(
   prefix: string,
   opts: {

@@ -20,18 +20,22 @@ export interface TreeNode {
 
 export function buildTree(files: MarkdownFile[]): TreeNode[] {
   const root: TreeNode[] = [];
+  const childMaps = new WeakMap<TreeNode, Map<string, TreeNode>>();
+  const rootMap = new Map<string, TreeNode>();
 
   for (const file of files) {
     const parts = file.path.split("/");
     let current = root;
+    let currentMap = rootMap;
 
     for (let i = 0; i < parts.length; i++) {
       const name = parts[i];
       const isFile = i === parts.length - 1;
-      const existing = current.find((n) => n.name === name);
+      const existing = currentMap.get(name);
 
       if (existing) {
         current = existing.children;
+        currentMap = childMaps.get(existing)!;
       } else {
         const node: TreeNode = {
           name,
@@ -39,8 +43,12 @@ export function buildTree(files: MarkdownFile[]): TreeNode[] {
           children: [],
           isFile,
         };
+        const nodeMap = new Map<string, TreeNode>();
+        childMaps.set(node, nodeMap);
         current.push(node);
+        currentMap.set(name, node);
         current = node.children;
+        currentMap = nodeMap;
       }
     }
   }

@@ -14,6 +14,12 @@ export interface MarkdownFile {
   sha: string;
 }
 
+/**
+ * Fetches the default branch name for a GitHub repository.
+ * @returns The repository's default branch, or `"main"` if the API request
+ *   fails (network error, auth failure, rate limit). Callers should be aware
+ *   the returned value may not reflect the actual default branch on failure.
+ */
 export async function getDefaultBranch(
   accessToken: string,
   owner: string,

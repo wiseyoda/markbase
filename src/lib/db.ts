@@ -4,11 +4,19 @@ let sql: ReturnType<typeof postgres> | null = null;
 
 function ignoreNotice() {}
 
+/**
+ * Suppress expected idempotent migration errors (duplicate column/constraint,
+ * "already exists", "does not exist"). Logs a warning so real failures
+ * (permissions, syntax, connection) are visible in logs rather than silently swallowed.
+ */
 async function ignoreDbError(promise: Promise<unknown>) {
   try {
     await promise;
-  } catch {
-    // Best-effort migration path for optional schema changes.
+  } catch (error: unknown) {
+    const msg = String((error as { message?: string }).message || error);
+    if (process.env.NODE_ENV !== "test") {
+      console.warn("[initDb] migration step skipped:", msg);
+    }
   }
 }
 
@@ -146,5 +154,12 @@ export async function initDb() {
   // Soft-delete support for comments
   await ignoreDbError(db`
     ALTER TABLE comments ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ
+  `);
+  // Indexes for shares queries (listShares, listSharesForRepo)
+  await ignoreDbError(db`
+    CREATE INDEX IF NOT EXISTS idx_shares_owner_id ON shares(owner_id)
+  `);
+  await ignoreDbError(db`
+    CREATE INDEX IF NOT EXISTS idx_shares_owner_repo ON shares(owner_id, repo)
   `);
 }

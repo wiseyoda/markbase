@@ -12,6 +12,12 @@ function getKey(): Buffer {
   return Buffer.from(hex, "hex");
 }
 
+/**
+ * Encrypts plaintext using AES-256-GCM.
+ * @returns Base64-encoded string containing: IV (12 bytes) + auth tag (16 bytes) + ciphertext.
+ *   This is a non-standard concatenation format — not compatible with tools
+ *   that expect IV and tag to be passed separately.
+ */
 export function encrypt(plaintext: string): string {
   const key = getKey();
   const iv = randomBytes(IV_LENGTH);
@@ -27,6 +33,7 @@ export function encrypt(plaintext: string): string {
   return Buffer.concat([iv, tag, encrypted]).toString("base64");
 }
 
+/** Decrypts a value produced by {@link encrypt}. Throws on tampered data. */
 export function decrypt(encoded: string): string {
   const key = getKey();
   const data = Buffer.from(encoded, "base64");

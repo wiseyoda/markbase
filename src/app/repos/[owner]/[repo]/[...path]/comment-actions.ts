@@ -65,17 +65,15 @@ export async function deleteCommentAction(
   commentId: string,
   repoOwner?: string,
 ): Promise<boolean> {
-  const user = await getUser();
-  // Check if current user is the repo owner (GitHub username match)
   const session = await auth();
+  if (!session?.user?.id) throw new Error("Not authenticated");
   const isOwner = repoOwner
-    ? session?.user?.login?.toLowerCase() === repoOwner.toLowerCase()
+    ? session.user.login?.toLowerCase() === repoOwner.toLowerCase()
     : false;
-  return softDeleteComment(commentId, user.id, isOwner);
+  return softDeleteComment(commentId, session.user.id, isOwner);
 }
 
 export async function restoreCommentAction(commentId: string): Promise<boolean> {
-  const user = await getUser();
-  if (!user) return false;
+  await getUser();
   return restoreComment(commentId);
 }

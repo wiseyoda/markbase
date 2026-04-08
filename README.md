@@ -34,7 +34,7 @@ Deployed at [markbase-github.vercel.app](https://markbase-github.vercel.app).
    pnpm install
    pnpm dev
    ```
-4. Hit `http://localhost:3000/api/init-db` to create database tables
+4. Hit `http://localhost:3000/api/init-db` to run database migrations (run this after any schema changes)
 
 ### Environment Variables
 
@@ -43,6 +43,9 @@ See `.env.example` for the full list. Required:
 - `AUTH_SECRET` — NextAuth encryption key
 - `PRISMA_DATABASE_URL` — Postgres connection string (from Vercel)
 - `SHARE_ENCRYPTION_KEY` — 64-char hex key for encrypting stored tokens
+
+Optional:
+- `NEXTAUTH_URL` — Base URL for OAuth flows (defaults to `https://markbase-github.vercel.app`; set for custom domains)
 
 ## Tech Stack
 
