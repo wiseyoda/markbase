@@ -1,0 +1,70 @@
+findings:
+  - category: "style"
+    severity: "medium"
+    title: "Add dialog semantics to the desktop share modal"
+    description: >
+      The project's overlay components consistently expose modal semantics on the
+      interactive container: `BottomSheet` uses `role="dialog"` and
+      `aria-modal="true"` in `src/components/bottom-sheet.tsx`, and the desktop
+      `ConfirmDialog`, command palette, and keyboard shortcuts overlays do the
+      same. The desktop branch of `ShareModal` instead renders a plain backdrop
+      div at line 431 and a plain positioned container at line 432 with no
+      `role`, `aria-modal`, or accessible label relationship. That makes this
+      modal behave differently from the rest of the codebase's dialog pattern.
+    why: >
+      Screen reader users do not get a modal announcement for the share flow,
+      and future contributors now have two conflicting patterns for overlay
+      components in the same UI layer. That inconsistency makes the modal system
+      harder to maintain and leaves one of the primary actions less accessible
+      than adjacent dialogs.
+    file: "src/app/repos/[owner]/[repo]/share-dialog.tsx"
+    line: 432
+    confidence: 95
+    effort: 2
+    impact: 3
+    risk: 2
+    suggestedFix: >
+      Make the desktop container follow the same pattern as the other dialogs:
+      add `role="dialog"` and `aria-modal="true"` on the modal element, give the
+      heading an id and reference it with `aria-labelledby`, and reuse the
+      existing desktop dialog conventions for Escape handling and initial focus
+      so keyboard behavior matches `ConfirmDialog` and `BottomSheet`.
+    codeSnippet: >
+      <div className="fixed inset-0 z-50 bg-black/50" onClick={onClose} />
+      <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Share</h2>
+  - category: "style"
+    severity: "medium"
+    title: "Give the history panel the same modal contract as other overlays"
+    description: >
+      The repository's other overlay components announce themselves as dialogs
+      and manage modal interaction consistently: `BottomSheet`,
+      `ConfirmDialog`, `CommandPaletteDialog`, and `KeyboardShortcutsDialog`
+      all render `role="dialog"` with `aria-modal="true"`. `HistoryPanel`
+      opens as a full-screen overlay, but the portal markup at lines 99-100 is
+      only two plain divs, so the panel never exposes dialog semantics or an
+      accessible label even though it visually behaves like a modal.
+    why: >
+      File history is a major reader workflow, so leaving it as the only large
+      overlay without the project's standard modal contract creates a confusing
+      accessibility gap and a second implementation style for contributors to
+      copy. Users navigating by assistive technology get a different experience
+      from every other overlay in the app.
+    file: "src/app/repos/[owner]/[repo]/[...path]/history-panel.tsx"
+    line: 100
+    confidence: 94
+    effort: 2
+    impact: 3
+    risk: 2
+    suggestedFix: >
+      Treat the panel container as a dialog: add `role="dialog"`,
+      `aria-modal="true"`, and an `aria-labelledby` that points to the "File
+      History" heading. Match the surrounding dialog pattern by adding Escape
+      handling and initial focus management on open so the history overlay
+      behaves the same way as the other modal components.
+    codeSnippet: >
+      <div className="fixed inset-0 z-50 bg-black/60" onClick={onClose} />
+      <div className="fixed inset-2 sm:inset-4 z-50 flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
