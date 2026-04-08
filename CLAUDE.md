@@ -149,5 +149,8 @@ Remote HTTP MCP server at `/api/mcp` with GitHub OAuth (stateless, Vercel-compat
 - `ignoreDbError` only swallows known idempotent Postgres error codes (42701, 42710, etc.)
 - Comment actions (unresolve, restore) require user to be author or repo owner
 - `TreeNode`/`buildTree` live in `src/lib/tree.ts` — don't import from route files
-- Production: https://markbase.io
+- Production: https://markbase.io (old markbase-github.vercel.app 308-redirects)
 - Repo: wiseyoda/markbase
+- Versioning: date-based YYYY.MMDD in VERSION file. Tags: `v2026.0408`
+- CI: GitHub Actions — typecheck (strict), lint (soft-fail), unit tests (no coverage thresholds)
+- Branch protection: force-push and deletion blocked on main
