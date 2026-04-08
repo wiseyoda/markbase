@@ -18,39 +18,49 @@ npx tsc --noEmit  # Type check
 ```
 src/
 ├── app/
-│   ├── page.tsx                    # Landing (sign in)
-│   ├── dashboard/                  # Synced repos, shared with me, all repos
+│   ├── page.tsx                    # Landing (sign in + product preview)
+│   ├── dashboard/                  # Your repos, shared with me, all repos (with search)
+│   │   ├── page.tsx                # Server component — data fetching
+│   │   ├── repo-list.tsx           # Client component — search/filter
+│   │   └── loading.tsx             # Skeleton loader
 │   ├── repos/[owner]/[repo]/       # Authenticated repo viewer
-│   │   ├── layout.tsx              # Sidebar + header
+│   │   ├── layout.tsx              # Header + sidebar + command palette providers
 │   │   ├── [...path]/page.tsx      # Markdown viewer + comments + history
-│   │   ├── sidebar.tsx             # File tree with context menu
-│   │   └── share-dialog.tsx        # Share modal
+│   │   ├── [...path]/comment-rail.tsx  # Comment system (desktop rail + mobile sheet)
+│   │   ├── sidebar.tsx             # File tree (uses shared FileTree component)
+│   │   ├── share-dialog.tsx        # Share modal / bottom sheet
+│   │   └── command-palette-wrapper.tsx  # Cmd+K palette with file search
 │   ├── s/[id]/                     # Public share viewer
-│   │   └── [...path]/page.tsx      # Shared file viewer with sidebar
 │   ├── shares/                     # Share management
+│   ├── not-found.tsx               # Custom 404
+│   ├── error.tsx                   # Error boundary
 │   └── api/
 │       ├── init-db/                # DB migrations
 │       └── mcp/                    # MCP server (JSON-RPC + OAuth)
-│           ├── route.ts            # JSON-RPC dispatch
-│           ├── authorize/          # OAuth → GitHub redirect
-│           ├── callback/           # GitHub OAuth callback
-│           ├── token/              # Token exchange (PKCE)
-│           └── register/           # Dynamic client registration
+├── components/
+│   ├── bottom-sheet.tsx            # Mobile bottom sheet with gestures
+│   ├── command-palette.tsx         # Cmd+K palette (files, actions, recents)
+│   ├── confirm-dialog.tsx          # Confirmation dialog
+│   ├── file-tree.tsx               # Shared file tree (used by sidebar + shared-sidebar)
+│   ├── keyboard-shortcuts.tsx      # "?" shortcut reference sheet
+│   ├── theme-provider.tsx          # Light/dark/system with localStorage
+│   ├── theme-toggle.tsx            # Sun/monitor/moon cycle button
+│   ├── toast.tsx                   # Toast notifications with undo actions
+│   └── tooltip.tsx                 # Hover/long-press tooltips
+├── hooks/
+│   └── use-media-query.ts          # useIsMobile, useIsDesktop (useSyncExternalStore)
 ├── lib/
-│   ├── github.ts    # GitHub API (tree, content, commits)
-│   ├── db.ts        # Postgres + migrations
-│   ├── shares.ts    # Share CRUD + encrypted tokens
-│   ├── comments.ts  # Threaded comments
-│   ├── crypto.ts    # AES-256-GCM
+│   ├── format.ts      # Shared formatting (timeAgo, formatBytes, readingTime, etc.)
+│   ├── github.ts      # GitHub API (tree, content, commits)
+│   ├── db.ts          # Postgres + migrations (comments have deleted_at for soft delete)
+│   ├── shares.ts      # Share CRUD + encrypted tokens
+│   ├── comments.ts    # Threaded comments (soft delete + restore)
+│   ├── crypto.ts      # AES-256-GCM
 │   ├── synced-repos.ts
 │   ├── users.ts
-│   └── mcp/         # MCP server internals
-│       ├── types.ts # Interfaces
-│       ├── jwt.ts   # JWT sign/verify (jose)
-│       ├── oauth.ts # PKCE, encrypted auth codes
-│       └── tools.ts # 9 comment tools
-├── auth.ts          # Auth config + bypass mode
-└── proxy.ts         # Route protection
+│   └── mcp/           # MCP server internals
+├── auth.ts            # Auth config + bypass mode
+└── proxy.ts           # Route protection
 ```
 
 ## Environment Variables
@@ -62,7 +72,16 @@ See `.env.example` for all required variables. Key notes:
 
 ## Tech Stack
 
-Next.js 16, Auth.js v5 beta, Tailwind v4, postgres.js, react-markdown, diff
+Next.js 16, Auth.js v5 beta, Tailwind v4 (class-based dark mode), postgres.js, react-markdown, diff
+
+## Design System
+
+- Design context in `.impeccable.md` — brand personality, color rules, references
+- Class-based dark mode via `.dark` class on `<html>` + `@variant dark` in CSS
+- Theme: localStorage `markbase-theme` (light/dark/system), FOUC prevention via next/script
+- Panel state: sessionStorage `markbase-sidebar` and `markbase-comments` via useSyncExternalStore
+- Touch targets: 44px minimum on coarse pointers
+- One accent family: blue #86D5F4. Green for inline code only.
 
 ## MCP Server
 
@@ -75,8 +94,11 @@ Remote HTTP MCP server at `/api/mcp` with GitHub OAuth (stateless, Vercel-compat
 ## Key Constraints
 
 - DB uses Prisma Accelerate URLs (`db.prisma.io`), not direct Neon
+- Comments have `deleted_at` column for soft delete — `softDeleteComment` + `restoreComment`
 - Migrations are idempotent — run via `/api/init-db`
-- GitHub OAuth App callback URL is domain root (supports both Auth.js and MCP callbacks)
+- GitHub OAuth App callback URL is domain root
 - Auth bypass (AUTH_BYPASS=true + GITHUB_PAT) for local dev — doesn't work with MCP
+- React 19 lint: use `useSyncExternalStore` for browser API reads, not `useState` + `useEffect`
+- Sidebar `closeSidebar` must check `window.innerWidth < 1024` — only close on mobile/tablet
 - Production: https://markbase-github.vercel.app
 - Repo: wiseyoda/markbase

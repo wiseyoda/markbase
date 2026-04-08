@@ -1,84 +1,111 @@
 # Session Handoff
 
-> Updated 2026-04-07 after session 2 (MCP server, bug fixes, perf tuning).
+> Updated 2026-04-07 after session 3 (full UI/UX overhaul, responsive design, design system).
 > Read this first in the next session.
 
 ## Current State
 
-Markbase is deployed at https://markbase-github.vercel.app with full commenting, sharing, history, and an MCP server for Claude Code integration. 9 MCP tools are live. Multiple UX and performance fixes shipped this session. The app is in active use — Patrick and Bill are commenting on AI marketing strategy docs.
+Markbase has been through a complete UI/UX overhaul. The app is responsive across mobile/tablet/desktop, has a manual theme toggle, command palette (Cmd+K), keyboard shortcuts, soft-delete comments with undo, loading skeletons, error boundaries, and a consolidated single-toolbar header. Nielsen heuristic score improved from 20/40 to ~29/40. CRA MCP server configured in `.mcp.json`. Design context persisted in `.impeccable.md`.
 
 ## What Was Done This Session
 
-**MCP Server (11 new files):**
-- Remote HTTP MCP server at `/api/mcp` — JSON-RPC 2.0 over Streamable HTTP
-- OAuth 2.1 + PKCE with GitHub as identity provider (fully stateless on Vercel)
-- JWT access tokens via `jose` (HS256, 8hr expiry, GitHub token encrypted inside)
-- `.well-known` discovery endpoints (RFC 9728 + RFC 8414)
-- Dynamic client registration, PKCE verification, encrypted auth codes
-- 9 tools: `list_files_with_comments`, `get_comments`, `add_comment`, `reply_to_comment`, `resolve_comment`, `bulk_resolve_comments`, `reply_and_resolve`, `unresolve_comment`, `delete_comment`
-- New DB functions: `getCommentById`, `getCommentsByPrefix` (cursor pagination), `resolveComments` (batch)
+**Foundation (12 new files):**
+- `src/lib/format.ts` — shared formatting utilities (consolidated 4 duplicate timeAgo implementations)
+- `src/hooks/use-media-query.ts` — SSR-safe responsive hooks via useSyncExternalStore
+- `src/components/theme-provider.tsx` — light/dark/system theme with localStorage
+- `src/components/theme-toggle.tsx` — sun/monitor/moon cycle button with tooltip
+- `src/components/bottom-sheet.tsx` — mobile bottom sheet with drag-to-dismiss gestures
+- `src/components/confirm-dialog.tsx` — responsive confirm (bottom sheet mobile, modal desktop)
+- `src/components/toast.tsx` — toast notification system with undo action support
+- `src/app/not-found.tsx`, `error.tsx`, `[...path]/error.tsx` — custom error pages
+- `src/app/dashboard/loading.tsx`, `[...path]/loading.tsx` — loading skeletons
+
+**Responsive Redesign (every page):**
+- Dashboard: repo search with instant filter, responsive grid, condensed mobile cards, renamed "Sync" to "Add"
+- Repo viewer: sidebar toggle in header (left side, panel icon), bottom sheet on mobile, file search in sidebar
+- Comment rail: bottom sheet on mobile, delete confirmations, hover-reveal actions, 30s polling
+- Share dialog: bottom sheet on mobile, toast feedback, 44px touch targets
+- History panel: vertical stacking on mobile
+- Shared viewer: full mobile support added (was completely missing)
+
+**Design System:**
+- Class-based dark mode (`@variant dark` + `.dark` class) replacing media query approach
+- FOUC prevention via `next/script` `beforeInteractive`
+- Design tokens: `--surface`, `--border`, `--text-primary/secondary/muted`
+- Fixed font bug (body was overriding Geist Sans with Arial)
+- Removed rainbow HR gradient (now blue-only)
+- Touch target utility for coarse pointers
+
+**Road to 40 (second round):**
+- Command palette (Cmd+K) with file search, recent files, navigation actions
+- Keyboard shortcuts: /, ?, J/K, Cmd+Enter, Escape
+- `src/components/keyboard-shortcuts.tsx` — "?" shortcut reference sheet
+- `src/components/tooltip.tsx` — hover/long-press tooltips on all icon buttons
+- `src/components/file-tree.tsx` — shared base extracted from sidebar + shared-sidebar
+- Soft delete: `deleted_at` column on comments, `softDeleteComment`, `restoreComment`, undo toast
+- Comment draft auto-save in sessionStorage
+- Optimistic comment insertion
+- Auto-retry with exponential backoff for transient failures
+- Dashboard empty state, comment rail onboarding hint, share dialog read-only hint
+- Repo card stats progressive disclosure (hover-reveal on desktop)
+- Landing page: feature accent rhythm, mockup cursor blink animation
+
+**Header Consolidation:**
+- Eliminated the breadcrumb bar (was a second toolbar below the header)
+- File path + metadata now inline text in the content area
+- Removed SharesDropdown from header (accessible via /shares page)
+- Removed branch badge from header
+- Dashboard link became a home icon with tooltip
+- Sidebar toggle moved to LEFT side of header with panel icon
 
 **Bug Fixes:**
-- Comment highlighting "N on changed text" — `selection.toString()` adds `\n`/`\t` between blocks that tree walker omits. Added fallback that strips these characters.
-- Shared page history blank — server actions used viewer's session token instead of share's encrypted token. Now passes `shareId` to server actions which look up the share's token securely.
-- Diff text invisible in light mode — text colors were dark-mode-only (green-300, red-300). Added `dark:` variants with proper light-mode colors.
-- Comment cards misaligned — positions were relative to `<article>` not the scroll container. Now calculates article's offset within scroll container.
-- Comment cards overlapping — hardcoded 120px height assumption. Replaced with `useLayoutEffect` that measures actual card heights and pushes overlapping cards down.
-
-**Performance:**
-- Connection pool `max: 20` (was default ~10)
-- Partial composite index `idx_comments_file_key_open` on `(file_key, created_at DESC) WHERE resolved_at IS NULL AND parent_id IS NULL`
-- `bulk_resolve_comments` uses single `UPDATE ... WHERE id = ANY()` instead of N sequential queries
-- Skip client-side comment re-fetch when `initialComments` already provided server-side
-
-**Features:**
-- `list_files_with_comments` MCP tool now returns `last_activity` timestamp per file
-- Relative last-modified time in breadcrumb bar ("updated 2h ago") via 1-commit GitHub API call
-- `bulk_resolve_comments` and `reply_and_resolve` convenience MCP tools
+- Sidebar stays open on desktop when navigating between files (closeSidebar only fires on mobile)
+- Panel state persists via sessionStorage + useSyncExternalStore (no hydration mismatch)
+- Empty img src no longer causes page re-download
+- Hydration errors fixed (replaced raw `<script>` with next/script, useSyncExternalStore for browser reads)
 
 ## Key Decisions
 
-- **Manual JSON-RPC dispatch** over `@modelcontextprotocol/sdk` transport — avoids Express/Web API incompatibility and Vercel session-persistence issues. Simple and reliable.
-- **Stateless OAuth** — auth codes are AES-256-GCM encrypted payloads containing all state (GitHub token, PKCE challenge, redirect_uri). No DB storage needed for OAuth flow.
-- **JWT signing key** derived from existing `SHARE_ENCRYPTION_KEY` — no new env vars.
-- **ShareId not accessToken** for shared page history — passing raw GitHub token to client component would expose it in page HTML. Instead pass shareId and let server action look up the token securely.
-- **GitHub OAuth callback URL changed to domain root** — was `/api/auth/callback/github` (only supported Auth.js). Changed to `https://markbase-github.vercel.app` so both Auth.js and MCP callback paths work as subdirectories.
+- **useSyncExternalStore for browser state** — React 19's `react-hooks/set-state-in-effect` lint rule forbids setState in useEffect. All sessionStorage/localStorage/matchMedia reads use useSyncExternalStore + StorageEvent dispatch pattern.
+- **"Add" not "Sync"** — renamed because syncing implies two-way; the action just pins a repo for quick access.
+- **Soft delete over client-side delay** — user chose server-side soft delete (deleted_at column) over client-side 5-second delay. More robust, enables future purge job.
+- **30s polling not SSE** — simpler than server-sent events, no backend changes needed, adequate for the use case.
+- **Header consolidation** — user looked at the screenshot and said "it looks like we tacked on features." Merged three chrome layers into one toolbar.
+- **Sidebar toggle on LEFT** — user feedback: "I shouldn't have to drag my mouse across the entire screen."
 
 ## What Failed
 
-- **First MCP auth attempt** — GitHub rejected the redirect_uri because the OAuth App's callback URL was too specific (`/api/auth/callback/github`). Fixed by broadening to domain root.
-- Nothing else failed. All code compiled, linted, and deployed cleanly.
+- **Raw `<script>` in layout.tsx** — Next.js 16 doesn't allow `<script>` tags in server components. Error: "Scripts inside React components are never executed when rendering on the client." Fixed with `next/script` `strategy="beforeInteractive"`.
+- **sessionStorage in useState initializer** — Caused hydration mismatch (server renders default, client renders stored value). Fixed with useSyncExternalStore pattern.
+- **Sidebar closing on desktop file navigation** — `onNavigate` callback called `closeSidebar` unconditionally. Had to add `window.innerWidth < 1024` check.
+- **Empty img src warning** — Markdown with image tags missing src passed `""` to `<img>`. Fixed with early `return null`.
 
 ## Deferred / Backlog
 
-- **Real-time comments** — still requires page refresh. Needs WebSocket/SSE/polling.
-- **Notifications** — notify doc owner of new comments.
-- **Layout `countOpenComments` caching** — runs on every page navigation. Should cache or memoize.
-- **Search** — full-text search across synced repo markdown.
-- **Share scope upgrade** — in-place upgrade from file → folder → repo share.
-- **MCP token refresh** — JWTs expire after 8h, user must re-authenticate.
-- **Auth code replay prevention** — stateless codes can be reused within 10min TTL.
+- **Real-time comments via SSE/WebSocket** — polling at 30s is adequate for now, true real-time deferred
+- **Notifications** — notify doc owner of new comments
+- **Duplicate share detection** — can create multiple identical shares without warning
+- **Search in content** — full-text search across markdown content (Cmd+K only searches filenames)
+- **MCP token refresh** — JWTs expire after 8h
+- **Auth code replay prevention** — stateless codes can be reused within 10min TTL
+- **Purge job for soft-deleted comments** — `purgeDeletedComments()` function exists but no cron trigger
+- **In-app feature tour** — first-time onboarding is empty state hints only, no guided walkthrough
 
 ## Traps for Next Session
 
-1. **Always run `/api/init-db` after DB schema changes** — both locally and production.
-2. **GitHub OAuth callback URL is now domain root** — if someone changes it back to `/api/auth/callback/github`, the MCP auth flow will break.
-3. **Auth bypass doesn't work with MCP** — MCP requires real GitHub OAuth tokens. Local dev bypass only works for web app auth.
-4. **Prisma Accelerate flakiness** — occasional transient "Failed to connect to upstream database" errors.
-5. **Comment highlighting cross-block fix** — the fallback strips `\n`/`\t` which could theoretically cause false matches on very short quotes. The offset hint mitigates this.
-6. **`deleteShareAction` compares display name not login** — may not be reliable for owner checks.
-7. **Comment card height measurement** — `useLayoutEffect` measures after render to prevent overlap. If cards have lazy-loaded content (images), heights could change after measurement.
-
-## Next Steps
-
-1. Test shared page history with Bill's account — verify he can see commit history on shared docs
-2. Verify comment positioning looks correct across various page lengths and comment densities
-3. Consider caching `countOpenComments` at the layout level (currently re-queries every page nav)
-4. Work through remaining open comments on `knowledge/plan/strategic-plan.md` (10+ unresolved from Patrick)
+1. **Run `/api/init-db`** after any DB schema changes — both local and production
+2. **React 19 lint rule** — never use `setState` in `useEffect` body. Use `useSyncExternalStore` for external state reads. This rule is strict and will fail CI.
+3. **Sidebar closeSidebar** — must check `window.innerWidth < 1024`. Only close overlay on mobile/tablet, never on desktop.
+4. **Panel state via StorageEvent dispatch** — writing to sessionStorage doesn't trigger useSyncExternalStore automatically. Must `window.dispatchEvent(new StorageEvent("storage", { key }))` after writes.
+5. **next/script not raw script** — use `<Script strategy="beforeInteractive">` for head scripts in Next.js 16 layouts.
+6. **comment-rail.tsx is ~900 lines** — the largest file. Consider extraction if adding more features.
+7. **Two sidebar implementations** — `sidebar.tsx` and `shared-sidebar.tsx` now share `FileTree` but still have parallel Provider/Toggle/rendering logic. Could be unified further.
+8. **Prisma Accelerate flakiness** — occasional transient "Failed to connect" errors. Auto-retry with backoff mitigates but doesn't eliminate.
+9. **CRA MCP** configured in `.mcp.json` — restart Claude Code to pick up new MCP server.
 
 ## Git State
 
 - Branch: `main`
-- Latest commit: `61b1392` — fix: comment cards stack gracefully without overlapping
-- All changes committed and pushed to `wiseyoda/markbase`
-- No uncommitted changes (except this HANDOFF.md + CLAUDE.md update)
+- Latest commit: `3b0a811` — fix: don't render img element when src is empty
+- All changes committed and pushed to wiseyoda/markbase
+- No uncommitted changes

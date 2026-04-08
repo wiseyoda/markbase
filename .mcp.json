@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "cra": {
+      "command": "/Users/ppatterson/dev/code-review-agent/bin/cra-mcp.sh"
+    }
+  }
+}
