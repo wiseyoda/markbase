@@ -1,38 +1,66 @@
 import { NextRequest, NextResponse } from "next/server";
 import { decodeAuthCode, verifyPkce } from "@/lib/mcp/oauth";
-import { signMcpToken } from "@/lib/mcp/jwt";
+import {
+  signMcpToken,
+  signMcpRefreshToken,
+  verifyMcpRefreshToken,
+  ACCESS_EXPIRES_IN,
+} from "@/lib/mcp/jwt";
 
-export async function POST(req: NextRequest) {
-  // Parse body from either form-encoded or JSON
+async function parseBody(req: NextRequest) {
   const contentType = req.headers.get("content-type") || "";
-  let grantType: string | null = null;
-  let code: string | null = null;
-  let redirectUri: string | null = null;
-  let clientId: string | null = null;
-  let codeVerifier: string | null = null;
-
   if (contentType.includes("application/x-www-form-urlencoded")) {
     const form = new URLSearchParams(await req.text());
-    grantType = form.get("grant_type");
-    code = form.get("code");
-    redirectUri = form.get("redirect_uri");
-    clientId = form.get("client_id");
-    codeVerifier = form.get("code_verifier");
-  } else {
-    const body = await req.json();
-    grantType = body.grant_type ?? null;
-    code = body.code ?? null;
-    redirectUri = body.redirect_uri ?? null;
-    clientId = body.client_id ?? null;
-    codeVerifier = body.code_verifier ?? null;
+    return {
+      grantType: form.get("grant_type"),
+      code: form.get("code"),
+      redirectUri: form.get("redirect_uri"),
+      clientId: form.get("client_id"),
+      codeVerifier: form.get("code_verifier"),
+      refreshToken: form.get("refresh_token"),
+    };
   }
+  const body = await req.json();
+  return {
+    grantType: body.grant_type ?? null,
+    code: body.code ?? null,
+    redirectUri: body.redirect_uri ?? null,
+    clientId: body.client_id ?? null,
+    codeVerifier: body.code_verifier ?? null,
+    refreshToken: body.refresh_token ?? null,
+  };
+}
 
-  if (grantType !== "authorization_code") {
-    return NextResponse.json(
-      { error: "unsupported_grant_type" },
-      { status: 400 },
-    );
-  }
+interface TokenPayload {
+  sub: string;
+  login: string;
+  name: string;
+  avatar_url: string;
+  githubToken: string;
+}
+
+async function issueTokens(payload: TokenPayload) {
+  const [accessToken, refreshToken] = await Promise.all([
+    signMcpToken(payload),
+    signMcpRefreshToken(payload),
+  ]);
+
+  return NextResponse.json({
+    access_token: accessToken,
+    token_type: "Bearer",
+    expires_in: ACCESS_EXPIRES_IN,
+    refresh_token: refreshToken,
+    scope: "comments",
+  });
+}
+
+async function handleAuthorizationCode(params: {
+  code: string | null;
+  codeVerifier: string | null;
+  redirectUri: string | null;
+  clientId: string | null;
+}) {
+  const { code, codeVerifier, redirectUri, clientId } = params;
 
   if (!code || !codeVerifier) {
     return NextResponse.json(
@@ -41,7 +69,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Decrypt and validate the auth code
   let authCode;
   try {
     authCode = decodeAuthCode(code);
@@ -55,7 +82,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Validate redirect_uri and client_id match what was used during authorization
   if (redirectUri && redirectUri !== authCode.redirect_uri) {
     return NextResponse.json(
       { error: "invalid_grant", error_description: "redirect_uri mismatch" },
@@ -70,7 +96,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Verify PKCE code_verifier against the stored code_challenge
   const pkceValid = await verifyPkce(
     codeVerifier,
     authCode.code_challenge,
@@ -84,19 +109,55 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Sign a JWT access token
-  const accessToken = await signMcpToken({
+  return issueTokens({
     sub: authCode.github_user_id,
     login: authCode.github_login,
     name: authCode.github_name,
     avatar_url: authCode.github_avatar,
     githubToken: authCode.github_access_token,
   });
+}
 
-  return NextResponse.json({
-    access_token: accessToken,
-    token_type: "Bearer",
-    expires_in: 28800,
-    scope: "comments",
+async function handleRefreshToken(refreshToken: string | null) {
+  if (!refreshToken) {
+    return NextResponse.json(
+      { error: "invalid_request", error_description: "Missing refresh_token" },
+      { status: 400 },
+    );
+  }
+
+  let payload;
+  try {
+    payload = await verifyMcpRefreshToken(refreshToken);
+  } catch {
+    return NextResponse.json(
+      { error: "invalid_grant", error_description: "Invalid or expired refresh token" },
+      { status: 400 },
+    );
+  }
+
+  // Issue new access + refresh token pair (token rotation)
+  return issueTokens({
+    sub: payload.sub,
+    login: payload.login,
+    name: payload.name,
+    avatar_url: payload.avatar_url,
+    githubToken: payload.github_token,
   });
+}
+
+export async function POST(req: NextRequest) {
+  const params = await parseBody(req);
+
+  switch (params.grantType) {
+    case "authorization_code":
+      return handleAuthorizationCode(params);
+    case "refresh_token":
+      return handleRefreshToken(params.refreshToken);
+    default:
+      return NextResponse.json(
+        { error: "unsupported_grant_type" },
+        { status: 400 },
+      );
+  }
 }
