@@ -241,4 +241,16 @@ export async function initDb() {
   await ignoreDbError(db`
     CREATE INDEX IF NOT EXISTS idx_shares_owner_repo ON shares(owner_id, repo)
   `);
+  // Track visited shared links so users can find them again
+  await db`
+    CREATE TABLE IF NOT EXISTS share_visits (
+      user_id TEXT NOT NULL,
+      share_id TEXT NOT NULL REFERENCES shares(id) ON DELETE CASCADE,
+      visited_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (user_id, share_id)
+    )
+  `;
+  await ignoreDbError(db`
+    CREATE INDEX IF NOT EXISTS idx_share_visits_user ON share_visits(user_id, visited_at DESC)
+  `);
 }

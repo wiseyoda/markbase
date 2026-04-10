@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { getSyncedRepos } from "@/lib/synced-repos";
-import { listShares, listSharesWithMe } from "@/lib/shares";
+import { listShares, listSharesWithMe, getVisitedShares } from "@/lib/shares";
 import {
   getRecentCommentsForRepos,
   countOpenCommentsForRepos,
@@ -15,7 +15,7 @@ import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts";
 import { RepoList } from "./repo-list";
 import { Logo } from "@/components/logo";
 import { getReposByName, LANGUAGE_COLORS } from "@/lib/dashboard";
-import { timeAgo } from "@/lib/format";
+import { timeAgo, expiryLabel } from "@/lib/format";
 import type { Comment } from "@/lib/comments";
 import type { Share } from "@/lib/shares";
 
@@ -99,10 +99,11 @@ export default async function Dashboard() {
   const userId = session.user?.id || "";
 
   // All DB queries + pinned repo metadata in parallel — no bulk GitHub calls
-  const [syncedRepos, sharedWithMe, myShares] = await Promise.all([
+  const [syncedRepos, sharedWithMe, myShares, visitedShares] = await Promise.all([
     withDbRetry(() => getSyncedRepos()),
     userId ? withDbRetry(() => listSharesWithMe(userId)) : Promise.resolve([]),
     userId ? withDbRetry(() => listShares(userId)) : Promise.resolve([]),
+    userId ? withDbRetry(() => getVisitedShares(userId)) : Promise.resolve([]),
   ]);
 
   // Fetch pinned repo metadata + activity data (depends on syncedRepos)
@@ -368,6 +369,57 @@ export default async function Dashboard() {
                     >
                       <path d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z" />
                     </svg>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Recently visited shares */}
+        {visitedShares.length > 0 && (
+          <div className="mb-10">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Recently visited</h2>
+              <span className="text-sm text-zinc-400 dark:text-zinc-500">
+                shared links you&apos;ve opened
+              </span>
+            </div>
+            <div className="flex flex-col gap-2">
+              {visitedShares.map((share) => {
+                const [shareOwner, shareRepo] = share.repo.split("/");
+                const typeLabel =
+                  share.type === "file"
+                    ? share.file_path?.split("/").pop() || "file"
+                    : share.type === "folder"
+                      ? `${share.file_path}/`
+                      : "entire repo";
+
+                return (
+                  <Link
+                    key={share.id}
+                    href={`/s/${share.id}`}
+                    className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                  >
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                          {share.type}
+                        </span>
+                        <span className="text-sm text-zinc-400 dark:text-zinc-500">
+                          {shareOwner}/
+                        </span>
+                        <span className="text-sm font-medium">
+                          {shareRepo}
+                        </span>
+                      </div>
+                      <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                        {typeLabel}
+                      </span>
+                    </div>
+                    <span className="shrink-0 text-xs text-zinc-400 dark:text-zinc-500">
+                      {expiryLabel(share.expires_at)}
+                    </span>
                   </Link>
                 );
               })}

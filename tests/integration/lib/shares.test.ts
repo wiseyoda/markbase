@@ -5,9 +5,11 @@ import {
   createShare,
   deleteShare,
   getShare,
+  getVisitedShares,
   listShares,
   listSharesForRepo,
   listSharesWithMe,
+  recordShareVisit,
 } from "@/lib/shares";
 import { useTestDatabase } from "../../helpers/postgres";
 
@@ -47,6 +49,40 @@ describe("shares", () => {
 
     await expect(deleteShare(id, "1")).resolves.toBe(true);
     await expect(getShare(id)).resolves.toBeNull();
+  });
+
+  it("records and retrieves share visits", async () => {
+    // Create a public share (no shared_with)
+    const shareId = await createShare({
+      type: "file",
+      ownerId: "1",
+      repo: "owner-user/notes",
+      branch: "main",
+      filePath: "README.md",
+      accessToken: "owner-token",
+      expiresIn: "7d",
+      sharedWith: null,
+      sharedWithName: null,
+    });
+
+    // Visitor records a visit
+    await recordShareVisit("99", shareId);
+
+    const visited = await getVisitedShares("99");
+    expect(visited).toHaveLength(1);
+    expect(visited[0].id).toBe(shareId);
+
+    // Second visit updates timestamp (upsert, no duplicate)
+    await recordShareVisit("99", shareId);
+    expect(await getVisitedShares("99")).toHaveLength(1);
+
+    // Owner's own shares are excluded from visited
+    await recordShareVisit("1", shareId);
+    expect(await getVisitedShares("1")).toHaveLength(0);
+
+    // Deleted shares disappear from visited
+    await deleteShare(shareId, "1");
+    expect(await getVisitedShares("99")).toHaveLength(0);
   });
 
   it("ignores unknown expiry values", async () => {

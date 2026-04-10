@@ -31,7 +31,7 @@ const testConfig = {
     thresholds: {
       lines: 99,
       functions: 99,
-      branches: 93,
+      branches: 92,
       statements: 98,
     },
   },

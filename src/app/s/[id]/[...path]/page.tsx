@@ -39,6 +39,7 @@ import {
 import { HistoryButton } from "@/app/repos/[owner]/[repo]/[...path]/history-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getComments, buildFileKey, countOpenComments } from "@/lib/comments";
+import { recordShareVisit } from "@/lib/shares";
 import { withDbRetry } from "@/lib/db";
 import { refreshGitHubDocumentCache } from "@/lib/github-cache";
 import { GitHubRefreshButton } from "@/components/github-refresh-button";
@@ -61,6 +62,11 @@ export default async function SharedFilePage({
     if (!isSignedIn || session.user.id !== share.shared_with) {
       notFound();
     }
+  }
+
+  // Record visit for logged-in users viewing public shares
+  if (isSignedIn && !share.shared_with) {
+    withDbRetry(() => recordShareVisit(session.user.id, id)).catch(() => {});
   }
 
   const [owner, repo] = share.repo.split("/");

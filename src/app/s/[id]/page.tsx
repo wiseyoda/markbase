@@ -7,7 +7,7 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import type { Components } from "react-markdown";
-import { getShare } from "@/lib/shares";
+import { getShare, recordShareVisit } from "@/lib/shares";
 import { withDbRetry } from "@/lib/db";
 
 export async function generateMetadata({
@@ -84,6 +84,11 @@ export default async function SharePage({
     if (!isSignedIn || session.user.id !== share.shared_with) {
       notFound();
     }
+  }
+
+  // Record visit for logged-in users viewing public shares
+  if (isSignedIn && !share.shared_with) {
+    withDbRetry(() => recordShareVisit(session.user.id, id)).catch(() => {});
   }
 
   const [owner, repo] = share.repo.split("/");

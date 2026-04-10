@@ -160,3 +160,37 @@ export async function deleteShare(
   `;
   return rows.length > 0;
 }
+
+/** Record that a user visited a shared link (upsert) */
+export async function recordShareVisit(
+  userId: string,
+  shareId: string,
+): Promise<void> {
+  const sql = getDb();
+  await sql`
+    INSERT INTO share_visits (user_id, share_id, visited_at)
+    VALUES (${userId}, ${shareId}, NOW())
+    ON CONFLICT (user_id, share_id)
+    DO UPDATE SET visited_at = NOW()
+  `;
+}
+
+/** Get shares a user has visited, excluding expired and deleted, newest first */
+export async function getVisitedShares(
+  userId: string,
+  limit: number = 10,
+): Promise<Share[]> {
+  const sql = getDb();
+  const rows = await sql`
+    SELECT s.*, sv.visited_at AS last_visited
+    FROM share_visits sv
+    JOIN shares s ON s.id = sv.share_id
+    WHERE sv.user_id = ${userId}
+      AND s.deleted_at IS NULL
+      AND s.owner_id != ${userId}
+      AND (s.expires_at IS NULL OR s.expires_at > NOW())
+    ORDER BY sv.visited_at DESC
+    LIMIT ${limit}
+  `;
+  return rows.map(rowToShare);
+}

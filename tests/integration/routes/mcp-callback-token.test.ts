@@ -230,17 +230,91 @@ describe("MCP callback and token routes", () => {
     expect(body.access_token).toEqual(expect.any(String));
   });
 
-  it("validates token exchange failures", async () => {
+  it("exchanges refresh tokens for new token pairs", async () => {
+    const { encodeAuthCode } = await import("@/lib/mcp/oauth");
     const { POST } = await import("@/app/api/mcp/token/route");
 
-    const invalidGrant = await POST(
+    // First, get tokens via authorization_code
+    const code = encodeAuthCode({
+      github_access_token: "oauth-access-token",
+      github_user_id: "101",
+      github_login: "owner-user",
+      github_name: "Owner User",
+      github_avatar: "https://example.com/owner.png",
+      code_challenge: "iMnq5o6zALKXGivsnlom_0F5_WYda32GHkxlV7mq7hQ",
+      code_challenge_method: "S256",
+      redirect_uri: "https://client.test/callback",
+      client_id: "client-1",
+      expires_at: Date.now() + 60_000,
+    });
+
+    const initial = await POST(
+      new NextRequest("https://markbase.test/api/mcp/token", {
+        method: "POST",
+        body: JSON.stringify({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: "https://client.test/callback",
+          client_id: "client-1",
+          code_verifier: "verifier",
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const initialBody = await initial.json();
+    expect(initialBody.refresh_token).toEqual(expect.any(String));
+
+    // Refresh the token
+    const refreshed = await POST(
+      new NextRequest("https://markbase.test/api/mcp/token", {
+        method: "POST",
+        body: JSON.stringify({
+          grant_type: "refresh_token",
+          refresh_token: initialBody.refresh_token,
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const refreshedBody = await refreshed.json();
+    expect(refreshed.status).toBe(200);
+    expect(refreshedBody.access_token).toEqual(expect.any(String));
+    expect(refreshedBody.refresh_token).toEqual(expect.any(String));
+
+    // Invalid refresh token
+    const invalid = await POST(
+      new NextRequest("https://markbase.test/api/mcp/token", {
+        method: "POST",
+        body: JSON.stringify({
+          grant_type: "refresh_token",
+          refresh_token: "bad-token",
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    expect(invalid.status).toBe(400);
+
+    // Missing refresh token
+    const missing = await POST(
       new NextRequest("https://markbase.test/api/mcp/token", {
         method: "POST",
         body: JSON.stringify({ grant_type: "refresh_token" }),
         headers: { "content-type": "application/json" },
       }),
     );
-    expect(invalidGrant.status).toBe(400);
+    expect(missing.status).toBe(400);
+  });
+
+  it("validates token exchange failures", async () => {
+    const { POST } = await import("@/app/api/mcp/token/route");
+
+    const unsupportedGrant = await POST(
+      new NextRequest("https://markbase.test/api/mcp/token", {
+        method: "POST",
+        body: JSON.stringify({ grant_type: "client_credentials" }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    expect(unsupportedGrant.status).toBe(400);
 
     const missingCode = await POST(
       new NextRequest("https://markbase.test/api/mcp/token", {
