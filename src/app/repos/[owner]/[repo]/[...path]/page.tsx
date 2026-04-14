@@ -21,9 +21,11 @@ import matter from "gray-matter";
 import type { Components } from "react-markdown";
 import {
   getDefaultBranch,
+  getFileAtCommit,
   getFileContent,
-  getMarkdownTree,
+  getFileHistory,
   getLastModified,
+  getMarkdownTree,
 } from "@/lib/github";
 import { refreshGitHubDocumentCache } from "@/lib/github-cache";
 import { CopyButton } from "./copy-button";
@@ -61,12 +63,32 @@ export default async function MarkdownViewPage({
   const fullRepo = `${owner}/${repo}`;
   const fKey = await buildFileKey(fullRepo, branch, filePath);
 
-  const [rawContent, files, initialComments, lastModified] = await Promise.all([
-    getFileContent(session.accessToken, owner, repo, branch, filePath),
+  // Round 1: fetch history (uncached, so we always see new commits),
+  // the tree, comments, and last-modified in parallel. Content is
+  // deliberately NOT in this batch — we need the latest commit sha from
+  // history first so we can fetch the content at an immutable commit URL.
+  const [history, files, initialComments, lastModified] = await Promise.all([
+    getFileHistory(session.accessToken, owner, repo, branch, filePath),
     getMarkdownTree(session.accessToken, owner, repo, branch),
     withDbRetry(() => getComments(fKey)),
     getLastModified(session.accessToken, owner, repo, branch, filePath),
   ]);
+
+  // Round 2: fetch content at the commit-scoped URL so Next can cache it
+  // eternally per sha. When the user pushes a new commit, history returns
+  // the new sha and the fetch miss triggers a fresh fetch; the old blob
+  // stays in cache but is never read again. On a brand-new file with no
+  // history yet, fall back to the branch-ref contents endpoint.
+  const latestCommitSha = history[0]?.sha ?? null;
+  const rawContent = latestCommitSha
+    ? await getFileAtCommit(
+        session.accessToken,
+        owner,
+        repo,
+        latestCommitSha,
+        filePath,
+      )
+    : await getFileContent(session.accessToken, owner, repo, branch, filePath);
 
   if (rawContent === null) {
     notFound();

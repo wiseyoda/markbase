@@ -184,9 +184,8 @@ describe("github API helpers", () => {
       2,
       "https://api.github.com/repos/owner/repo/commits?sha=main&path=README.md&per_page=30",
       expect.objectContaining({
-        cache: "force-cache",
+        cache: "no-store",
         next: {
-          revalidate: 60,
           tags: getGitHubFileHistoryTags("owner", "repo", "main", "README.md"),
         },
       }),

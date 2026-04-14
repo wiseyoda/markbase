@@ -127,18 +127,23 @@ export async function getFileHistory(
   branch: string,
   path: string,
 ): Promise<FileCommit[]> {
+  // History is read-through on every SSR: we need to know the real latest
+  // commit sha to decide which blob to render, so caching it at all defeats
+  // the "new commit shows up immediately" semantics the viewer relies on.
+  // The actual file content is commit-scoped and still cached eternally via
+  // getFileAtCommit, so the extra per-view round trip only hits this cheap
+  // commits-list endpoint.
   const res = await fetch(
     githubApiUrl(
       `/repos/${owner}/${repo}/commits?sha=${branch}&path=${encodeURIComponent(path)}&per_page=30`,
     ),
     {
-      cache: "force-cache",
+      cache: "no-store",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/vnd.github.v3+json",
       },
       next: {
-        revalidate: 60,
         tags: getGitHubFileHistoryTags(owner, repo, branch, path),
       },
     },
