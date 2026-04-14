@@ -35,10 +35,12 @@ export interface ChangeDigestBannerProps {
   owner: string;
   repo: string;
   filePath: string;
-  /** Previous commit sha the user last viewed. Null = first view, no banner. */
+  /** Baseline commit sha — what the user has previously acknowledged. Null = first-ever view, banner shows "Recent updates". */
   fromCommitSha: string | null;
-  /** Current commit sha at SSR time. Used as the diff target and dismiss key. */
+  /** Current commit sha at SSR time. The diff target and dismiss key. */
   toCommitSha: string;
+  /** Current blob sha, sent to /api/file-view when the user dismisses. */
+  currentBlobSha: string;
 }
 
 type LoadState =
@@ -98,10 +100,29 @@ export function ChangeDigestBanner({
   filePath,
   fromCommitSha,
   toCommitSha,
+  currentBlobSha,
 }: ChangeDigestBannerProps) {
   const [expanded, setExpanded] = useState(true);
   const key = dismissKey(owner, repo, filePath, toCommitSha);
-  const { isDismissed, dismiss } = useDismissed(key);
+  const { isDismissed, dismiss: dismissLocally } = useDismissed(key);
+
+  const handleDismiss = () => {
+    dismissLocally();
+    // Advance the server-side baseline so the banner doesn't reappear on
+    // subsequent page loads until new commits arrive. Fire-and-forget; the
+    // local dismiss already hid the banner.
+    fetch("/api/file-view", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        owner,
+        repo,
+        path: filePath,
+        commitSha: toCommitSha,
+        blobSha: currentBlobSha,
+      }),
+    }).catch(() => {});
+  };
 
   // Fetch any time we have a target commit. `fromCommitSha` being null just
   // means this is a first-ever view for the user — the server will return
@@ -174,42 +195,58 @@ export function ChangeDigestBanner({
 
   return (
     <aside
-      className="group relative mb-4 overflow-hidden rounded-lg border border-amber-200/80 bg-amber-50/70 text-sm text-zinc-700 shadow-sm dark:border-amber-500/20 dark:bg-amber-500/5 dark:text-zinc-300"
+      className="mb-4 overflow-hidden rounded-lg border border-amber-200/80 bg-amber-50/70 text-sm text-zinc-700 shadow-sm dark:border-amber-500/20 dark:bg-amber-500/5 dark:text-zinc-300"
       aria-label="Change digest"
     >
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left"
-        aria-expanded={expanded}
-      >
-        <span
-          aria-hidden="true"
-          className="inline-flex h-5 items-center rounded-full bg-amber-500/15 px-2 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300"
+      <div className="flex items-center gap-3 px-4 py-3">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex flex-1 items-center gap-3 text-left"
+          aria-expanded={expanded}
+          aria-controls="change-digest-body"
         >
-          New
-        </span>
-        <span className="flex-1 font-medium text-zinc-800 dark:text-zinc-200">
-          {label}
-          {approximate && (
-            <span className="ml-2 text-xs font-normal text-zinc-500 dark:text-zinc-400">
-              (approximate — last view is beyond recent history)
-            </span>
-          )}
-        </span>
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 16 16"
-          fill="currentColor"
-          aria-hidden="true"
-          className={`text-zinc-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+          <span
+            aria-hidden="true"
+            className="inline-flex h-5 items-center rounded-full bg-amber-500/15 px-2 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300"
+          >
+            New
+          </span>
+          <span className="flex-1 font-medium text-zinc-800 dark:text-zinc-200">
+            {label}
+            {approximate && (
+              <span className="ml-2 text-xs font-normal text-zinc-500 dark:text-zinc-400">
+                (approximate — last view is beyond recent history)
+              </span>
+            )}
+          </span>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            aria-hidden="true"
+            className={`text-zinc-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+          >
+            <path d="M4.427 6.427a.75.75 0 011.06 0L8 8.94l2.513-2.513a.75.75 0 111.06 1.06l-3.043 3.043a.75.75 0 01-1.06 0L4.427 7.487a.75.75 0 010-1.06z" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={handleDismiss}
+          aria-label="Hide change digest"
+          className="shrink-0 rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
         >
-          <path d="M4.427 6.427a.75.75 0 011.06 0L8 8.94l2.513-2.513a.75.75 0 111.06 1.06l-3.043 3.043a.75.75 0 01-1.06 0L4.427 7.487a.75.75 0 010-1.06z" />
-        </svg>
-      </button>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z" />
+          </svg>
+        </button>
+      </div>
       {expanded && !isLoading && (
-        <div className="border-t border-amber-200/70 px-4 py-3 dark:border-amber-500/20">
+        <div
+          id="change-digest-body"
+          className="border-t border-amber-200/70 px-4 py-3 dark:border-amber-500/20"
+        >
           {synthesis && (
             <p className="mb-3 leading-relaxed text-zinc-700 dark:text-zinc-300">{synthesis}</p>
           )}
@@ -239,16 +276,6 @@ export function ChangeDigestBanner({
           </ul>
         </div>
       )}
-      <button
-        type="button"
-        onClick={dismiss}
-        aria-label="Hide change digest"
-        className="absolute right-2 top-2 rounded p-1 text-zinc-400 opacity-60 transition-opacity hover:bg-zinc-100 hover:text-zinc-600 group-hover:opacity-100 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-      >
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-          <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z" />
-        </svg>
-      </button>
     </aside>
   );
 }

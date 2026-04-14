@@ -43,14 +43,14 @@ import { GitHubRefreshButton } from "@/components/github-refresh-button";
 import { TldrCallout } from "@/components/tldr-callout";
 import { ChangeDigestBanner } from "@/components/change-digest-banner";
 import { computeBlobSha, getFileSummary } from "@/lib/file-summaries";
-import { recordFileView } from "@/lib/change-digest";
+import { getFileViewBaseline } from "@/lib/change-digest";
 import {
   diffSectionHashes,
   extractSectionHashes,
   getSectionHashes,
   storeSectionHashes,
 } from "@/lib/section-hashes";
-import { getFileHistory } from "@/lib/github";
+import { getFileAtCommit, getFileHistory } from "@/lib/github";
 import "highlight.js/styles/github-dark.css";
 
 export default async function MarkdownViewPage({
@@ -116,24 +116,24 @@ export default async function MarkdownViewPage({
   let newSectionSlugs = new Set<string>();
   if (userId && currentCommitSha) {
     try {
-      const tracking = await recordFileView({
+      // Read-only baseline lookup. The baseline only advances on explicit
+      // dismiss (POST /api/file-view), so repeated page loads keep returning
+      // the same prior sha and the banner stays visible.
+      const baseline = await getFileViewBaseline({
         userId,
         owner,
         repo,
         filePath,
-        commitSha: currentCommitSha,
-        blobSha,
       });
-      previousCommitShaForDigest = tracking.previousCommitSha;
+      previousCommitShaForDigest = baseline.commitSha;
       if (process.env.NODE_ENV === "development") {
         console.log(
-          `[viewer] recordFileView previousCommitSha=${tracking.previousCommitSha} previousBlobSha=${tracking.previousBlobSha}`,
+          `[viewer] baseline previousCommitSha=${baseline.commitSha} previousBlobSha=${baseline.blobSha}`,
         );
       }
 
-      // Store hashes for the current blob (idempotent). This runs on every
-      // view so that future comparisons have something to look up, even if
-      // the user never visits the exact same blob twice.
+      // Store hashes for the current blob (idempotent). Runs every view so
+      // future comparisons have a stored baseline to look up.
       await storeSectionHashes({
         owner,
         repo,
@@ -142,23 +142,38 @@ export default async function MarkdownViewPage({
         content: rawContent,
       });
 
-      // If the user previously viewed a different blob, compute which
-      // sections changed. Purely hashes — no LLM calls, fast.
-      if (tracking.previousBlobSha && tracking.previousBlobSha !== blobSha) {
-        const [previousHashes, currentHashes] = await Promise.all([
-          getSectionHashes({
-            owner,
-            repo,
-            filePath,
-            blobSha: tracking.previousBlobSha,
-          }),
-          Promise.resolve(extractSectionHashes(rawContent)),
-        ]);
-        if (previousHashes.length > 0) {
-          const diff = diffSectionHashes(previousHashes, currentHashes);
-          changedSectionSlugs = new Set(diff.changedSlugs);
-          newSectionSlugs = new Set(diff.newSlugs);
+      // Section-level diff: compare current blob against whichever blob the
+      // user has previously acknowledged. Pure hash comparison, no LLM.
+      let baselineContentHashes: Awaited<ReturnType<typeof getSectionHashes>> | null = null;
+      if (baseline.blobSha && baseline.blobSha !== blobSha) {
+        baselineContentHashes = await getSectionHashes({
+          owner,
+          repo,
+          filePath,
+          blobSha: baseline.blobSha,
+        });
+      } else if (!baseline.blobSha && history.length > 1) {
+        // First-ever view fallback: show highlights for whatever changed in
+        // the most recent commit by comparing current content against the
+        // previous commit's file content. One extra (cached) GitHub fetch.
+        const parentSha = history[1].sha;
+        const parentContent = await getFileAtCommit(
+          session.accessToken,
+          owner,
+          repo,
+          parentSha,
+          filePath,
+        ).catch(() => null);
+        if (parentContent !== null) {
+          baselineContentHashes = extractSectionHashes(parentContent);
         }
+      }
+
+      if (baselineContentHashes && baselineContentHashes.length > 0) {
+        const currentHashes = extractSectionHashes(rawContent);
+        const diff = diffSectionHashes(baselineContentHashes, currentHashes);
+        changedSectionSlugs = new Set(diff.changedSlugs);
+        newSectionSlugs = new Set(diff.newSlugs);
       }
     } catch (err) {
       console.warn(`[viewer] view tracking failed for ${filePath}:`, err);
@@ -399,6 +414,7 @@ export default async function MarkdownViewPage({
                 filePath={filePath}
                 fromCommitSha={previousCommitShaForDigest}
                 toCommitSha={currentCommitSha}
+                currentBlobSha={blobSha}
               />
             )}
 

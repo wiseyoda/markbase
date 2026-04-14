@@ -231,29 +231,28 @@ export async function getOrCreateCommitSummary(params: {
  * previously-recorded sha (if any) so the caller can compute what changed
  * between views. Safe to call on every page load.
  */
-export interface FileViewTracking {
-  previousCommitSha: string | null;
-  previousBlobSha: string | null;
-  currentCommitSha: string;
-  currentBlobSha: string;
+export interface FileViewBaseline {
+  /** The commit sha the user has "acknowledged" — set on explicit dismiss, not on page load. */
+  commitSha: string | null;
+  /** The blob sha matching that acknowledged commit, used for section-level diffs. */
+  blobSha: string | null;
 }
 
 /**
- * Atomically read the prior view row and upsert to the current sha/blob.
- * Returns the previous values so callers can compute what changed without
- * re-reading the overwritten row. Safe to call on every page view.
+ * Read-only baseline lookup. Returns what the user last "acknowledged"
+ * (dismissed), not what they most recently loaded. Every page view calls
+ * this to compute the diff, but no write happens here — so refreshes don't
+ * advance the baseline and the banner keeps showing until the user dismisses.
  */
-export async function recordFileView(params: {
+export async function getFileViewBaseline(params: {
   userId: string;
   owner: string;
   repo: string;
   filePath: string;
-  commitSha: string;
-  blobSha: string;
-}): Promise<FileViewTracking> {
-  const { userId, owner, repo, filePath, commitSha, blobSha } = params;
+}): Promise<FileViewBaseline> {
+  const { userId, owner, repo, filePath } = params;
 
-  const previousRows = await withDbRetry(
+  const rows = await withDbRetry(
     () => getDb()<{ last_viewed_sha: string; last_viewed_blob_sha: string | null }[]>`
       SELECT last_viewed_sha, last_viewed_blob_sha
       FROM file_views
@@ -264,9 +263,27 @@ export async function recordFileView(params: {
       LIMIT 1
     `,
   );
-  const previousCommitSha = previousRows[0]?.last_viewed_sha ?? null;
-  const previousBlobSha = previousRows[0]?.last_viewed_blob_sha ?? null;
 
+  return {
+    commitSha: rows[0]?.last_viewed_sha ?? null,
+    blobSha: rows[0]?.last_viewed_blob_sha ?? null,
+  };
+}
+
+/**
+ * Advance the baseline to a new (commit, blob) pair. Called on explicit
+ * user action — dismissing the change-digest banner. UPSERT so the first
+ * dismiss inserts the row, subsequent dismisses update it.
+ */
+export async function advanceFileView(params: {
+  userId: string;
+  owner: string;
+  repo: string;
+  filePath: string;
+  commitSha: string;
+  blobSha: string;
+}): Promise<void> {
+  const { userId, owner, repo, filePath, commitSha, blobSha } = params;
   await withDbRetry(
     () => getDb()`
       INSERT INTO file_views (user_id, owner, repo, file_path, last_viewed_sha, last_viewed_blob_sha)
@@ -277,13 +294,6 @@ export async function recordFileView(params: {
           last_viewed_at = NOW()
     `,
   );
-
-  return {
-    previousCommitSha,
-    previousBlobSha,
-    currentCommitSha: commitSha,
-    currentBlobSha: blobSha,
-  };
 }
 
 function selectNewCommits(

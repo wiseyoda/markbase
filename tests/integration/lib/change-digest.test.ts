@@ -5,9 +5,10 @@ import { MockLanguageModelV3 } from "ai/test";
 import { getDb } from "@/lib/db";
 import { __setAiTestModel } from "@/lib/ai";
 import {
+  advanceFileView,
   assembleChangeDigest,
+  getFileViewBaseline,
   getOrCreateCommitSummary,
-  recordFileView,
 } from "@/lib/change-digest";
 import { useTestDatabase } from "../../helpers/postgres";
 
@@ -113,60 +114,89 @@ function setupFakeGithub(state: FakeRepoState) {
   return fetchMock;
 }
 
-describe("recordFileView", () => {
+describe("getFileViewBaseline + advanceFileView", () => {
   useTestDatabase();
 
   beforeEach(async () => {
     await getDb()`TRUNCATE TABLE file_views RESTART IDENTITY CASCADE`;
   });
 
-  it("returns nulls on first view and stores both shas", async () => {
-    const result = await recordFileView({
+  it("returns null baseline when the user has never acknowledged a view", async () => {
+    const baseline = await getFileViewBaseline({
       userId: "user-1",
       owner: "acme",
       repo: "widgets",
       filePath: "docs/a.md",
-      commitSha: "abc123",
-      blobSha: "blob-1",
     });
-    expect(result.previousCommitSha).toBeNull();
-    expect(result.previousBlobSha).toBeNull();
-    expect(result.currentCommitSha).toBe("abc123");
-    expect(result.currentBlobSha).toBe("blob-1");
-
-    const rows = await getDb()`
-      SELECT last_viewed_sha, last_viewed_blob_sha FROM file_views
-      WHERE user_id='user-1' AND owner='acme' AND repo='widgets' AND file_path='docs/a.md'
-    `;
-    expect(rows[0].last_viewed_sha).toBe("abc123");
-    expect(rows[0].last_viewed_blob_sha).toBe("blob-1");
+    expect(baseline.commitSha).toBeNull();
+    expect(baseline.blobSha).toBeNull();
   });
 
-  it("returns the previous shas and updates to the new ones", async () => {
-    await recordFileView({
+  it("does not advance on repeated reads — baseline only moves on explicit advance", async () => {
+    await getFileViewBaseline({
       userId: "user-1",
       owner: "acme",
       repo: "widgets",
       filePath: "docs/a.md",
-      commitSha: "abc123",
+    });
+    await getFileViewBaseline({
+      userId: "user-1",
+      owner: "acme",
+      repo: "widgets",
+      filePath: "docs/a.md",
+    });
+    const rows = await getDb()`SELECT * FROM file_views`;
+    expect(rows.length).toBe(0);
+  });
+
+  it("advanceFileView inserts the first baseline", async () => {
+    await advanceFileView({
+      userId: "user-1",
+      owner: "acme",
+      repo: "widgets",
+      filePath: "docs/a.md",
+      commitSha: "abc",
       blobSha: "blob-1",
     });
-    const second = await recordFileView({
+    const baseline = await getFileViewBaseline({
       userId: "user-1",
       owner: "acme",
       repo: "widgets",
       filePath: "docs/a.md",
-      commitSha: "def456",
+    });
+    expect(baseline.commitSha).toBe("abc");
+    expect(baseline.blobSha).toBe("blob-1");
+  });
+
+  it("advanceFileView overwrites an existing baseline", async () => {
+    await advanceFileView({
+      userId: "user-1",
+      owner: "acme",
+      repo: "widgets",
+      filePath: "docs/a.md",
+      commitSha: "abc",
+      blobSha: "blob-1",
+    });
+    await advanceFileView({
+      userId: "user-1",
+      owner: "acme",
+      repo: "widgets",
+      filePath: "docs/a.md",
+      commitSha: "def",
       blobSha: "blob-2",
     });
-    expect(second.previousCommitSha).toBe("abc123");
-    expect(second.previousBlobSha).toBe("blob-1");
-    expect(second.currentCommitSha).toBe("def456");
-    expect(second.currentBlobSha).toBe("blob-2");
+    const baseline = await getFileViewBaseline({
+      userId: "user-1",
+      owner: "acme",
+      repo: "widgets",
+      filePath: "docs/a.md",
+    });
+    expect(baseline.commitSha).toBe("def");
+    expect(baseline.blobSha).toBe("blob-2");
   });
 
-  it("is isolated per user", async () => {
-    await recordFileView({
+  it("baselines are isolated per user", async () => {
+    await advanceFileView({
       userId: "alice",
       owner: "acme",
       repo: "widgets",
@@ -174,16 +204,14 @@ describe("recordFileView", () => {
       commitSha: "aaa",
       blobSha: "blob-a",
     });
-    const bob = await recordFileView({
+    const bob = await getFileViewBaseline({
       userId: "bob",
       owner: "acme",
       repo: "widgets",
       filePath: "a.md",
-      commitSha: "bbb",
-      blobSha: "blob-b",
     });
-    expect(bob.previousCommitSha).toBeNull();
-    expect(bob.previousBlobSha).toBeNull();
+    expect(bob.commitSha).toBeNull();
+    expect(bob.blobSha).toBeNull();
   });
 });
 
