@@ -43,6 +43,8 @@ import { recordShareVisit } from "@/lib/shares";
 import { withDbRetry } from "@/lib/db";
 import { refreshGitHubDocumentCache } from "@/lib/github-cache";
 import { GitHubRefreshButton } from "@/components/github-refresh-button";
+import { TldrCallout } from "@/components/tldr-callout";
+import { computeBlobSha, getFileSummary } from "@/lib/file-summaries";
 import "highlight.js/styles/github-dark.css";
 
 export default async function SharedFilePage({
@@ -99,6 +101,12 @@ export default async function SharedFilePage({
     ]);
 
   if (content === null) notFound();
+
+  const treeEntry = allFiles.find((f) => f.path === filePath);
+  const blobSha = treeEntry?.sha ?? computeBlobSha(content);
+  const cachedSummary = await withDbRetry(() =>
+    getFileSummary({ owner, repo, filePath, blobSha }),
+  ).catch(() => null);
 
   const folderScope = share.type === "folder" ? share.file_path : null;
 
@@ -258,6 +266,8 @@ export default async function SharedFilePage({
                 shareId={id}
                 fileCount={sidebarFiles.length}
                 commentCounts={pathCounts}
+                owner={owner}
+                repo={repo}
               />
             )}
             <main id="main-content" className="flex flex-1 overflow-hidden">
@@ -282,6 +292,13 @@ export default async function SharedFilePage({
                   </div>
                 </div>
                 <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-8 sm:py-8">
+                  <TldrCallout
+                    owner={owner}
+                    repo={repo}
+                    filePath={filePath}
+                    shareId={id}
+                    initialSummary={cachedSummary?.summary ?? null}
+                  />
                   <article
                     id="shared-markdown-content"
                     className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none"

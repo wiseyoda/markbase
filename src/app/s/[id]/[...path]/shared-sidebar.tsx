@@ -103,6 +103,8 @@ interface SharedSidebarProps {
   shareId: string;
   fileCount: number;
   commentCounts?: Record<string, number>;
+  owner?: string;
+  repo?: string;
 }
 
 export function SharedSidebar({
@@ -110,6 +112,8 @@ export function SharedSidebar({
   shareId,
   fileCount,
   commentCounts = {},
+  owner,
+  repo,
 }: SharedSidebarProps) {
   const { open, setOpen } = useSharedSidebar();
   const isMobile = useIsMobile();
@@ -122,6 +126,15 @@ export function SharedSidebar({
     }
   }, [setOpen]);
 
+  const getSummaryUrl = useCallback(
+    (path: string) => {
+      if (!owner || !repo) return null;
+      const params = new URLSearchParams({ owner, repo, path, shareId });
+      return `/api/summary?${params.toString()}`;
+    },
+    [owner, repo, shareId],
+  );
+
   const fileTreeContent = (
     <FileTree
       nodes={tree}
@@ -130,6 +143,7 @@ export function SharedSidebar({
       onNavigate={closeSidebar}
       commentCounts={commentCounts}
       fileCount={fileCount}
+      getSummaryUrl={getSummaryUrl}
     />
   );
 

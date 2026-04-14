@@ -253,4 +253,85 @@ export async function initDb() {
   await ignoreDbError(db`
     CREATE INDEX IF NOT EXISTS idx_share_visits_user ON share_visits(user_id, visited_at DESC)
   `);
+  // AI summaries — one row per unique blob sha (git blob hash).
+  // Any edit produces a new row; any unchanged blob reuses the summary forever.
+  await db`
+    CREATE TABLE IF NOT EXISTS file_summaries (
+      id SERIAL PRIMARY KEY,
+      owner TEXT NOT NULL,
+      repo TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      blob_sha TEXT NOT NULL,
+      summary TEXT,
+      provider TEXT,
+      model TEXT,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      duration_ms INTEGER,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      failed_at TIMESTAMPTZ,
+      failure_reason TEXT
+    )
+  `;
+  await ignoreDbError(db`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_file_summaries_blob
+    ON file_summaries(owner, repo, file_path, blob_sha)
+  `);
+  // Per-user last-viewed-commit tracking for "what changed since you last viewed".
+  await db`
+    CREATE TABLE IF NOT EXISTS file_views (
+      user_id TEXT NOT NULL,
+      owner TEXT NOT NULL,
+      repo TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      last_viewed_sha TEXT NOT NULL,
+      last_viewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      last_viewed_blob_sha TEXT,
+      PRIMARY KEY (user_id, owner, repo, file_path)
+    )
+  `;
+  await ignoreDbError(db`
+    ALTER TABLE file_views ADD COLUMN IF NOT EXISTS last_viewed_blob_sha TEXT
+  `);
+  await ignoreDbError(db`
+    CREATE INDEX IF NOT EXISTS idx_file_views_user
+    ON file_views(user_id, last_viewed_at DESC)
+  `);
+  // Per-commit diff summaries shared across users.
+  await db`
+    CREATE TABLE IF NOT EXISTS file_commit_summaries (
+      id SERIAL PRIMARY KEY,
+      owner TEXT NOT NULL,
+      repo TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      commit_sha TEXT NOT NULL,
+      parent_sha TEXT,
+      summary TEXT,
+      provider TEXT,
+      model TEXT,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      duration_ms INTEGER,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      failed_at TIMESTAMPTZ,
+      failure_reason TEXT
+    )
+  `;
+  await ignoreDbError(db`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_file_commit_summaries_commit
+    ON file_commit_summaries(owner, repo, file_path, commit_sha)
+  `);
+  // Per-section content hashes for inline "changed since you last viewed" highlights.
+  await db`
+    CREATE TABLE IF NOT EXISTS file_section_hashes (
+      owner TEXT NOT NULL,
+      repo TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      blob_sha TEXT NOT NULL,
+      section_slug TEXT NOT NULL,
+      heading TEXT NOT NULL,
+      content_hash TEXT NOT NULL,
+      PRIMARY KEY (owner, repo, file_path, blob_sha, section_slug)
+    )
+  `;
 }

@@ -257,6 +257,14 @@ export function Sidebar({ tree, owner, repo, fileCount, commentCounts = {}, refr
     });
   }, [refreshAction, router]);
 
+  const getSummaryUrl = useCallback(
+    (path: string) => {
+      const params = new URLSearchParams({ owner, repo, path });
+      return `/api/summary?${params.toString()}`;
+    },
+    [owner, repo],
+  );
+
   const fileTreeContent = (
     <FileTree
       nodes={tree}
@@ -270,6 +278,7 @@ export function Sidebar({ tree, owner, repo, fileCount, commentCounts = {}, refr
       fileCount={fileCount}
       onRefresh={refreshAction ? handleRefresh : undefined}
       isRefreshing={isRefreshing}
+      getSummaryUrl={getSummaryUrl}
     />
   );
 

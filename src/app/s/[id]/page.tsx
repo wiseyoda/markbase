@@ -28,6 +28,8 @@ import { refreshGitHubDocumentCache } from "@/lib/github-cache";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Logo } from "@/components/logo";
 import { GitHubRefreshButton } from "@/components/github-refresh-button";
+import { TldrCallout } from "@/components/tldr-callout";
+import { computeBlobSha, getFileSummary } from "@/lib/file-summaries";
 import {
   SharedSidebar,
   SharedSidebarProvider,
@@ -128,6 +130,11 @@ export default async function SharePage({
 
     if (content === null) notFound();
 
+    const blobSha = computeBlobSha(content);
+    const cachedSummary = await withDbRetry(() =>
+      getFileSummary({ owner, repo, filePath: share.file_path!, blobSha }),
+    ).catch(() => null);
+
     return (
       <div className="flex min-h-screen flex-col">
         <header className="flex items-center justify-between border-b border-zinc-200 px-4 sm:px-6 py-3 dark:border-zinc-800">
@@ -154,6 +161,13 @@ export default async function SharePage({
           </div>
         </header>
         <main id="main-content" className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-8 sm:py-8">
+          <TldrCallout
+            owner={owner}
+            repo={repo}
+            filePath={share.file_path}
+            shareId={id}
+            initialSummary={cachedSummary?.summary ?? null}
+          />
           <article className="prose prose-zinc max-w-none dark:prose-invert prose-headings:scroll-mt-20 prose-code:before:content-none prose-code:after:content-none">
             <Markdown
               remarkPlugins={[remarkGfm]}
@@ -251,6 +265,8 @@ export default async function SharePage({
               shareId={id}
               fileCount={files.length}
               commentCounts={{}}
+              owner={owner}
+              repo={repo}
             />
             <main className="flex flex-1 items-center justify-center bg-white dark:bg-zinc-950">
               <div className="flex flex-col items-center gap-3 px-6 text-center">

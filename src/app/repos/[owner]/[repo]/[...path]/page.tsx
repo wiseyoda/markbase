@@ -40,6 +40,17 @@ import { githubRawUrl } from "@/lib/github-config";
 import { getComments, buildFileKey } from "@/lib/comments";
 import { withDbRetry } from "@/lib/db";
 import { GitHubRefreshButton } from "@/components/github-refresh-button";
+import { TldrCallout } from "@/components/tldr-callout";
+import { ChangeDigestBanner } from "@/components/change-digest-banner";
+import { computeBlobSha, getFileSummary } from "@/lib/file-summaries";
+import { recordFileView } from "@/lib/change-digest";
+import {
+  diffSectionHashes,
+  extractSectionHashes,
+  getSectionHashes,
+  storeSectionHashes,
+} from "@/lib/section-hashes";
+import { getFileHistory } from "@/lib/github";
 import "highlight.js/styles/github-dark.css";
 
 export default async function MarkdownViewPage({
@@ -68,6 +79,79 @@ export default async function MarkdownViewPage({
     notFound();
   }
 
+  // Prefer the tree-provided blob sha (authoritative) and fall back to a
+  // locally-computed one if the file is somehow absent from the tree (e.g. a
+  // newly pushed file not yet reflected in the cached tree).
+  const treeEntry = files.find((f) => f.path === filePath);
+  const blobSha = treeEntry?.sha ?? computeBlobSha(rawContent);
+
+  // Phase 1: cached TL;DR summary (read-only, fast). Generation happens
+  // lazily via /api/summary when the client component mounts. Failures
+  // (missing migration, transient DB error) must never break the page —
+  // the client will try again through the API route.
+  const cachedSummary = await withDbRetry(() =>
+    getFileSummary({ owner, repo, filePath, blobSha }),
+  ).catch(() => null);
+
+  // Phase 2+3: record the view up front so SSR never blocks on LLM calls.
+  // recordFileView returns the user's previous commit+blob sha — which we
+  // pass to the client (lazy digest fetch) and use to diff section hashes
+  // (pure + fast, safe to run at SSR time).
+  const userId = session.user?.id ?? null;
+  const history = userId
+    ? await getFileHistory(session.accessToken, owner, repo, branch, filePath).catch(() => [])
+    : [];
+  const currentCommitSha = history[0]?.sha ?? null;
+
+  let previousCommitShaForDigest: string | null = null;
+  let changedSectionSlugs = new Set<string>();
+  let newSectionSlugs = new Set<string>();
+  if (userId && currentCommitSha) {
+    try {
+      const tracking = await recordFileView({
+        userId,
+        owner,
+        repo,
+        filePath,
+        commitSha: currentCommitSha,
+        blobSha,
+      });
+      previousCommitShaForDigest = tracking.previousCommitSha;
+
+      // Store hashes for the current blob (idempotent). This runs on every
+      // view so that future comparisons have something to look up, even if
+      // the user never visits the exact same blob twice.
+      await storeSectionHashes({
+        owner,
+        repo,
+        filePath,
+        blobSha,
+        content: rawContent,
+      });
+
+      // If the user previously viewed a different blob, compute which
+      // sections changed. Purely hashes — no LLM calls, fast.
+      if (tracking.previousBlobSha && tracking.previousBlobSha !== blobSha) {
+        const [previousHashes, currentHashes] = await Promise.all([
+          getSectionHashes({
+            owner,
+            repo,
+            filePath,
+            blobSha: tracking.previousBlobSha,
+          }),
+          Promise.resolve(extractSectionHashes(rawContent)),
+        ]);
+        if (previousHashes.length > 0) {
+          const diff = diffSectionHashes(previousHashes, currentHashes);
+          changedSectionSlugs = new Set(diff.changedSlugs);
+          newSectionSlugs = new Set(diff.newSlugs);
+        }
+      }
+    } catch {
+      // View tracking is best-effort — never fail the page render.
+    }
+  }
+
   // Parse frontmatter — gracefully degrade on malformed YAML
   let frontmatter: Record<string, unknown> = {};
   let content = rawContent;
@@ -93,6 +177,16 @@ export default async function MarkdownViewPage({
 
   const fileSize = new Blob([rawContent]).size;
   const githubUrl = `https://github.com/${owner}/${repo}/blob/${branch}/${filePath}`;
+
+  const headingClass = (slug: string): string | undefined => {
+    if (newSectionSlugs.has(slug)) {
+      return "markbase-section-new";
+    }
+    if (changedSectionSlugs.has(slug)) {
+      return "markbase-section-changed";
+    }
+    return undefined;
+  };
 
   const components: Components = {
     a: ({ href, children, ...props }) => {
@@ -167,17 +261,17 @@ export default async function MarkdownViewPage({
     h1: ({ children, ...props }) => {
       const text = String(children).replace(/[*_`~\[\]]/g, "");
       const id = slugifyHeading(text);
-      return <h1 id={id} {...props}>{children}</h1>;
+      return <h1 id={id} data-change={headingClass(id)} {...props}>{children}</h1>;
     },
     h2: ({ children, ...props }) => {
       const text = String(children).replace(/[*_`~\[\]]/g, "");
       const id = slugifyHeading(text);
-      return <h2 id={id} {...props}>{children}</h2>;
+      return <h2 id={id} data-change={headingClass(id)} {...props}>{children}</h2>;
     },
     h3: ({ children, ...props }) => {
       const text = String(children).replace(/[*_`~\[\]]/g, "");
       const id = slugifyHeading(text);
-      return <h3 id={id} {...props}>{children}</h3>;
+      return <h3 id={id} data-change={headingClass(id)} {...props}>{children}</h3>;
     },
     h4: ({ children, ...props }) => {
       const text = String(children).replace(/[*_`~\[\]]/g, "");
@@ -273,6 +367,25 @@ export default async function MarkdownViewPage({
                   </ul>
                 </nav>
               </details>
+            )}
+
+            {/* AI summary */}
+            <TldrCallout
+              owner={owner}
+              repo={repo}
+              filePath={filePath}
+              initialSummary={cachedSummary?.summary ?? null}
+            />
+
+            {/* Change digest — lazily fetched on mount so it never blocks SSR */}
+            {currentCommitSha && (
+              <ChangeDigestBanner
+                owner={owner}
+                repo={repo}
+                filePath={filePath}
+                fromCommitSha={previousCommitShaForDigest}
+                toCommitSha={currentCommitSha}
+              />
             )}
 
             {/* Markdown */}

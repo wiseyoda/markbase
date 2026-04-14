@@ -14,9 +14,13 @@
     "test:e2e:headed": "pnpm build && playwright test --headed"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.69",
+    "@ai-sdk/google": "^3.0.63",
+    "@ai-sdk/openai": "^3.0.53",
     "@tailwindcss/typography": "0.5.0-alpha.3",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
+    "ai": "^6.0.160",
     "diff": "^8.0.4",
     "gray-matter": "^4.0.3",
     "highlight.js": "^11.11.1",
@@ -50,6 +54,7 @@
     "jsdom": "^29.0.2",
     "tailwindcss": "^4",
     "testcontainers": "^11.13.0",
+    "tsx": "^4.21.0",
     "typescript": "^5",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.3"

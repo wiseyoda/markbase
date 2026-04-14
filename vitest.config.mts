@@ -9,6 +9,11 @@ const testConfig = {
   globals: true,
   maxWorkers: 1,
   minWorkers: 1,
+  // Testcontainers Postgres cold-starts can exceed the default 10s when
+  // running the full integration suite — each integration file stops the
+  // container in afterAll and restarts it in beforeAll.
+  hookTimeout: 60_000,
+  testTimeout: 30_000,
   css: true,
   coverage: {
     provider: "v8",

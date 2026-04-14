@@ -97,6 +97,11 @@ export interface FileTreeProps {
   fileCount?: number;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  /**
+   * Optional: return the /api/summary URL for a given file path, enabling
+   * an on-hover TL;DR tooltip. Return null to disable for a specific node.
+   */
+  getSummaryUrl?: (path: string) => string | null;
 }
 
 export function FileTree({
@@ -111,6 +116,7 @@ export function FileTree({
   fileCount,
   onRefresh,
   isRefreshing,
+  getSummaryUrl,
 }: FileTreeProps) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => filterTree(nodes, search), [nodes, search]);
@@ -185,6 +191,7 @@ export function FileTree({
             commentCounts={commentCounts}
             fileContextMenuItems={fileContextMenuItems}
             folderContextMenuItems={folderContextMenuItems}
+            getSummaryUrl={getSummaryUrl}
           />
         )}
       </nav>
@@ -205,6 +212,7 @@ function TreeView({
   commentCounts,
   fileContextMenuItems,
   folderContextMenuItems,
+  getSummaryUrl,
 }: {
   nodes: TreeNode[];
   basePath: string;
@@ -214,6 +222,7 @@ function TreeView({
   commentCounts: Record<string, number>;
   fileContextMenuItems?: (node: TreeNode) => ContextMenuItem[];
   folderContextMenuItems?: (node: TreeNode) => ContextMenuItem[];
+  getSummaryUrl?: (path: string) => string | null;
 }) {
   return (
     <ul className={depth > 0 ? "ml-3" : ""}>
@@ -227,6 +236,7 @@ function TreeView({
             onNavigate={onNavigate}
             commentCount={commentCounts[node.path] || 0}
             contextMenuItems={fileContextMenuItems}
+            summaryUrl={getSummaryUrl?.(node.path) ?? null}
           />
         ) : (
           <FolderItem
@@ -239,6 +249,7 @@ function TreeView({
             commentCounts={commentCounts}
             fileContextMenuItems={fileContextMenuItems}
             folderContextMenuItems={folderContextMenuItems}
+            getSummaryUrl={getSummaryUrl}
           />
         ),
       )}
@@ -257,6 +268,7 @@ function FileItem({
   onNavigate,
   commentCount,
   contextMenuItems,
+  summaryUrl,
 }: {
   node: TreeNode;
   basePath: string;
@@ -264,16 +276,24 @@ function FileItem({
   onNavigate: () => void;
   commentCount: number;
   contextMenuItems?: (node: TreeNode) => ContextMenuItem[];
+  summaryUrl: string | null;
 }) {
   const href = `${basePath}/${node.path}`;
   const isActive = pathname === href;
   const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null);
+  const {
+    onMouseEnter,
+    onMouseLeave,
+    tooltip,
+  } = useSummaryTooltip(summaryUrl);
 
   return (
     <li>
       <Link
         href={href}
         onClick={onNavigate}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
         onContextMenu={
           contextMenuItems
             ? (e) => {
@@ -304,6 +324,7 @@ function FileItem({
           </span>
         )}
       </Link>
+      {tooltip}
       {ctx && contextMenuItems && (
         <ContextMenu
           x={ctx.x}
@@ -329,6 +350,7 @@ function FolderItem({
   commentCounts,
   fileContextMenuItems,
   folderContextMenuItems,
+  getSummaryUrl,
 }: {
   node: TreeNode;
   basePath: string;
@@ -338,6 +360,7 @@ function FolderItem({
   commentCounts: Record<string, number>;
   fileContextMenuItems?: (node: TreeNode) => ContextMenuItem[];
   folderContextMenuItems?: (node: TreeNode) => ContextMenuItem[];
+  getSummaryUrl?: (path: string) => string | null;
 }) {
   const [open, setOpen] = useState(() => {
     const prefix = `${basePath}/`;
@@ -402,8 +425,115 @@ function FolderItem({
           commentCounts={commentCounts}
           fileContextMenuItems={fileContextMenuItems}
           folderContextMenuItems={folderContextMenuItems}
+          getSummaryUrl={getSummaryUrl}
         />
       )}
     </li>
   );
+}
+
+// ---------------------------------------------------------------------------
+// useSummaryTooltip — 400ms hover delay + lazy fetch, renders a portal tooltip
+// ---------------------------------------------------------------------------
+
+interface SummaryFetchState {
+  status: "loading" | "ready" | "empty";
+  text?: string;
+}
+
+function useSummaryTooltip(summaryUrl: string | null) {
+  const [visible, setVisible] = useState(false);
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [state, setState] = useState<SummaryFetchState | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  // Cache fetched results per URL so repeated hovers don't refetch.
+  const cacheRef = useRef<Map<string, SummaryFetchState>>(new Map());
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  const onMouseEnter = (e: React.MouseEvent<HTMLElement>) => {
+    if (!summaryUrl) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setAnchor({ x: rect.right + 8, y: rect.top });
+
+    const cached = cacheRef.current.get(summaryUrl);
+    if (cached) {
+      setState(cached);
+      setVisible(true);
+      return;
+    }
+
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      setState({ status: "loading" });
+      setVisible(true);
+      const controller = new AbortController();
+      abortRef.current = controller;
+      fetch(summaryUrl, { signal: controller.signal })
+        .then(async (res) => {
+          if (!res.ok) {
+            const next: SummaryFetchState = { status: "empty" };
+            cacheRef.current.set(summaryUrl, next);
+            setState(next);
+            return;
+          }
+          const body = (await res.json()) as {
+            enabled: boolean;
+            summary: { text: string } | null;
+          };
+          const next: SummaryFetchState =
+            body.enabled && body.summary?.text
+              ? { status: "ready", text: body.summary.text }
+              : { status: "empty" };
+          cacheRef.current.set(summaryUrl, next);
+          setState(next);
+        })
+        .catch((err) => {
+          if ((err as Error).name === "AbortError") return;
+          const next: SummaryFetchState = { status: "empty" };
+          cacheRef.current.set(summaryUrl, next);
+          setState(next);
+        });
+    }, 400);
+  };
+
+  const onMouseLeave = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    abortRef.current?.abort();
+    setVisible(false);
+  };
+
+  const tooltip =
+    visible && anchor && state && state.status !== "empty"
+      ? createPortal(
+          <div
+            className="pointer-events-none fixed z-[90] max-w-xs rounded-md border border-zinc-200 bg-white p-3 text-xs leading-relaxed text-zinc-700 shadow-lg dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+            style={{ left: anchor.x, top: anchor.y }}
+            role="tooltip"
+          >
+            <div className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-sky-600 dark:text-[#86D5F4]">
+              TL;DR
+            </div>
+            {state.status === "loading" ? (
+              <span className="text-zinc-500 dark:text-zinc-400">
+                Summarizing…
+              </span>
+            ) : (
+              state.text
+            )}
+          </div>,
+          document.body,
+        )
+      : null;
+
+  return { onMouseEnter, onMouseLeave, tooltip };
 }
