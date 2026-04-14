@@ -487,31 +487,30 @@ body {
 }
 
 /* ─── Block-level "changed text" highlights (paragraphs, list items, code) ─── */
+/* Tailwind's typography plugin uses :where() (specificity 0) for its
+ * selectors, so a plain class or attribute selector always wins.
+ * !important on the visual properties makes these survive inside any
+ * nested prose context. */
 
-.prose p[data-change="text-changed"],
-.prose li[data-change="text-changed"],
-.prose blockquote[data-change="text-changed"],
-.prose div[data-change="text-changed"] {
-  position: relative;
-  background: rgb(14 165 233 / 0.06);
-  border-left: 2px solid rgb(14 165 233 / 0.4);
-  padding-left: 0.75rem;
-  margin-left: -0.9rem;
-  border-radius: 0 4px 4px 0;
+[data-change="text-changed"] {
+  position: relative !important;
+  background: rgb(14 165 233 / 0.08) !important;
+  border-left: 3px solid rgb(14 165 233 / 0.55) !important;
+  padding-left: 0.75rem !important;
+  margin-left: -0.9rem !important;
+  border-radius: 0 4px 4px 0 !important;
 }
 
-.dark .prose p[data-change="text-changed"],
-.dark .prose li[data-change="text-changed"],
-.dark .prose blockquote[data-change="text-changed"],
-.dark .prose div[data-change="text-changed"] {
-  background: rgb(134 213 244 / 0.07);
-  border-left-color: rgb(134 213 244 / 0.4);
+.dark [data-change="text-changed"] {
+  background: rgb(134 213 244 / 0.08) !important;
+  border-left-color: rgb(134 213 244 / 0.5) !important;
 }
 
-/* Don't stack nested highlights: inner p inside an already-changed li should not double-mark. */
-.prose [data-change="text-changed"] [data-change="text-changed"] {
-  background: transparent;
-  border-left: 0;
-  padding-left: 0;
-  margin-left: 0;
+/* Nested changed blocks shouldn't double-mark: an <li> containing a <p>
+ * both flagged would render two rails. The inner one is reset. */
+[data-change="text-changed"] [data-change="text-changed"] {
+  background: transparent !important;
+  border-left: 0 !important;
+  padding-left: 0 !important;
+  margin-left: 0 !important;
 }
