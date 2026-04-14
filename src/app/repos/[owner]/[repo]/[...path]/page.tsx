@@ -18,7 +18,6 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import matter from "gray-matter";
-import { diffLines } from "diff";
 import type { Components } from "react-markdown";
 import {
   getDefaultBranch,
@@ -44,14 +43,7 @@ import { GitHubRefreshButton } from "@/components/github-refresh-button";
 import { TldrCallout } from "@/components/tldr-callout";
 import { ChangeDigestBanner } from "@/components/change-digest-banner";
 import { computeBlobSha, getFileSummary } from "@/lib/file-summaries";
-import { getFileViewBaseline } from "@/lib/change-digest";
-import {
-  diffSectionHashes,
-  extractSectionHashes,
-  getSectionHashes,
-  storeSectionHashes,
-} from "@/lib/section-hashes";
-import { getFileAtCommit, getFileHistory } from "@/lib/github";
+import { computeViewInsights } from "@/lib/view-insights";
 import "highlight.js/styles/github-dark.css";
 
 export default async function MarkdownViewPage({
@@ -94,101 +86,8 @@ export default async function MarkdownViewPage({
     getFileSummary({ owner, repo, filePath, blobSha }),
   ).catch(() => null);
 
-  // Phase 2+3: record the view up front so SSR never blocks on LLM calls.
-  // recordFileView returns the user's previous commit+blob sha — which we
-  // pass to the client (lazy digest fetch) and use to diff section hashes
-  // (pure + fast, safe to run at SSR time).
-  const userId = session.user?.id ?? null;
-  const history = userId
-    ? await getFileHistory(session.accessToken, owner, repo, branch, filePath).catch((err) => {
-        console.warn(`[viewer] getFileHistory failed for ${filePath}:`, err);
-        return [];
-      })
-    : [];
-  const currentCommitSha = history[0]?.sha ?? null;
-  if (process.env.NODE_ENV === "development") {
-    console.log(
-      `[viewer] ${filePath} userId=${userId} history.length=${history.length} currentCommitSha=${currentCommitSha}`,
-    );
-  }
-
-  let previousCommitShaForDigest: string | null = null;
-  let changedSectionSlugs = new Set<string>();
-  let newSectionSlugs = new Set<string>();
-  let baselineContentForTextDiff: string | null = null;
-  if (userId && currentCommitSha) {
-    try {
-      // Read-only baseline lookup. The baseline only advances on explicit
-      // dismiss (POST /api/file-view), so repeated page loads keep returning
-      // the same prior sha and the banner stays visible.
-      const baseline = await getFileViewBaseline({
-        userId,
-        owner,
-        repo,
-        filePath,
-      });
-      previousCommitShaForDigest = baseline.commitSha;
-      if (process.env.NODE_ENV === "development") {
-        console.log(
-          `[viewer] baseline previousCommitSha=${baseline.commitSha} previousBlobSha=${baseline.blobSha}`,
-        );
-      }
-
-      // Store hashes for the current blob (idempotent). Runs every view so
-      // future comparisons have a stored baseline to look up.
-      await storeSectionHashes({
-        owner,
-        repo,
-        filePath,
-        blobSha,
-        content: rawContent,
-      });
-
-      // Determine which commit's content to diff against. Prefer the user's
-      // acknowledged commit, fall back to the parent commit on first view.
-      const diffSourceCommitSha =
-        baseline.commitSha && baseline.commitSha !== currentCommitSha
-          ? baseline.commitSha
-          : history[1]?.sha ?? null;
-
-      if (diffSourceCommitSha) {
-        baselineContentForTextDiff = await getFileAtCommit(
-          session.accessToken,
-          owner,
-          repo,
-          diffSourceCommitSha,
-          filePath,
-        ).catch(() => null);
-      }
-
-      // Section-level diff. If we have stored hashes for the baseline blob,
-      // use them (cheaper than re-parsing). Otherwise extract hashes from
-      // the just-fetched baseline content.
-      let baselineContentHashes: Awaited<ReturnType<typeof getSectionHashes>> | null = null;
-      if (baseline.blobSha && baseline.blobSha !== blobSha) {
-        baselineContentHashes = await getSectionHashes({
-          owner,
-          repo,
-          filePath,
-          blobSha: baseline.blobSha,
-        });
-      } else if (baselineContentForTextDiff !== null) {
-        baselineContentHashes = extractSectionHashes(baselineContentForTextDiff);
-      }
-
-      if (baselineContentHashes && baselineContentHashes.length > 0) {
-        const currentHashes = extractSectionHashes(rawContent);
-        const diff = diffSectionHashes(baselineContentHashes, currentHashes);
-        changedSectionSlugs = new Set(diff.changedSlugs);
-        newSectionSlugs = new Set(diff.newSlugs);
-      }
-    } catch (err) {
-      console.warn(`[viewer] view tracking failed for ${filePath}:`, err);
-      // View tracking is best-effort — never fail the page render.
-    }
-  }
-
-  // Parse frontmatter — gracefully degrade on malformed YAML
+  // Parse frontmatter first so we have the post-frontmatter content to pass
+  // to both computeViewInsights (for the line-diff) and react-markdown.
   let frontmatter: Record<string, unknown> = {};
   let content = rawContent;
   try {
@@ -200,40 +99,27 @@ export default async function MarkdownViewPage({
   }
   const hasFrontmatter = Object.keys(frontmatter).length > 0;
 
-  // Build a Set of 1-indexed line numbers in the POST-frontmatter content
-  // that were added or modified since the diff source commit. These line
-  // numbers match the positions that remark attaches to hast nodes, which
-  // are exposed via node.position to react-markdown component overrides.
-  // Pure line-level diff — no LLM — and cached against whichever baseline
-  // we already fetched for section hashes.
-  const textChangedLines = new Set<number>();
-  if (baselineContentForTextDiff !== null) {
-    let baselineText = baselineContentForTextDiff;
-    try {
-      baselineText = matter(baselineContentForTextDiff).content;
-    } catch {
-      // Broken frontmatter in baseline — diff the raw content, it still works.
-    }
-    const changes = diffLines(baselineText, content);
-    let currentLine = 1;
-    for (const change of changes) {
-      const valueLines = change.value.split("\n");
-      // diffLines typically terminates parts with a trailing newline, which
-      // split() leaves as an empty final element — drop it before counting.
-      if (valueLines.length > 0 && valueLines[valueLines.length - 1] === "") {
-        valueLines.pop();
-      }
-      const lineCount = valueLines.length;
-      if (change.added) {
-        for (let i = 0; i < lineCount; i++) {
-          textChangedLines.add(currentLine + i);
-        }
-      }
-      if (!change.removed) {
-        currentLine += lineCount;
-      }
-    }
-  }
+  // Everything the viewer needs to mark "what's new for this user" in one
+  // call. Pure function, returns empty state on any error, runs in parallel
+  // with nothing else (no point — it needs `content` which we just parsed).
+  const insights = await computeViewInsights({
+    accessToken: session.accessToken,
+    userId: session.user?.id ?? null,
+    owner,
+    repo,
+    branch,
+    filePath,
+    currentContent: content,
+    currentRawContent: rawContent,
+    currentBlobSha: blobSha,
+  });
+  const {
+    currentCommitSha,
+    previousCommitSha: previousCommitShaForDigest,
+    changedSectionSlugs,
+    newSectionSlugs,
+    textChangedLines,
+  } = insights;
 
   const lineRangeChanged = (
     start: number | undefined,
@@ -490,17 +376,23 @@ export default async function MarkdownViewPage({
               </details>
             )}
 
-            {/* AI summary */}
+            {/* AI summary — keyed on path so navigation always remounts with
+                fresh fetch state; prevents cross-file leakage even if React
+                reuses the instance. */}
             <TldrCallout
+              key={`tldr:${owner}/${repo}/${filePath}`}
               owner={owner}
               repo={repo}
               filePath={filePath}
               initialSummary={cachedSummary?.summary ?? null}
             />
 
-            {/* Change digest — lazily fetched on mount so it never blocks SSR */}
+            {/* Change digest — lazily fetched on mount so it never blocks SSR.
+                Keyed on (path + commit) so a new commit landing on the same
+                file during the session also forces a clean remount. */}
             {currentCommitSha && (
               <ChangeDigestBanner
+                key={`digest:${owner}/${repo}/${filePath}:${currentCommitSha}`}
                 owner={owner}
                 repo={repo}
                 filePath={filePath}
