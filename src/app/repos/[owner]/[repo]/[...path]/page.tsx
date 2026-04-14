@@ -99,9 +99,17 @@ export default async function MarkdownViewPage({
   // (pure + fast, safe to run at SSR time).
   const userId = session.user?.id ?? null;
   const history = userId
-    ? await getFileHistory(session.accessToken, owner, repo, branch, filePath).catch(() => [])
+    ? await getFileHistory(session.accessToken, owner, repo, branch, filePath).catch((err) => {
+        console.warn(`[viewer] getFileHistory failed for ${filePath}:`, err);
+        return [];
+      })
     : [];
   const currentCommitSha = history[0]?.sha ?? null;
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[viewer] ${filePath} userId=${userId} history.length=${history.length} currentCommitSha=${currentCommitSha}`,
+    );
+  }
 
   let previousCommitShaForDigest: string | null = null;
   let changedSectionSlugs = new Set<string>();
@@ -117,6 +125,11 @@ export default async function MarkdownViewPage({
         blobSha,
       });
       previousCommitShaForDigest = tracking.previousCommitSha;
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          `[viewer] recordFileView previousCommitSha=${tracking.previousCommitSha} previousBlobSha=${tracking.previousBlobSha}`,
+        );
+      }
 
       // Store hashes for the current blob (idempotent). This runs on every
       // view so that future comparisons have something to look up, even if
@@ -147,7 +160,8 @@ export default async function MarkdownViewPage({
           newSectionSlugs = new Set(diff.newSlugs);
         }
       }
-    } catch {
+    } catch (err) {
+      console.warn(`[viewer] view tracking failed for ${filePath}:`, err);
       // View tracking is best-effort — never fail the page render.
     }
   }

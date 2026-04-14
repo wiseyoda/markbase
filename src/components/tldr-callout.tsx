@@ -64,15 +64,18 @@ export function TldrCallout({
       ? { status: "ready", summary: initialSummary }
       : { status: "loading" },
   );
-  const fetchedRef = useRef(false);
+  // Keyed dedupe set: StrictMode double-invocation is absorbed, and
+  // navigation to a different file triggers a fresh fetch because the key
+  // changes. A plain boolean ref would leak across route changes if React
+  // reused the component instance.
+  const fetchedKeysRef = useRef<Set<string>>(new Set());
   const { isDismissed, dismiss } = useDismissed(owner, repo, filePath);
 
   useEffect(() => {
-    // StrictMode-safe: the ref prevents duplicate fetches across double-
-    // invocation, and we don't cancel on cleanup. React 19 silently ignores
-    // setState on an unmounted component, so late-arriving responses are fine.
-    if (initialSummary || fetchedRef.current) return;
-    fetchedRef.current = true;
+    if (initialSummary) return;
+    const key = `${owner}/${repo}/${filePath}/${shareId ?? ""}`;
+    if (fetchedKeysRef.current.has(key)) return;
+    fetchedKeysRef.current.add(key);
 
     const params = new URLSearchParams({
       owner,

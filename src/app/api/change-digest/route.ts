@@ -40,15 +40,30 @@ export async function GET(request: NextRequest) {
   }
 
   const branch = await getDefaultBranch(session.accessToken, owner, repo);
-  const digest = await assembleChangeDigest({
-    accessToken: session.accessToken,
-    owner,
-    repo,
-    branch,
-    filePath,
-    fromCommitSha,
-    toCommitSha,
-  });
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[api/change-digest] ${filePath} from=${fromCommitSha ?? "null"} to=${toCommitSha}`,
+    );
+  }
+  let digest: Awaited<ReturnType<typeof assembleChangeDigest>> = null;
+  try {
+    digest = await assembleChangeDigest({
+      accessToken: session.accessToken,
+      owner,
+      repo,
+      branch,
+      filePath,
+      fromCommitSha,
+      toCommitSha,
+    });
+  } catch (err) {
+    console.warn(`[api/change-digest] assemble failed:`, err);
+  }
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[api/change-digest] result: bullets=${digest?.bullets.length ?? 0} isFirstView=${digest?.isFirstView ?? false}`,
+    );
+  }
 
   return respond({ enabled: true, digest });
 }

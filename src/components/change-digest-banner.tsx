@@ -112,12 +112,16 @@ export function ChangeDigestBanner({
   const [state, setState] = useState<LoadState>(
     shouldFetch ? { status: "loading" } : { status: "idle" },
   );
-  const fetchedRef = useRef(false);
+  // Keyed dedupe set so StrictMode's double-invocation dedupes, but a
+  // navigation to a new file (or a new commit range) still fires a fresh
+  // fetch. A plain boolean ref would leak across route changes.
+  const fetchedKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    // StrictMode-safe: ref blocks duplicate fetches, no cleanup cancellation.
-    if (!shouldFetch || fetchedRef.current) return;
-    fetchedRef.current = true;
+    if (!shouldFetch) return;
+    const key = `${owner}/${repo}/${filePath}:${fromCommitSha ?? ""}->${toCommitSha}`;
+    if (fetchedKeysRef.current.has(key)) return;
+    fetchedKeysRef.current.add(key);
 
     const params = new URLSearchParams({
       owner,
