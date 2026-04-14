@@ -18,6 +18,7 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import matter from "gray-matter";
+import { diffLines } from "diff";
 import type { Components } from "react-markdown";
 import {
   getDefaultBranch,
@@ -114,6 +115,7 @@ export default async function MarkdownViewPage({
   let previousCommitShaForDigest: string | null = null;
   let changedSectionSlugs = new Set<string>();
   let newSectionSlugs = new Set<string>();
+  let baselineContentForTextDiff: string | null = null;
   if (userId && currentCommitSha) {
     try {
       // Read-only baseline lookup. The baseline only advances on explicit
@@ -142,8 +144,26 @@ export default async function MarkdownViewPage({
         content: rawContent,
       });
 
-      // Section-level diff: compare current blob against whichever blob the
-      // user has previously acknowledged. Pure hash comparison, no LLM.
+      // Determine which commit's content to diff against. Prefer the user's
+      // acknowledged commit, fall back to the parent commit on first view.
+      const diffSourceCommitSha =
+        baseline.commitSha && baseline.commitSha !== currentCommitSha
+          ? baseline.commitSha
+          : history[1]?.sha ?? null;
+
+      if (diffSourceCommitSha) {
+        baselineContentForTextDiff = await getFileAtCommit(
+          session.accessToken,
+          owner,
+          repo,
+          diffSourceCommitSha,
+          filePath,
+        ).catch(() => null);
+      }
+
+      // Section-level diff. If we have stored hashes for the baseline blob,
+      // use them (cheaper than re-parsing). Otherwise extract hashes from
+      // the just-fetched baseline content.
       let baselineContentHashes: Awaited<ReturnType<typeof getSectionHashes>> | null = null;
       if (baseline.blobSha && baseline.blobSha !== blobSha) {
         baselineContentHashes = await getSectionHashes({
@@ -152,21 +172,8 @@ export default async function MarkdownViewPage({
           filePath,
           blobSha: baseline.blobSha,
         });
-      } else if (!baseline.blobSha && history.length > 1) {
-        // First-ever view fallback: show highlights for whatever changed in
-        // the most recent commit by comparing current content against the
-        // previous commit's file content. One extra (cached) GitHub fetch.
-        const parentSha = history[1].sha;
-        const parentContent = await getFileAtCommit(
-          session.accessToken,
-          owner,
-          repo,
-          parentSha,
-          filePath,
-        ).catch(() => null);
-        if (parentContent !== null) {
-          baselineContentHashes = extractSectionHashes(parentContent);
-        }
+      } else if (baselineContentForTextDiff !== null) {
+        baselineContentHashes = extractSectionHashes(baselineContentForTextDiff);
       }
 
       if (baselineContentHashes && baselineContentHashes.length > 0) {
@@ -192,6 +199,53 @@ export default async function MarkdownViewPage({
     // Malformed frontmatter (e.g. duplicate keys) — render as plain markdown
   }
   const hasFrontmatter = Object.keys(frontmatter).length > 0;
+
+  // Build a Set of 1-indexed line numbers in the POST-frontmatter content
+  // that were added or modified since the diff source commit. These line
+  // numbers match the positions that remark attaches to hast nodes, which
+  // are exposed via node.position to react-markdown component overrides.
+  // Pure line-level diff — no LLM — and cached against whichever baseline
+  // we already fetched for section hashes.
+  const textChangedLines = new Set<number>();
+  if (baselineContentForTextDiff !== null) {
+    let baselineText = baselineContentForTextDiff;
+    try {
+      baselineText = matter(baselineContentForTextDiff).content;
+    } catch {
+      // Broken frontmatter in baseline — diff the raw content, it still works.
+    }
+    const changes = diffLines(baselineText, content);
+    let currentLine = 1;
+    for (const change of changes) {
+      const valueLines = change.value.split("\n");
+      // diffLines typically terminates parts with a trailing newline, which
+      // split() leaves as an empty final element — drop it before counting.
+      if (valueLines.length > 0 && valueLines[valueLines.length - 1] === "") {
+        valueLines.pop();
+      }
+      const lineCount = valueLines.length;
+      if (change.added) {
+        for (let i = 0; i < lineCount; i++) {
+          textChangedLines.add(currentLine + i);
+        }
+      }
+      if (!change.removed) {
+        currentLine += lineCount;
+      }
+    }
+  }
+
+  const lineRangeChanged = (
+    start: number | undefined,
+    end: number | undefined,
+  ): boolean => {
+    if (textChangedLines.size === 0) return false;
+    if (start === undefined || end === undefined) return false;
+    for (let line = start; line <= end; line++) {
+      if (textChangedLines.has(line)) return true;
+    }
+    return false;
+  };
 
   // Extract TOC
   const toc = extractToc(content);
@@ -263,16 +317,16 @@ export default async function MarkdownViewPage({
         />
       );
     },
-    pre: ({ children, ...props }) => {
+    pre: ({ node, children, ...props }) => {
       // Extract text content for the copy button
       let codeText = "";
-      const extractText = (node: React.ReactNode): void => {
-        if (typeof node === "string") {
-          codeText += node;
-        } else if (Array.isArray(node)) {
-          node.forEach(extractText);
-        } else if (node && typeof node === "object" && "props" in node) {
-          const reactNode = node as React.ReactElement<{ children?: React.ReactNode }>;
+      const extractText = (n: React.ReactNode): void => {
+        if (typeof n === "string") {
+          codeText += n;
+        } else if (Array.isArray(n)) {
+          n.forEach(extractText);
+        } else if (n && typeof n === "object" && "props" in n) {
+          const reactNode = n as React.ReactElement<{ children?: React.ReactNode }>;
           if (reactNode.props?.children) {
             extractText(reactNode.props.children);
           }
@@ -280,11 +334,49 @@ export default async function MarkdownViewPage({
       };
       extractText(children);
 
+      const changed = lineRangeChanged(
+        node?.position?.start.line,
+        node?.position?.end.line,
+      );
+
       return (
-        <div className="group relative">
+        <div className="group relative" data-change={changed ? "text-changed" : undefined}>
           <CopyButton text={codeText.trim()} />
           <pre {...props}>{children}</pre>
         </div>
+      );
+    },
+    p: ({ node, children, ...props }) => {
+      const changed = lineRangeChanged(
+        node?.position?.start.line,
+        node?.position?.end.line,
+      );
+      return (
+        <p data-change={changed ? "text-changed" : undefined} {...props}>
+          {children}
+        </p>
+      );
+    },
+    li: ({ node, children, ...props }) => {
+      const changed = lineRangeChanged(
+        node?.position?.start.line,
+        node?.position?.end.line,
+      );
+      return (
+        <li data-change={changed ? "text-changed" : undefined} {...props}>
+          {children}
+        </li>
+      );
+    },
+    blockquote: ({ node, children, ...props }) => {
+      const changed = lineRangeChanged(
+        node?.position?.start.line,
+        node?.position?.end.line,
+      );
+      return (
+        <blockquote data-change={changed ? "text-changed" : undefined} {...props}>
+          {children}
+        </blockquote>
       );
     },
     h1: ({ children, ...props }) => {

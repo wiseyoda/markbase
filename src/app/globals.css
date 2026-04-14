@@ -485,3 +485,33 @@ body {
 .dark .prose [data-change="markbase-section-changed"]::after {
   background: rgb(134 213 244 / 0.85);
 }
+
+/* ─── Block-level "changed text" highlights (paragraphs, list items, code) ─── */
+
+.prose p[data-change="text-changed"],
+.prose li[data-change="text-changed"],
+.prose blockquote[data-change="text-changed"],
+.prose div[data-change="text-changed"] {
+  position: relative;
+  background: rgb(14 165 233 / 0.06);
+  border-left: 2px solid rgb(14 165 233 / 0.4);
+  padding-left: 0.75rem;
+  margin-left: -0.9rem;
+  border-radius: 0 4px 4px 0;
+}
+
+.dark .prose p[data-change="text-changed"],
+.dark .prose li[data-change="text-changed"],
+.dark .prose blockquote[data-change="text-changed"],
+.dark .prose div[data-change="text-changed"] {
+  background: rgb(134 213 244 / 0.07);
+  border-left-color: rgb(134 213 244 / 0.4);
+}
+
+/* Don't stack nested highlights: inner p inside an already-changed li should not double-mark. */
+.prose [data-change="text-changed"] [data-change="text-changed"] {
+  background: transparent;
+  border-left: 0;
+  padding-left: 0;
+  margin-left: 0;
+}
