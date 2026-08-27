@@ -81,7 +81,9 @@ test("lets an authenticated user add a repo, browse markdown, inspect history, a
   );
   await page.getByRole("button", { name: "Comment", exact: true }).click();
   await expect(
-    page.getByText("Authorization boundary verified end to end."),
+    page.locator("p").filter({
+      hasText: /^Authorization boundary verified end to end\.$/,
+    }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Resolve", exact: true }).click();
   await expect(
