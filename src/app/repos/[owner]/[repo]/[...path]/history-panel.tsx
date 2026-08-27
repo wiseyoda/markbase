@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { fetchFileHistory, fetchFileAtCommit } from "./history-actions";
 import { formatDate } from "@/lib/format";
@@ -58,40 +58,72 @@ function HistoryPanel({
   void _currentContent; // Reserved for future inline diff
   const [commits, setCommits] = useState<FileCommit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyAttempt, setHistoryAttempt] = useState(0);
   const [selectedSha, setSelectedSha] = useState<string | null>(null);
   const [diffData, setDiffData] = useState<DiffLine[] | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"diff" | "full">("diff");
   const [fullContent, setFullContent] = useState<string | null>(null);
+  const diffRequestRef = useRef(0);
 
   useEffect(() => {
-    fetchFileHistory(owner, repo, branch, filePath, shareId).then((data) => {
-      setCommits(data);
-      setLoading(false);
-    });
-  }, [owner, repo, branch, filePath, shareId]);
+    let cancelled = false;
+    setLoading(true);
+    setHistoryError(null);
+    fetchFileHistory(owner, repo, branch, filePath, shareId)
+      .then((data) => {
+        if (!cancelled) setCommits(data);
+      })
+      .catch(() => {
+        if (!cancelled) setHistoryError("Could not load file history.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [owner, repo, branch, filePath, shareId, historyAttempt]);
+
+  useEffect(() => () => {
+    diffRequestRef.current += 1;
+  }, []);
 
   const loadDiff = useCallback(
     async (sha: string, prevSha: string | null) => {
+      const requestId = ++diffRequestRef.current;
       setSelectedSha(sha);
       setDiffLoading(true);
+      setDiffError(null);
       setDiffData(null);
       setFullContent(null);
 
-      const [newContent, oldContent] = await Promise.all([
-        fetchFileAtCommit(owner, repo, sha, filePath, shareId),
-        prevSha
-          ? fetchFileAtCommit(owner, repo, prevSha, filePath, shareId)
-          : Promise.resolve(""),
-      ]);
+      try {
+        const [newContent, oldContent] = await Promise.all([
+          fetchFileAtCommit(owner, repo, branch, sha, filePath, shareId),
+          prevSha
+            ? fetchFileAtCommit(owner, repo, branch, prevSha, filePath, shareId)
+            : Promise.resolve(""),
+        ]);
 
-      if (newContent !== null) {
+        if (requestId !== diffRequestRef.current) return;
+        if (newContent === null) {
+          setDiffError("Could not load this revision.");
+          return;
+        }
         setFullContent(newContent);
         setDiffData(buildDiffLines(oldContent || "", newContent));
+      } catch {
+        if (requestId === diffRequestRef.current) {
+          setDiffError("Could not load this revision.");
+        }
+      } finally {
+        if (requestId === diffRequestRef.current) setDiffLoading(false);
       }
-      setDiffLoading(false);
     },
-    [owner, repo, filePath, shareId],
+    [owner, repo, branch, filePath, shareId],
   );
 
   return createPortal(
@@ -127,6 +159,16 @@ function HistoryPanel({
           <div className="w-full sm:w-72 sm:shrink-0 max-h-[40vh] sm:max-h-none overflow-y-auto border-b sm:border-b-0 sm:border-r border-zinc-200 dark:border-zinc-800">
             {loading ? (
               <div className="p-4 text-sm text-zinc-400">Loading commits...</div>
+            ) : historyError ? (
+              <div className="p-4 text-sm text-zinc-500 dark:text-zinc-400">
+                <p>{historyError}</p>
+                <button
+                  className="mt-3 rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                  onClick={() => setHistoryAttempt((attempt) => attempt + 1)}
+                >
+                  Retry
+                </button>
+              </div>
             ) : commits.length === 0 ? (
               <div className="p-4 text-sm text-zinc-400">No history found</div>
             ) : (
@@ -184,6 +226,12 @@ function HistoryPanel({
             {diffLoading && (
               <div className="flex flex-1 items-center justify-center text-sm text-zinc-400">
                 Loading diff...
+              </div>
+            )}
+
+            {diffError && !diffLoading && (
+              <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-red-600 dark:text-red-400">
+                {diffError} Select the commit again to retry.
               </div>
             )}
 

@@ -11,6 +11,7 @@ export function NewCommentForm({
   branch,
   filePath,
   parentId,
+  shareId,
   onOptimistic,
   toast,
   onSubmit,
@@ -22,7 +23,8 @@ export function NewCommentForm({
   branch: string;
   filePath: string;
   parentId: string | null;
-  onOptimistic?: (comment: Comment) => void;
+  shareId?: string;
+  onOptimistic?: (comment: Comment) => () => void;
   toast: (
     message: string,
     type?: "success" | "error" | "info",
@@ -57,6 +59,7 @@ export function NewCommentForm({
     const text = body.trim();
 
     // Optimistic insert: add a temporary comment to the list immediately
+    let rollbackOptimistic: (() => void) | undefined;
     if (onOptimistic) {
       const tempComment: Comment = {
         id: `temp-${Date.now()}`,
@@ -74,25 +77,29 @@ export function NewCommentForm({
         updated_at: new Date().toISOString(),
         replies: [],
       };
-      onOptimistic(tempComment);
+      rollbackOptimistic = onOptimistic(tempComment);
     }
 
-    // Clear form and draft immediately
-    setBody("");
-    sessionStorage.removeItem(storageKey);
-
     startTransition(async () => {
-      await addComment({
-        repo,
-        branch,
-        filePath,
-        quote,
-        quoteContext,
-        body: text,
-        parentId,
-      });
-      toast("Comment added", "success");
-      onSubmit();
+      try {
+        await addComment({
+          repo,
+          branch,
+          filePath,
+          quote,
+          quoteContext,
+          body: text,
+          parentId,
+          shareId,
+        });
+        setBody("");
+        sessionStorage.removeItem(storageKey);
+        toast("Comment added", "success");
+        onSubmit();
+      } catch {
+        rollbackOptimistic?.();
+        toast("Could not add comment. Your draft is still here.", "error");
+      }
     });
   };
 
@@ -115,6 +122,7 @@ export function NewCommentForm({
         placeholder={parentId ? "Reply..." : "Add a comment..."}
         className="w-full resize-none rounded-md border border-zinc-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-blue-400 dark:border-zinc-700"
         rows={2}
+        maxLength={10_000}
       />
       <div className="mt-2 flex items-center justify-between">
         <span className="text-xs text-zinc-400">

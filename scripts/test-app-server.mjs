@@ -84,6 +84,20 @@ async function startGitHubServer() {
       return;
     }
 
+    const userByIdMatch = url.pathname.match(/^\/user\/(\d+)$/);
+    if (request.method === "GET" && userByIdMatch) {
+      const user = [
+        ...Object.values(githubFixture.users),
+        ...githubFixture.searchUsers,
+      ].find((item) => String(item.id) === userByIdMatch[1]);
+      if (!user) {
+        json(response, 404, { error: "not found" });
+        return;
+      }
+      json(response, 200, user);
+      return;
+    }
+
     const repoMatch = url.pathname.match(/^\/repos\/([^/]+)\/([^/]+)$/);
     if (request.method === "GET" && repoMatch) {
       const [, owner, repo] = repoMatch;

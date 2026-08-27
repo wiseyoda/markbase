@@ -4,13 +4,88 @@ import {
   getComments,
   getCommentsByPrefix,
   getCommentById,
+  getCommentsByIds,
   createComment,
   resolveComment,
   resolveComments,
   unresolveComment,
   softDeleteComment,
 } from "@/lib/comments";
+import {
+  authorizeMcpRepositoryAccess,
+  authorizeMcpResourceAccess,
+  repositoryFromFileKey,
+  type ResourceAccess,
+} from "@/lib/resource-access";
 import type { McpToolDefinition, McpContext } from "./types";
+
+async function authorizeToolRepository(repo: string, ctx: McpContext) {
+  return authorizeMcpRepositoryAccess(repo, ctx);
+}
+
+async function authorizeToolResource(
+  resource: { repo: string; branch: string; path?: string | null },
+  ctx: McpContext,
+) {
+  return authorizeMcpResourceAccess(resource, ctx);
+}
+
+async function getToolComment(commentId: string) {
+  if (
+    typeof commentId !== "string" ||
+    !commentId ||
+    commentId.length > 100
+  ) {
+    throw new Error("Invalid comment ID");
+  }
+  const comment = await getCommentById(commentId);
+  if (!comment) throw new Error("Comment not found or not authorized");
+  return {
+    comment,
+    repo: repositoryFromFileKey(comment.file_key),
+  };
+}
+
+async function getAuthorizedToolComment(commentId: string, ctx: McpContext) {
+  const { comment, repo } = await getToolComment(commentId);
+  const access = await authorizeToolRepository(repo, ctx);
+  return { comment, access };
+}
+
+function requireCommentMutationPermission(
+  comment: { author_id: string },
+  access: ResourceAccess,
+) {
+  if (comment.author_id !== access.actorId && !access.canModerate) {
+    throw new Error("Comment not found or not authorized");
+  }
+}
+
+function requireString(
+  value: unknown,
+  field: string,
+  allowEmpty = false,
+  maxLength = 1_000,
+): string {
+  if (
+    typeof value !== "string" ||
+    (!allowEmpty && !value.trim()) ||
+    value.length > maxLength
+  ) {
+    throw new Error(`Invalid ${field}`);
+  }
+  return value;
+}
+
+function optionalString(
+  value: unknown,
+  field: string,
+  allowEmpty = false,
+  maxLength = 1_000,
+): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  return requireString(value, field, allowEmpty, maxLength);
+}
 
 const TOOLS: McpToolDefinition[] = [
   {
@@ -37,10 +112,14 @@ const TOOLS: McpToolDefinition[] = [
       },
       required: ["repo"],
     },
-    async execute(args) {
-      const repo = args.repo as string;
-      const branch = (args.branch as string) || "main";
-      const folder = (args.folder as string) || "";
+    async execute(args, ctx) {
+      const repo = requireString(args.repo, "repo");
+      const branch = optionalString(args.branch, "branch") || "main";
+      const folder = optionalString(args.folder, "folder", true) || "";
+      await authorizeToolResource(
+        { repo, branch, path: folder || null },
+        ctx,
+      );
       const prefix = `${repo}/${branch}/${folder}`;
 
       const counts = await countOpenComments(prefix);
@@ -97,13 +176,26 @@ const TOOLS: McpToolDefinition[] = [
       },
       required: ["repo", "path"],
     },
-    async execute(args) {
-      const repo = args.repo as string;
-      const branch = (args.branch as string) || "main";
-      const path = args.path as string;
-      const includeResolved = (args.include_resolved as boolean) || false;
-      const limit = (args.limit as number) || 50;
-      const cursor = args.cursor as string | undefined;
+    async execute(args, ctx) {
+      const repo = requireString(args.repo, "repo");
+      const branch = optionalString(args.branch, "branch") || "main";
+      const path = requireString(args.path, "path", true);
+      await authorizeToolResource({ repo, branch, path }, ctx);
+      if (
+        args.include_resolved !== undefined &&
+        typeof args.include_resolved !== "boolean"
+      ) {
+        throw new Error("Invalid include_resolved");
+      }
+      const includeResolved = args.include_resolved === true;
+      const limit = args.limit === undefined ? 50 : args.limit;
+      if (!Number.isInteger(limit) || (limit as number) < 1 || (limit as number) > 100) {
+        throw new Error("limit must be an integer between 1 and 100");
+      }
+      const cursor = optionalString(args.cursor, "cursor");
+      if (cursor && Number.isNaN(Date.parse(cursor))) {
+        throw new Error("Invalid cursor");
+      }
 
       const isFolder = path.endsWith("/") || path === "";
       const fileKey = await buildFileKey(repo, branch, path);
@@ -111,7 +203,7 @@ const TOOLS: McpToolDefinition[] = [
       if (isFolder) {
         const result = await getCommentsByPrefix(fileKey, {
           includeResolved,
-          limit,
+          limit: limit as number,
           cursor,
         });
         return {
@@ -163,9 +255,11 @@ const TOOLS: McpToolDefinition[] = [
       required: ["repo", "file_path", "body"],
     },
     async execute(args, ctx) {
-      const repo = args.repo as string;
-      const branch = (args.branch as string) || "main";
-      const filePath = args.file_path as string;
+      const repo = requireString(args.repo, "repo");
+      const branch = optionalString(args.branch, "branch") || "main";
+      const filePath = requireString(args.file_path, "file_path");
+      const body = requireString(args.body, "body", false, 10_000);
+      await authorizeToolResource({ repo, branch, path: filePath }, ctx);
       const fileKey = await buildFileKey(repo, branch, filePath);
 
       const comment = await createComment({
@@ -173,9 +267,10 @@ const TOOLS: McpToolDefinition[] = [
         authorId: ctx.userId,
         authorName: ctx.userName,
         authorAvatar: ctx.userAvatar,
-        quote: (args.quote as string) || null,
-        quoteContext: (args.quote_context as string) || null,
-        body: args.body as string,
+        quote: optionalString(args.quote, "quote", true, 20_000) || null,
+        quoteContext:
+          optionalString(args.quote_context, "quote_context", true, 256) || null,
+        body,
         parentId: null,
       });
 
@@ -199,9 +294,10 @@ const TOOLS: McpToolDefinition[] = [
     },
     async execute(args, ctx) {
       const parentId = args.comment_id as string;
-      const parent = await getCommentById(parentId);
-      if (!parent) {
-        throw new Error(`Comment ${parentId} not found`);
+      const body = requireString(args.body, "body", false, 10_000);
+      const { comment: parent } = await getAuthorizedToolComment(parentId, ctx);
+      if (parent.parent_id !== null) {
+        throw new Error("Replies can only be added to top-level comments");
       }
 
       const comment = await createComment({
@@ -211,7 +307,7 @@ const TOOLS: McpToolDefinition[] = [
         authorAvatar: ctx.userAvatar,
         quote: null,
         quoteContext: null,
-        body: args.body as string,
+        body,
         parentId,
       });
 
@@ -230,7 +326,10 @@ const TOOLS: McpToolDefinition[] = [
       required: ["comment_id"],
     },
     async execute(args, ctx) {
-      const ok = await resolveComment(args.comment_id as string, ctx.userId);
+      const commentId = args.comment_id as string;
+      const { comment, access } = await getAuthorizedToolComment(commentId, ctx);
+      requireCommentMutationPermission(comment, access);
+      const ok = await resolveComment(commentId, ctx.userId);
       if (!ok) {
         throw new Error("Comment not found or already resolved");
       }
@@ -256,9 +355,43 @@ const TOOLS: McpToolDefinition[] = [
     },
     async execute(args, ctx) {
       const ids = args.comment_ids as string[];
-      const resolvedIds = await resolveComments(ids, ctx.userId);
-      const failed = ids.filter((id) => !resolvedIds.includes(id));
-      return { resolved: resolvedIds.length, failed, total: ids.length };
+      if (
+        !Array.isArray(ids) ||
+        ids.length > 100 ||
+        ids.some((id) => typeof id !== "string" || !id)
+      ) {
+        throw new Error("comment_ids must contain at most 100 valid IDs");
+      }
+      const uniqueIds = [...new Set(ids)];
+      const loadedComments = await getCommentsByIds(uniqueIds);
+      if (loadedComments.length !== uniqueIds.length) {
+        throw new Error("Comment not found or not authorized");
+      }
+      const byId = new Map(loadedComments.map((comment) => [comment.id, comment]));
+      const comments = uniqueIds.map((id) => {
+        const comment = byId.get(id)!;
+        return { comment, repo: repositoryFromFileKey(comment.file_key) };
+      });
+      const repositories = [...new Set(comments.map(({ repo }) => repo))];
+      const accessEntries: Array<readonly [string, ResourceAccess]> = [];
+      for (let index = 0; index < repositories.length; index += 3) {
+        const chunk = repositories.slice(index, index + 3);
+        accessEntries.push(
+          ...(await Promise.all(
+            chunk.map(async (repo) => [
+              repo,
+              await authorizeToolRepository(repo, ctx),
+            ] as const),
+          )),
+        );
+      }
+      const accessByRepo = new Map(accessEntries);
+      for (const { comment, repo } of comments) {
+        requireCommentMutationPermission(comment, accessByRepo.get(repo)!);
+      }
+      const resolvedIds = await resolveComments(uniqueIds, ctx.userId);
+      const failed = uniqueIds.filter((id) => !resolvedIds.includes(id));
+      return { resolved: resolvedIds.length, failed, total: uniqueIds.length };
     },
   },
 
@@ -283,10 +416,15 @@ const TOOLS: McpToolDefinition[] = [
     },
     async execute(args, ctx) {
       const parentId = args.comment_id as string;
-      const parent = await getCommentById(parentId);
-      if (!parent) {
-        throw new Error(`Comment ${parentId} not found`);
+      const body = requireString(args.body, "body", false, 10_000);
+      const { comment: parent, access } = await getAuthorizedToolComment(
+        parentId,
+        ctx,
+      );
+      if (parent.parent_id !== null) {
+        throw new Error("Replies can only be added to top-level comments");
       }
+      requireCommentMutationPermission(parent, access);
 
       const reply = await createComment({
         fileKey: parent.file_key,
@@ -295,7 +433,7 @@ const TOOLS: McpToolDefinition[] = [
         authorAvatar: ctx.userAvatar,
         quote: null,
         quoteContext: null,
-        body: args.body as string,
+        body,
         parentId,
       });
 
@@ -315,8 +453,11 @@ const TOOLS: McpToolDefinition[] = [
       },
       required: ["comment_id"],
     },
-    async execute(args) {
-      const ok = await unresolveComment(args.comment_id as string);
+    async execute(args, ctx) {
+      const commentId = args.comment_id as string;
+      const { comment, access } = await getAuthorizedToolComment(commentId, ctx);
+      requireCommentMutationPermission(comment, access);
+      const ok = await unresolveComment(commentId);
       if (!ok) {
         throw new Error("Comment not found or not resolved");
       }
@@ -328,29 +469,23 @@ const TOOLS: McpToolDefinition[] = [
     name: "delete_comment",
     description:
       "Delete a comment. Authors can delete their own comments. " +
-      "Repo owners can delete any comment if repo_owner is provided.",
+      "Repository maintainers can delete any comment.",
     inputSchema: {
       type: "object",
       properties: {
         comment_id: { type: "string", description: "ID of the comment" },
-        repo_owner: {
-          type: "string",
-          description:
-            "GitHub username of the repo owner (enables owner-level delete)",
-        },
       },
       required: ["comment_id"],
     },
     async execute(args, ctx) {
-      const repoOwner = args.repo_owner as string | undefined;
-      const isOwner = repoOwner
-        ? ctx.userLogin.toLowerCase() === repoOwner.toLowerCase()
-        : false;
+      const commentId = args.comment_id as string;
+      const { comment, access } = await getAuthorizedToolComment(commentId, ctx);
+      requireCommentMutationPermission(comment, access);
 
       const ok = await softDeleteComment(
-        args.comment_id as string,
+        commentId,
         ctx.userId,
-        isOwner,
+        access.canModerate,
       );
       if (!ok) {
         throw new Error("Comment not found or not authorized to delete");

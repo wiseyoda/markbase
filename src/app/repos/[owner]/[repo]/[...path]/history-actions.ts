@@ -1,18 +1,11 @@
 "use server";
 
-import { auth } from "@/auth";
 import { getFileHistory, getFileAtCommit } from "@/lib/github";
-import { getShare } from "@/lib/shares";
 import type { FileCommit } from "@/lib/github";
-
-async function resolveToken(shareId?: string): Promise<string | null> {
-  if (shareId) {
-    const share = await getShare(shareId);
-    if (share?.accessToken) return share.accessToken;
-  }
-  const session = await auth();
-  return session?.accessToken || null;
-}
+import {
+  authorizeResourceAccess,
+  ResourceAccessError,
+} from "@/lib/resource-access";
 
 export async function fetchFileHistory(
   owner: string,
@@ -21,19 +14,34 @@ export async function fetchFileHistory(
   filePath: string,
   shareId?: string,
 ): Promise<FileCommit[]> {
-  const token = await resolveToken(shareId);
-  if (!token) return [];
-  return getFileHistory(token, owner, repo, branch, filePath);
+  const access = await authorizeResourceAccess(
+    { repo: `${owner}/${repo}`, branch, path: filePath },
+    { shareId },
+  );
+  return getFileHistory(access.accessToken, owner, repo, branch, filePath);
 }
 
 export async function fetchFileAtCommit(
   owner: string,
   repo: string,
+  branch: string,
   sha: string,
   filePath: string,
   shareId?: string,
 ): Promise<string | null> {
-  const token = await resolveToken(shareId);
-  if (!token) return null;
-  return getFileAtCommit(token, owner, repo, sha, filePath);
+  const access = await authorizeResourceAccess(
+    { repo: `${owner}/${repo}`, branch, path: filePath },
+    { shareId },
+  );
+  const authorizedHistory = await getFileHistory(
+    access.accessToken,
+    owner,
+    repo,
+    branch,
+    filePath,
+  );
+  if (!authorizedHistory.some((commit) => commit.sha === sha)) {
+    throw new ResourceAccessError();
+  }
+  return getFileAtCommit(access.accessToken, owner, repo, sha, filePath);
 }

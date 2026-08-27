@@ -62,7 +62,34 @@ test("lets an authenticated user add a repo, browse markdown, inspect history, a
   await page.getByRole("button", { name: /Refine README details/i }).click();
   await expect(page.getByText("Latest detail here.")).toBeVisible();
   await page.getByRole("button", { name: "Diff" }).click();
-  await page.getByRole("button", { name: /close/i }).click();
+  const historyDialog = page.getByRole("dialog", { name: "File History" });
+  await historyDialog
+    .getByRole("button", { name: "Close history panel" })
+    .click();
+  await expect(historyDialog).toBeHidden();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const filesDialog = page.getByRole("dialog", { name: "Files" });
+  if (await filesDialog.isVisible()) {
+    await filesDialog.getByRole("button", { name: "Close" }).click();
+    await expect(filesDialog).toBeHidden();
+  }
+  await page.getByRole("button", { name: "Comments", exact: true }).click();
+  await page.getByRole("button", { name: "Add comment" }).click();
+  await page.getByPlaceholder("Add a comment...").fill(
+    "Authorization boundary verified end to end.",
+  );
+  await page.getByRole("button", { name: "Comment", exact: true }).click();
+  await expect(
+    page.locator("p").filter({
+      hasText: /^Authorization boundary verified end to end\.$/,
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Resolve", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Comments", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
 
   await page.getByRole("button", { name: "Share" }).click();
   await page.getByRole("button", { name: "Create share link" }).click();

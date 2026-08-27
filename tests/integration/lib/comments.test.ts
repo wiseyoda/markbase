@@ -10,6 +10,7 @@ import {
   getRecentCommentsForRepos,
   getCommentById,
   getComments,
+  getCommentsByIds,
   getCommentsByPrefix,
   purgeComment,
   purgeDeletedComments,
@@ -55,6 +56,33 @@ describe("comments", () => {
       id: parent.id,
       body: "Parent comment",
     });
+  });
+
+  it("validates comment content at the shared data boundary", async () => {
+    const fileKey = await buildFileKey("owner-user/notes", "main", "README.md");
+    const base = {
+      fileKey,
+      authorId: "1",
+      authorName: "Owner User",
+      authorAvatar: null,
+      quote: null,
+      quoteContext: null,
+      parentId: null,
+    };
+
+    await expect(createComment({ ...base, body: "   " })).rejects.toThrow(
+      "Comment body must be between 1 and 10000 characters",
+    );
+    await expect(
+      createComment({ ...base, body: "Valid", quote: "x".repeat(20_001) }),
+    ).rejects.toThrow("Comment quote must not exceed 20000 characters");
+    await expect(
+      createComment({
+        ...base,
+        body: "Valid",
+        quoteContext: "x".repeat(257),
+      }),
+    ).rejects.toThrow("Comment quote context must not exceed 256 characters");
   });
 
   it("resolves, unreolves, filters, and aggregates comments", async () => {
@@ -124,6 +152,8 @@ describe("comments", () => {
       nextCursor: null,
     });
     expect(await resolveComments([], "1")).toEqual([]);
+    await expect(getCommentsByIds([a.id, b.id])).resolves.toHaveLength(2);
+    await expect(getCommentsByIds([])).resolves.toEqual([]);
 
     const paged = await getCommentsByPrefix("owner-user/notes/main/", {
       includeResolved: true,

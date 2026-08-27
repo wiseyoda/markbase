@@ -8,22 +8,36 @@ const {
   mockGetComments,
   mockGetCommentsByPrefix,
   mockGetCommentById,
+  mockGetCommentsByIds,
   mockCreateComment,
   mockResolveComment,
   mockResolveComments,
   mockUnresolveComment,
   mockSoftDeleteComment,
+  mockAuthorizeMcpRepositoryAccess,
+  mockAuthorizeMcpResourceAccess,
+  mockRepositoryFromFileKey,
 } = vi.hoisted(() => ({
   mockBuildFileKey: vi.fn(),
   mockCountOpenComments: vi.fn(),
   mockGetComments: vi.fn(),
   mockGetCommentsByPrefix: vi.fn(),
   mockGetCommentById: vi.fn(),
+  mockGetCommentsByIds: vi.fn(),
   mockCreateComment: vi.fn(),
   mockResolveComment: vi.fn(),
   mockResolveComments: vi.fn(),
   mockUnresolveComment: vi.fn(),
   mockSoftDeleteComment: vi.fn(),
+  mockAuthorizeMcpRepositoryAccess: vi.fn(),
+  mockAuthorizeMcpResourceAccess: vi.fn(),
+  mockRepositoryFromFileKey: vi.fn(),
+}));
+
+vi.mock("@/lib/resource-access", () => ({
+  authorizeMcpRepositoryAccess: mockAuthorizeMcpRepositoryAccess,
+  authorizeMcpResourceAccess: mockAuthorizeMcpResourceAccess,
+  repositoryFromFileKey: mockRepositoryFromFileKey,
 }));
 
 vi.mock("@/lib/comments", () => ({
@@ -32,6 +46,7 @@ vi.mock("@/lib/comments", () => ({
   getComments: mockGetComments,
   getCommentsByPrefix: mockGetCommentsByPrefix,
   getCommentById: mockGetCommentById,
+  getCommentsByIds: mockGetCommentsByIds,
   createComment: mockCreateComment,
   resolveComment: mockResolveComment,
   resolveComments: mockResolveComments,
@@ -52,6 +67,23 @@ const context = {
 describe("MCP tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuthorizeMcpRepositoryAccess.mockResolvedValue({
+      actorId: "1",
+      canModerate: true,
+    });
+    mockAuthorizeMcpResourceAccess.mockResolvedValue({
+      actorId: "1",
+      canModerate: true,
+    });
+    mockRepositoryFromFileKey.mockReturnValue("owner/repo");
+    mockGetCommentsByIds.mockImplementation(async (ids: string[]) =>
+      ids.map((id) => ({
+        id,
+        file_key: "owner/repo/main/README.md",
+        author_id: "1",
+        parent_id: null,
+      })),
+    );
   });
 
   it("lists tools", () => {
@@ -167,7 +199,9 @@ describe("MCP tools", () => {
     });
     mockGetCommentById.mockResolvedValue({
       id: "parent",
-      file_key: "key",
+      file_key: "owner/repo/main/README.md",
+      author_id: "1",
+      parent_id: null,
     });
     mockResolveComment.mockResolvedValue(true);
     mockResolveComments.mockResolvedValue(["1"]);
@@ -257,7 +291,14 @@ describe("MCP tools", () => {
 
     await expect(
       executeTool("reply_to_comment", { comment_id: "missing", body: "Reply" }, context),
-    ).rejects.toThrow("Comment missing not found");
+    ).rejects.toThrow("Comment not found or not authorized");
+
+    mockGetCommentById.mockResolvedValue({
+      id: "1",
+      file_key: "owner/repo/main/README.md",
+      author_id: "1",
+      parent_id: null,
+    });
     await expect(
       executeTool("resolve_comment", { comment_id: "1" }, context),
     ).rejects.toThrow("Comment not found or already resolved");
@@ -270,13 +311,142 @@ describe("MCP tools", () => {
     await expect(
       executeTool("unknown_tool", {}, context),
     ).rejects.toThrow("Unknown tool: unknown_tool");
+
+    mockGetCommentById.mockResolvedValue(null);
     await expect(
       executeTool(
         "reply_and_resolve",
         { comment_id: "missing", body: "Resolved" },
         context,
       ),
-    ).rejects.toThrow("Comment missing not found");
+    ).rejects.toThrow("Comment not found or not authorized");
+  });
+
+  it("validates MCP resource, comment, and pagination inputs", async () => {
+    await expect(
+      executeTool(
+        "add_comment",
+        { repo: "owner/repo", file_path: "README.md", body: "" },
+        context,
+      ),
+    ).rejects.toThrow("Invalid body");
+    await expect(
+      executeTool(
+        "get_comments",
+        { repo: "owner/repo", path: "README.md", limit: 101 },
+        context,
+      ),
+    ).rejects.toThrow("limit must be an integer between 1 and 100");
+    mockAuthorizeMcpResourceAccess.mockRejectedValueOnce(
+      new Error("Invalid path"),
+    );
+    await expect(
+      executeTool(
+        "get_comments",
+        { repo: "owner/repo", path: "../secret.md" },
+        context,
+      ),
+    ).rejects.toThrow("Invalid path");
+    expect(mockCreateComment).not.toHaveBeenCalled();
+    expect(mockGetComments).not.toHaveBeenCalled();
+  });
+
+  it("denies repository and comment access before reading or mutating data", async () => {
+    mockAuthorizeMcpResourceAccess.mockRejectedValue(
+      new Error("Repository access could not be verified"),
+    );
+    mockAuthorizeMcpRepositoryAccess.mockRejectedValue(
+      new Error("Repository access could not be verified"),
+    );
+
+    await expect(
+      executeTool("get_comments", { repo: "blocked/private", path: "README.md" }, context),
+    ).rejects.toThrow("Repository access could not be verified");
+    expect(mockGetComments).not.toHaveBeenCalled();
+
+    mockGetCommentById.mockResolvedValue({
+      id: "foreign",
+      file_key: "blocked/private/main/README.md",
+      author_id: "2",
+      parent_id: null,
+    });
+    await expect(
+      executeTool("resolve_comment", { comment_id: "foreign" }, context),
+    ).rejects.toThrow("Repository access could not be verified");
+    expect(mockResolveComment).not.toHaveBeenCalled();
+  });
+
+  it("denies resolution changes by read-only non-authors", async () => {
+    mockAuthorizeMcpRepositoryAccess.mockResolvedValue({
+      actorId: "1",
+      canModerate: false,
+    });
+    mockGetCommentById.mockResolvedValue({
+      id: "other-comment",
+      file_key: "owner/repo/main/README.md",
+      author_id: "2",
+      parent_id: null,
+    });
+    mockGetCommentsByIds.mockResolvedValue([
+      {
+        id: "other-comment",
+        file_key: "owner/repo/main/README.md",
+        author_id: "2",
+        parent_id: null,
+      },
+    ]);
+
+    for (const [name, args] of [
+      ["resolve_comment", { comment_id: "other-comment" }],
+      ["unresolve_comment", { comment_id: "other-comment" }],
+      ["reply_and_resolve", { comment_id: "other-comment", body: "Reply" }],
+      ["bulk_resolve_comments", { comment_ids: ["other-comment"] }],
+    ] as const) {
+      await expect(executeTool(name, args, context)).rejects.toThrow(
+        "Comment not found or not authorized",
+      );
+    }
+    expect(mockResolveComment).not.toHaveBeenCalled();
+    expect(mockUnresolveComment).not.toHaveBeenCalled();
+    expect(mockResolveComments).not.toHaveBeenCalled();
+  });
+
+  it("rejects nested replies and bounds bulk resolution work", async () => {
+    mockGetCommentById.mockResolvedValue({
+      id: "reply",
+      file_key: "owner/repo/main/README.md",
+      author_id: "1",
+      parent_id: "parent",
+    });
+    await expect(
+      executeTool(
+        "reply_to_comment",
+        { comment_id: "reply", body: "Nested" },
+        context,
+      ),
+    ).rejects.toThrow("Replies can only be added to top-level comments");
+
+    await expect(
+      executeTool(
+        "bulk_resolve_comments",
+        { comment_ids: Array.from({ length: 101 }, (_, index) => String(index)) },
+        context,
+      ),
+    ).rejects.toThrow("at most 100 valid IDs");
+  });
+
+  it("authorizes each repository once during bulk resolution", async () => {
+    mockResolveComments.mockResolvedValue(["1", "2"]);
+
+    await executeTool(
+      "bulk_resolve_comments",
+      { comment_ids: ["1", "2", "2"] },
+      context,
+    );
+
+    expect(mockAuthorizeMcpRepositoryAccess).toHaveBeenCalledTimes(1);
+    expect(mockGetCommentsByIds).toHaveBeenCalledWith(["1", "2"]);
+    expect(mockResolveComments).toHaveBeenCalledWith(["1", "2"], "1");
   });
 
   it("formats replies when reading comments", async () => {

@@ -17,6 +17,7 @@ export function CommentThread({
   repo,
   branch,
   filePath,
+  shareId,
   onUpdate,
   toast,
 }: {
@@ -24,6 +25,7 @@ export function CommentThread({
   repo: string;
   branch: string;
   filePath: string;
+  shareId?: string;
   onUpdate: () => void;
   toast: (
     message: string,
@@ -37,29 +39,42 @@ export function CommentThread({
 
   const handleResolve = () => {
     startTransition(async () => {
-      if (comment.resolved_at) {
-        await unresolveCommentAction(comment.id, repo.split("/")[0]);
+      try {
+        const resource = { repo, branch, filePath, shareId };
+        const changed = comment.resolved_at
+          ? await unresolveCommentAction(comment.id, resource)
+          : await resolveCommentAction(comment.id, resource);
+        if (!changed) throw new Error("Comment state did not change");
         onUpdate();
-      } else {
-        await resolveCommentAction(comment.id);
-        onUpdate();
-        toast("Comment resolved", "success");
+        toast(comment.resolved_at ? "Comment reopened" : "Comment resolved", "success");
+      } catch {
+        toast("Could not update this comment.", "error");
       }
     });
   };
 
   const handleDelete = () => {
     startTransition(async () => {
-      const repoOwner = repo.split("/")[0];
-      await deleteCommentAction(comment.id, repoOwner);
-      setDeleteOpen(false);
-      onUpdate();
-      toast("Comment deleted", "info", {
-        label: "Undo",
-        onClick: () => {
-          restoreCommentAction(comment.id, repoOwner).then(() => onUpdate());
-        },
-      });
+      try {
+        const resource = { repo, branch, filePath, shareId };
+        const deleted = await deleteCommentAction(comment.id, resource);
+        if (!deleted) throw new Error("Comment was not deleted");
+        setDeleteOpen(false);
+        onUpdate();
+        toast("Comment deleted", "info", {
+          label: "Undo",
+          onClick: () => {
+            restoreCommentAction(comment.id, resource)
+              .then((restored) => {
+                if (!restored) throw new Error("Comment was not restored");
+                onUpdate();
+              })
+              .catch(() => toast("Could not restore this comment.", "error"));
+          },
+        });
+      } catch {
+        toast("Could not delete this comment.", "error");
+      }
     });
   };
 
@@ -186,6 +201,7 @@ export function CommentThread({
             branch={branch}
             filePath={filePath}
             parentId={comment.id}
+            shareId={shareId}
             toast={toast}
             onSubmit={() => {
               setShowReply(false);

@@ -43,12 +43,23 @@ export async function createComment(opts: {
   body: string;
   parentId: string | null;
 }): Promise<Comment> {
+  const body = opts.body.trim();
+  if (!body || body.length > 10_000) {
+    throw new Error("Comment body must be between 1 and 10000 characters");
+  }
+  if (opts.quote && opts.quote.length > 20_000) {
+    throw new Error("Comment quote must not exceed 20000 characters");
+  }
+  if (opts.quoteContext && opts.quoteContext.length > 256) {
+    throw new Error("Comment quote context must not exceed 256 characters");
+  }
+
   const db = getDb();
   const id = nanoid(12);
 
   const rows = await db`
     INSERT INTO comments (id, file_key, author_id, author_name, author_avatar, quote, quote_context, body, parent_id)
-    VALUES (${id}, ${opts.fileKey}, ${opts.authorId}, ${opts.authorName}, ${opts.authorAvatar}, ${opts.quote}, ${opts.quoteContext}, ${opts.body}, ${opts.parentId})
+    VALUES (${id}, ${opts.fileKey}, ${opts.authorId}, ${opts.authorName}, ${opts.authorAvatar}, ${opts.quote}, ${opts.quoteContext}, ${body}, ${opts.parentId})
     RETURNING *
   `;
 
@@ -206,6 +217,16 @@ export async function getCommentById(
     ? await db`SELECT * FROM comments WHERE id = ${commentId}`
     : await db`SELECT * FROM comments WHERE id = ${commentId} AND deleted_at IS NULL`;
   return rows.length > 0 ? rowToComment(rows[0]) : null;
+}
+
+export async function getCommentsByIds(commentIds: string[]): Promise<Comment[]> {
+  if (commentIds.length === 0) return [];
+  const db = getDb();
+  const rows = await db`
+    SELECT * FROM comments
+    WHERE id = ANY(${commentIds}) AND deleted_at IS NULL
+  `;
+  return rows.map(rowToComment);
 }
 
 /**

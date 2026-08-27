@@ -39,6 +39,7 @@ interface CommentRailProps {
   filePath: string;
   articleId: string;
   initialComments?: Comment[];
+  shareId?: string;
 }
 
 export function CommentRail({
@@ -47,6 +48,7 @@ export function CommentRail({
   filePath,
   articleId,
   initialComments,
+  shareId,
 }: CommentRailProps) {
   const { open, setOpen, setCount } = useContext(CommentContext);
   const { toast } = useToast();
@@ -77,13 +79,16 @@ export function CommentRail({
   };
 
   const loadComments = useCallback(async () => {
-    const data = await fetchComments(repo, branch, filePath);
+    const data = await fetchComments(repo, branch, filePath, shareId);
     setComments(data);
-  }, [repo, branch, filePath]);
+  }, [repo, branch, filePath, shareId]);
 
   // Optimistic: add a temp comment to local state immediately
   const addOptimisticComment = useCallback((tempComment: Comment) => {
     setComments((prev) => [...prev, tempComment]);
+    return () => {
+      setComments((prev) => prev.filter((comment) => comment.id !== tempComment.id));
+    };
   }, []);
 
   // Keep context count in sync with unresolved comments
@@ -103,23 +108,23 @@ export function CommentRail({
   useEffect(() => {
     if (initialComments && initialComments.length > 0) return;
     let cancelled = false;
-    withRetry(() => fetchComments(repo, branch, filePath))
+    withRetry(() => fetchComments(repo, branch, filePath, shareId))
       .then((data) => {
         if (!cancelled) setComments(data);
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [repo, branch, filePath, initialComments]);
+  }, [repo, branch, filePath, shareId, initialComments]);
 
   // Poll for live comment updates every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      withRetry(() => fetchComments(repo, branch, filePath))
+      withRetry(() => fetchComments(repo, branch, filePath, shareId))
         .then(setComments)
         .catch(() => {});
     }, 30000);
     return () => clearInterval(interval);
-  }, [repo, branch, filePath]);
+  }, [repo, branch, filePath, shareId]);
 
   // Highlight commented text in the article
   useEffect(() => {
@@ -291,6 +296,7 @@ export function CommentRail({
           branch={branch}
           filePath={filePath}
           parentId={null}
+          shareId={shareId}
           onOptimistic={addOptimisticComment}
           toast={toast}
           onSubmit={() => {
@@ -323,6 +329,7 @@ export function CommentRail({
           repo={repo}
           branch={branch}
           filePath={filePath}
+          shareId={shareId}
           onUpdate={loadComments}
           toast={toast}
         />
@@ -347,6 +354,7 @@ export function CommentRail({
               repo={repo}
               branch={branch}
               filePath={filePath}
+              shareId={shareId}
               onUpdate={loadComments}
               toast={toast}
             />
@@ -450,6 +458,7 @@ export function CommentRail({
               branch={branch}
               filePath={filePath}
               parentId={null}
+              shareId={shareId}
               onOptimistic={addOptimisticComment}
               toast={toast}
               onSubmit={() => {
@@ -493,6 +502,7 @@ export function CommentRail({
                         repo={repo}
                         branch={branch}
                         filePath={filePath}
+                        shareId={shareId}
                         onUpdate={loadComments}
                         toast={toast}
                       />
@@ -509,6 +519,7 @@ export function CommentRail({
                 repo={repo}
                 branch={branch}
                 filePath={filePath}
+                shareId={shareId}
                 onUpdate={loadComments}
                 toast={toast}
               />
@@ -527,6 +538,7 @@ export function CommentRail({
                     repo={repo}
                     branch={branch}
                     filePath={filePath}
+                    shareId={shareId}
                     onUpdate={loadComments}
                     toast={toast}
                   />
@@ -553,6 +565,7 @@ export function CommentRail({
                     repo={repo}
                     branch={branch}
                     filePath={filePath}
+                    shareId={shareId}
                     onUpdate={loadComments}
                     toast={toast}
                   />
