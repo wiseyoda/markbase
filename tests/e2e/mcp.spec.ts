@@ -16,10 +16,11 @@ test.beforeEach(async ({ request }) => {
 });
 
 test("completes the MCP OAuth and JSON-RPC flow", async ({ request }) => {
+  const redirectUri = "http://127.0.0.1:4711/callback";
   const register = await request.post("/api/mcp/register", {
     data: {
       client_name: "Playwright MCP",
-      redirect_uris: ["https://client.test/callback"],
+      redirect_uris: [redirectUri],
     },
   });
   expect(register.ok()).toBeTruthy();
@@ -27,7 +28,7 @@ test("completes the MCP OAuth and JSON-RPC flow", async ({ request }) => {
 
   const verifier = "verifier";
   const authorize = await request.get(
-    `/api/mcp/authorize?response_type=code&client_id=${registration.client_id}&redirect_uri=${encodeURIComponent("https://client.test/callback")}&state=client-state&code_challenge=${pkceChallenge(verifier)}&code_challenge_method=S256`,
+    `/api/mcp/authorize?response_type=code&client_id=${registration.client_id}&redirect_uri=${encodeURIComponent(redirectUri)}&state=client-state&code_challenge=${pkceChallenge(verifier)}&code_challenge_method=S256`,
     {
       maxRedirects: 0,
     },
@@ -50,7 +51,7 @@ test("completes the MCP OAuth and JSON-RPC flow", async ({ request }) => {
     data: {
       grant_type: "authorization_code",
       code,
-      redirect_uri: "https://client.test/callback",
+      redirect_uri: redirectUri,
       client_id: registration.client_id,
       code_verifier: verifier,
     },
