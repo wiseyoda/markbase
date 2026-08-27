@@ -2,6 +2,23 @@ import postgres from "postgres";
 
 let sql: ReturnType<typeof postgres> | null = null;
 
+const REQUIRED_TABLES = [
+  "comments",
+  "file_commit_summaries",
+  "file_section_hashes",
+  "file_summaries",
+  "file_views",
+  "share_visits",
+  "shares",
+  "synced_repos",
+  "users",
+] as const;
+
+export interface DbSchemaStatus {
+  ready: boolean;
+  missingTables: string[];
+}
+
 function ignoreNotice() {}
 
 /** Postgres error codes safe to ignore in idempotent migrations */
@@ -133,6 +150,20 @@ export async function withDbRetry<T>(fn: () => Promise<T>): Promise<T> {
     }
     throw error;
   }
+}
+
+/** Read-only readiness check used by deployment and local setup tooling. */
+export async function getDbSchemaStatus(): Promise<DbSchemaStatus> {
+  const db = getDb();
+  const rows = await db<{ table_name: string }[]>`
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = ANY(${[...REQUIRED_TABLES]})
+  `;
+  const present = new Set(rows.map((row) => row.table_name));
+  const missingTables = REQUIRED_TABLES.filter((table) => !present.has(table));
+  return { ready: missingTables.length === 0, missingTables };
 }
 
 export async function initDb() {

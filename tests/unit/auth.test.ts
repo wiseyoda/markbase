@@ -51,10 +51,13 @@ describe("auth", () => {
     delete env.GITHUB_BYPASS_LOGIN;
     delete env.NODE_ENV;
     delete env.MARKBASE_TEST_MODE;
+    env.MARKBASE_TEST_SECRET = "test-secret-that-is-at-least-32-characters";
+    delete env.VERCEL_ENV;
   });
 
   afterEach(() => {
     vi.clearAllMocks();
+    delete process.env.MARKBASE_TEST_SECRET;
   });
 
   it("uses the injected test session cookie in test mode", async () => {
@@ -86,6 +89,34 @@ describe("auth", () => {
         name: "Owner User",
       },
     });
+  });
+
+  it("ignores synthetic test sessions in production", async () => {
+    const productionSession = { user: { id: "production-user" } };
+    const nextAuthHandler = vi.fn().mockResolvedValue(productionSession);
+    nextAuthMock.mockReturnValue({
+      handlers: { GET: vi.fn(), POST: vi.fn() },
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+      auth: nextAuthHandler,
+    });
+    cookiesMock.mockResolvedValue({
+      get: () => ({
+        value: encodeTestAuthCookie({
+          id: "test-user",
+          login: "test-user",
+          name: "Test User",
+          accessToken: "test-token",
+        }),
+      }),
+    });
+    process.env.MARKBASE_TEST_MODE = "true";
+    process.env.VERCEL_ENV = "production";
+
+    const { auth } = await import("@/auth");
+
+    await expect(auth()).resolves.toEqual(productionSession);
+    expect(nextAuthHandler).toHaveBeenCalledOnce();
   });
 
   it("falls back to the bypass session when enabled", async () => {

@@ -23,6 +23,21 @@ test("renders the anonymous landing page", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: /sign in with github/i }).first(),
   ).toBeVisible();
+  await expect(page.getByText(/GitHub's current OAuth scope is broad/i)).toBeVisible();
+});
+
+test("publishes trust details without exposing database migration over HTTP", async ({
+  page,
+  request,
+}) => {
+  await page.goto("/security");
+
+  await expect(page.getByRole("heading", { name: "Security and data use" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "GitHub permissions" })).toBeVisible();
+  await expect(page.getByText(/does not commit, push, or modify repository contents/i)).toBeVisible();
+
+  const migrationRoute = await request.get("/api/init-db");
+  expect(migrationRoute.status()).toBe(404);
 });
 
 test("lets an authenticated user add a repo, browse markdown, inspect history, and open a link share", async ({

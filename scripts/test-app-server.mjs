@@ -1,4 +1,5 @@
 import http from "node:http";
+import { randomBytes } from "node:crypto";
 import { readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +20,7 @@ let githubServer;
 let nextProcess;
 let pgContainer;
 let postgresUrl;
+const testSecret = randomBytes(32).toString("hex");
 
 function json(response, status, body) {
   response.writeHead(status, {
@@ -254,6 +256,7 @@ async function startNext() {
     NEXTAUTH_URL: `http://127.0.0.1:${appPort}`,
     AUTH_TRUST_HOST: "true",
     MARKBASE_TEST_MODE: "true",
+    MARKBASE_TEST_SECRET: testSecret,
     POSTGRES_URL: postgresUrl,
     PRISMA_DATABASE_URL: postgresUrl,
     POSTGRES_SSL: "false",
@@ -281,6 +284,7 @@ async function waitForAppAndDatabase() {
     try {
       const response = await fetch(`${baseUrl}/api/test/reset`, {
         method: "POST",
+        headers: { "x-markbase-test-secret": testSecret },
       });
       if (response.ok) {
         return;
@@ -328,6 +332,7 @@ await writeFile(
   envFile,
   JSON.stringify({
     postgresUrl,
+    testSecret,
   }),
   "utf8",
 );

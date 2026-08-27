@@ -43,7 +43,7 @@ Markbase connects to your GitHub repos and gives your markdown files a proper re
 
 ### Production
 
-Sign in at **[markbase.io](https://markbase.io)** with your GitHub account. Read-only access — your repos stay untouched.
+Sign in at **[markbase.io](https://markbase.io)** with your GitHub account. The current OAuth scope is broad; Markbase only reads repository contents and never commits changes. See [Security and data use](https://markbase.io/security).
 
 ### Local Development
 
@@ -53,13 +53,15 @@ pnpm install
 
 # 2. Configure environment
 cp .env.example .env.local
-# Fill in values — see .env.example for docs
+# Fill in one documented auth mode plus database and encryption values
 
-# 3. Start dev server
+# 3. Verify config and prepare the database
+pnpm env:check
+pnpm db:migrate
+pnpm db:status
+
+# 4. Start dev server
 pnpm dev
-
-# 4. Run database migrations
-open http://localhost:3000/api/init-db
 ```
 
 For local dev without OAuth, set `AUTH_BYPASS=true` and `GITHUB_PAT` in `.env.local`.
@@ -85,7 +87,7 @@ claude mcp add --transport http markbase https://markbase.io/api/mcp
 ## Testing
 
 ```bash
-pnpm test:unit        # Vitest — 132 tests, 99%+ coverage
+pnpm test:unit        # Vitest unit + integration suite with coverage thresholds
 pnpm test:e2e         # Playwright — requires Docker + build
 ```
 
