@@ -15,9 +15,13 @@ test.beforeEach(async ({ request }) => {
 test("renders the anonymous landing page", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "markbase" })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /sign in with github/i }),
+    page.getByRole("heading", {
+      name: "Your markdown deserves better than raw GitHub.",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /sign in with github/i }).first(),
   ).toBeVisible();
 });
 
@@ -28,6 +32,7 @@ test("lets an authenticated user add a repo, browse markdown, inspect history, a
   await loginAs(page, ownerUser);
   await page.goto("/dashboard");
 
+  await page.getByRole("button", { name: "Browse repositories" }).click();
   await expect(page.getByRole("heading", { name: "All repositories" })).toBeVisible();
   await page.getByRole("button", { name: "Add" }).first().click();
 
@@ -62,6 +67,7 @@ test("enforces targeted share access", async ({
 }) => {
   await loginAs(page, ownerUser);
   await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Browse repositories" }).click();
   await page.getByRole("button", { name: "Add" }).first().click();
   await expect(page.getByRole("heading", { name: "Your repos" })).toBeVisible();
   await page.locator('a[href="/repos/owner-user/notes"]').first().click();
@@ -85,13 +91,17 @@ test("enforces targeted share access", async ({
   const anonymousContext = await browser.newContext();
   const anonymousPage = await anonymousContext.newPage();
   await anonymousPage.goto(`http://127.0.0.1:3101${targetedShareUrl}`);
-  await expect(anonymousPage.getByRole("heading", { name: "Page not found" })).toBeVisible();
+  await expect(
+    anonymousPage.getByRole("heading", { name: "Document not found" }),
+  ).toBeVisible();
   await anonymousContext.close();
 
   const otherContext = await newLoggedInContext(browser, otherUser);
   const otherPage = await otherContext.newPage();
   await otherPage.goto(`http://127.0.0.1:3101${targetedShareUrl}`);
-  await expect(otherPage.getByRole("heading", { name: "Page not found" })).toBeVisible();
+  await expect(
+    otherPage.getByRole("heading", { name: "Document not found" }),
+  ).toBeVisible();
   await otherContext.close();
 
   const recipientContext = await newLoggedInContext(browser, recipientUser, {

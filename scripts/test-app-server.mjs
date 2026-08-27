@@ -1,5 +1,5 @@
 import http from "node:http";
-import { readFile, unlink, writeFile } from "node:fs/promises";
+import { readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
@@ -92,7 +92,7 @@ async function startGitHubServer() {
         json(response, 404, { error: "not found" });
         return;
       }
-      json(response, 200, { default_branch: match.default_branch });
+      json(response, 200, match);
       return;
     }
 
@@ -262,6 +262,7 @@ async function startNext() {
     GITHUB_API_BASE_URL: `http://127.0.0.1:${githubPort}`,
     GITHUB_WEB_BASE_URL: `http://127.0.0.1:${githubPort}`,
     GITHUB_RAW_BASE_URL: `http://127.0.0.1:${githubPort}/raw`,
+    AI_SUMMARIES_ENABLED: "false",
     SHARE_ENCRYPTION_KEY:
       "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   };
@@ -330,6 +331,10 @@ await writeFile(
   }),
   "utf8",
 );
+await rm(resolve(rootDir, ".next/cache/fetch-cache"), {
+  recursive: true,
+  force: true,
+});
 await startNext();
 await waitForAppAndDatabase();
 
