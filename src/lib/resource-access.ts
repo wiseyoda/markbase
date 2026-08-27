@@ -256,3 +256,11 @@ export async function authorizeMcpRepositoryAccess(
     via: "mcp",
   };
 }
+
+export async function authorizeMcpResourceAccess(
+  resource: ResourceRef,
+  context: McpContext,
+): Promise<ResourceAccess> {
+  validateResourceRef(resource);
+  return authorizeMcpRepositoryAccess(resource.repo, context);
+}

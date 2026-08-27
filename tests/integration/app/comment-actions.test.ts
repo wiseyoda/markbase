@@ -114,6 +114,24 @@ describe("comment actions", () => {
     );
   });
 
+  it("resolveCommentAction rejects non-author non-moderators", async () => {
+    const created = await addComment({
+      ...resource,
+      quote: null,
+      quoteContext: null,
+      body: "Author-controlled resolution",
+      parentId: null,
+    });
+    authMock.mockResolvedValue({
+      accessToken: "other-token",
+      user: { id: "2", login: "other-user", name: "Other User", image: null },
+    });
+
+    await expect(resolveCommentAction(created.id, resource)).rejects.toThrow(
+      "Not authorized",
+    );
+  });
+
   it("restoreCommentAction rejects non-author non-owner", async () => {
     const created = await addComment({
       repo: "owner-user/notes",
@@ -187,7 +205,7 @@ describe("comment actions", () => {
     ).rejects.toThrow("Not authenticated");
   });
 
-  it("allows public-share reads only for the shared file", async () => {
+  it("requires identity for public-share comment reads and keeps file scope", async () => {
     const created = await addComment({
       ...resource,
       quote: null,
@@ -211,6 +229,14 @@ describe("comment actions", () => {
 
     await expect(
       fetchComments(resource.repo, resource.branch, resource.filePath, shareId),
+    ).rejects.toThrow("Not authenticated");
+
+    authMock.mockResolvedValue({
+      accessToken: "viewer-token",
+      user: { id: "2", login: "viewer", name: "Viewer", image: null },
+    });
+    await expect(
+      fetchComments(resource.repo, resource.branch, resource.filePath, shareId),
     ).resolves.toMatchObject([{ id: created.id }]);
     await expect(
       fetchComments(resource.repo, resource.branch, "SECRET.md", shareId),
@@ -230,6 +256,33 @@ describe("comment actions", () => {
       resolveCommentAction(created.id, {
         ...resource,
         filePath: "OTHER.md",
+      }),
+    ).rejects.toThrow("Not authorized");
+  });
+
+  it("rejects replies to replies so accepted comments remain visible", async () => {
+    const parent = await addComment({
+      ...resource,
+      quote: null,
+      quoteContext: null,
+      body: "Parent",
+      parentId: null,
+    });
+    const reply = await addComment({
+      ...resource,
+      quote: null,
+      quoteContext: null,
+      body: "Reply",
+      parentId: parent.id,
+    });
+
+    await expect(
+      addComment({
+        ...resource,
+        quote: null,
+        quoteContext: null,
+        body: "Nested reply",
+        parentId: reply.id,
       }),
     ).rejects.toThrow("Not authorized");
   });

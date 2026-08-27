@@ -2,7 +2,10 @@
 
 import { getFileHistory, getFileAtCommit } from "@/lib/github";
 import type { FileCommit } from "@/lib/github";
-import { authorizeResourceAccess } from "@/lib/resource-access";
+import {
+  authorizeResourceAccess,
+  ResourceAccessError,
+} from "@/lib/resource-access";
 
 export async function fetchFileHistory(
   owner: string,
@@ -30,5 +33,15 @@ export async function fetchFileAtCommit(
     { repo: `${owner}/${repo}`, branch, path: filePath },
     { shareId },
   );
+  const authorizedHistory = await getFileHistory(
+    access.accessToken,
+    owner,
+    repo,
+    branch,
+    filePath,
+  );
+  if (!authorizedHistory.some((commit) => commit.sha === sha)) {
+    throw new ResourceAccessError();
+  }
   return getFileAtCommit(access.accessToken, owner, repo, sha, filePath);
 }

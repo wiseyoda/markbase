@@ -76,7 +76,7 @@ export async function addComment(opts: CommentResourceInput & {
 
   if (opts.parentId) {
     const parent = await withDbRetry(() => getCommentById(opts.parentId!));
-    if (!parent || parent.file_key !== fKey) {
+    if (!parent || parent.file_key !== fKey || parent.parent_id !== null) {
       throw new ResourceAccessError();
     }
   }
@@ -101,7 +101,10 @@ export async function fetchComments(
   filePath: string,
   shareId?: string,
 ): Promise<Comment[]> {
-  await authorizeResourceAccess({ repo, branch, path: filePath }, { shareId });
+  await authorizeResourceAccess(
+    { repo, branch, path: filePath },
+    { shareId, requireUser: true },
+  );
   const fKey = await buildFileKey(repo, branch, filePath);
   return withDbRetry(() => getComments(fKey));
 }
@@ -110,7 +113,9 @@ export async function resolveCommentAction(
   commentId: string,
   resource: CommentResourceInput,
 ): Promise<boolean> {
-  const { access } = await getAuthorizedComment(commentId, resource);
+  const { access, comment } = await getAuthorizedComment(commentId, resource);
+  const isAuthor = comment.author_id === access.actorId;
+  if (!isAuthor && !access.canModerate) throw new ResourceAccessError();
   return withDbRetry(() => resolveComment(commentId, access.actorId!));
 }
 

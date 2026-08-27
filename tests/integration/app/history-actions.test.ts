@@ -28,6 +28,7 @@ describe("history actions", () => {
   useTestDatabase();
 
   beforeEach(() => {
+    vi.clearAllMocks();
     authMock.mockResolvedValue({
       accessToken: "owner-token",
       user: { id: "1", login: "owner-user" },
@@ -126,5 +127,20 @@ describe("history actions", () => {
     await expect(
       fetchFileHistory("owner-user", "notes", "main", "private.md", shareId),
     ).rejects.toThrow("Not authorized");
+  });
+
+  it("rejects commit reads outside the authorized branch history", async () => {
+    getFileHistoryMock.mockResolvedValue([{ sha: "authorized" }]);
+
+    await expect(
+      fetchFileAtCommit(
+        "owner-user",
+        "notes",
+        "main",
+        "other-branch-commit",
+        "README.md",
+      ),
+    ).rejects.toThrow("Not authorized");
+    expect(getFileAtCommitMock).not.toHaveBeenCalled();
   });
 });

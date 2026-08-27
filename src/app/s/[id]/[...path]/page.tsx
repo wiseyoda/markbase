@@ -95,7 +95,7 @@ export default async function SharedFilePage({
         ? getMarkdownTree(share.accessToken, owner, repo, share.branch)
         : Promise.resolve([]),
       isSignedIn ? withDbRetry(() => getComments(fKey)) : Promise.resolve([]),
-      share.type === "repo" || share.type === "folder"
+      isSignedIn && (share.type === "repo" || share.type === "folder")
         ? withDbRetry(() => countOpenComments(fileKeyPrefix))
         : Promise.resolve({}),
     ]);

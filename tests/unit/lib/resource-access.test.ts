@@ -50,6 +50,9 @@ describe("resource access", () => {
     expect(() => repositoryFromFileKey("owner-only")).toThrow(
       "Invalid comment resource",
     );
+    expect(() => parseRepositorySlug(null as unknown as string)).toThrow(
+      "Invalid repository",
+    );
   });
 
   it("rejects refs and paths that can change GitHub request semantics", async () => {
@@ -110,6 +113,18 @@ describe("resource access", () => {
         { repo: "owner/repo", branch: "main", path: "anything.md" },
       ),
     ).toBe(true);
+    expect(
+      isShareResourceInScope(
+        { ...baseShare, type: "repo", file_path: null },
+        { repo: "owner/repo", branch: "main", path: null },
+      ),
+    ).toBe(true);
+    expect(
+      isShareResourceInScope(
+        { ...baseShare, type: "folder", file_path: "" },
+        { repo: "owner/repo", branch: "main", path: "README.md" },
+      ),
+    ).toBe(false);
   });
 
   it("proves repository access against GitHub and preserves moderator metadata", async () => {
@@ -160,6 +175,19 @@ describe("resource access", () => {
     await expect(
       verifyGitHubRepositoryAccess("token", "owner/repo"),
     ).rejects.toThrow("Repository access could not be verified");
+
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
+    await expect(
+      verifyGitHubRepositoryAccess("token", "owner/repo"),
+    ).rejects.toThrow("network down");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("not-json", { status: 200 })),
+    );
+    await expect(
+      verifyGitHubRepositoryAccess("token", "owner/repo"),
+    ).rejects.toThrow();
   });
 
   it("requires the intended user for targeted shares", async () => {

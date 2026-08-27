@@ -147,6 +147,22 @@ describe("share actions", () => {
     ).rejects.toThrow("Repository access could not be verified");
   });
 
+  it("rejects file and folder shares without a path", async () => {
+    for (const type of ["file", "folder"] as const) {
+      await expect(
+        createShareAction({
+          type,
+          repo: "owner-user/notes",
+          branch: "main",
+          filePath: null,
+          expiresIn: null,
+          sharedWith: null,
+          sharedWithName: null,
+        }),
+      ).rejects.toThrow("A file path is required");
+    }
+  });
+
   it("returns empty results for blank user searches", async () => {
     await expect(searchGitHubUsers("   ")).resolves.toEqual([]);
   });
