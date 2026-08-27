@@ -27,6 +27,7 @@ describe("db", () => {
     await expect(getDbSchemaStatus()).resolves.toEqual({
       ready: true,
       missingTables: [],
+      missingColumns: [],
     });
     await resetDb();
 

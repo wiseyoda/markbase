@@ -16,9 +16,21 @@ const REQUIRED_TABLES = [
   "users",
 ] as const;
 
+const REQUIRED_COLUMNS = {
+  shares: ["access_token", "snapshot_content", "snapshot_sha", "repo_private"],
+  mcp_grants: [
+    "github_token",
+    "token_version",
+    "expires_at",
+    "revoked_at",
+  ],
+  mcp_auth_codes: ["code_digest", "consumed_at"],
+} as const;
+
 export interface DbSchemaStatus {
   ready: boolean;
   missingTables: string[];
+  missingColumns: string[];
 }
 
 function ignoreNotice() {}
@@ -165,7 +177,27 @@ export async function getDbSchemaStatus(): Promise<DbSchemaStatus> {
   `;
   const present = new Set(rows.map((row) => row.table_name));
   const missingTables = REQUIRED_TABLES.filter((table) => !present.has(table));
-  return { ready: missingTables.length === 0, missingTables };
+  const requiredColumnTables = Object.keys(REQUIRED_COLUMNS);
+  const columnRows = await db<{ table_name: string; column_name: string }[]>`
+    SELECT table_name, column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = ANY(${requiredColumnTables})
+  `;
+  const presentColumns = new Set(
+    columnRows.map((row) => `${row.table_name}.${row.column_name}`),
+  );
+  const missingColumns = Object.entries(REQUIRED_COLUMNS).flatMap(
+    ([table, columns]) =>
+      columns
+        .map((column) => `${table}.${column}`)
+        .filter((column) => !presentColumns.has(column)),
+  );
+  return {
+    ready: missingTables.length === 0 && missingColumns.length === 0,
+    missingTables,
+    missingColumns,
+  };
 }
 
 export async function initDb() {
