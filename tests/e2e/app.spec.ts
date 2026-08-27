@@ -44,6 +44,7 @@ test("lets an authenticated user add a repo, browse markdown, inspect history, a
   page,
   browser,
 }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await loginAs(page, ownerUser);
   await page.goto("/dashboard");
 
@@ -68,12 +69,6 @@ test("lets an authenticated user add a repo, browse markdown, inspect history, a
     .click();
   await expect(historyDialog).toBeHidden();
 
-  await page.setViewportSize({ width: 390, height: 844 });
-  const filesDialog = page.getByRole("dialog", { name: "Files" });
-  if (await filesDialog.isVisible()) {
-    await filesDialog.getByRole("button", { name: "Close" }).click();
-    await expect(filesDialog).toBeHidden();
-  }
   await page.getByRole("button", { name: "Comments", exact: true }).click();
   await page.getByRole("button", { name: "Add comment" }).click();
   await page.getByPlaceholder("Add a comment...").fill(

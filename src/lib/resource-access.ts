@@ -17,6 +17,8 @@ export interface ResourceAccess {
   actorName: string | null;
   actorAvatar: string | null;
   canModerate: boolean;
+  repositoryPrivate: boolean | null;
+  defaultBranch: string | null;
   via: "session" | "share" | "mcp";
 }
 
@@ -129,6 +131,8 @@ export function isShareResourceInScope(
 
 interface GitHubRepositoryResponse {
   full_name?: string;
+  private?: boolean;
+  default_branch?: string;
   permissions?: {
     admin?: boolean;
     maintain?: boolean;
@@ -138,7 +142,11 @@ interface GitHubRepositoryResponse {
 export async function verifyGitHubRepositoryAccess(
   accessToken: string,
   repo: string,
-): Promise<{ canModerate: boolean }> {
+): Promise<{
+  canModerate: boolean;
+  repositoryPrivate: boolean;
+  defaultBranch: string;
+}> {
   const { owner, name } = parseRepositorySlug(repo);
   const response = await fetch(
     githubApiUrl(
@@ -167,6 +175,8 @@ export async function verifyGitHubRepositoryAccess(
     canModerate: Boolean(
       repository.permissions?.admin || repository.permissions?.maintain,
     ),
+    repositoryPrivate: repository.private === true,
+    defaultBranch: repository.default_branch || "main",
   };
 }
 
@@ -192,13 +202,15 @@ async function authorizeShare(
 
   const repoOwner = parseRepositorySlug(resource.repo).owner;
   return {
-    accessToken: share.accessToken,
+    accessToken: share.accessToken || "",
     actorId: session?.user?.id || null,
     actorLogin: session?.user?.login || null,
     actorName: session?.user?.name || null,
     actorAvatar: session?.user?.image || null,
     canModerate:
       session?.user?.login?.toLowerCase() === repoOwner.toLowerCase(),
+    repositoryPrivate: share.repo_private,
+    defaultBranch: share.branch,
     via: "share",
   };
 }
@@ -235,6 +247,8 @@ export async function authorizeResourceAccess(
     canModerate:
       repository.canModerate ||
       session.user.login?.toLowerCase() === repoOwner.toLowerCase(),
+    repositoryPrivate: repository.repositoryPrivate,
+    defaultBranch: repository.defaultBranch,
     via: "session",
   };
 }
@@ -257,6 +271,8 @@ export async function authorizeMcpRepositoryAccess(
     canModerate:
       repository.canModerate ||
       context.userLogin.toLowerCase() === repoOwner.toLowerCase(),
+    repositoryPrivate: repository.repositoryPrivate,
+    defaultBranch: repository.defaultBranch,
     via: "mcp",
   };
 }

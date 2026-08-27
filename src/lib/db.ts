@@ -8,15 +8,29 @@ const REQUIRED_TABLES = [
   "file_section_hashes",
   "file_summaries",
   "file_views",
+  "mcp_auth_codes",
+  "mcp_grants",
   "share_visits",
   "shares",
   "synced_repos",
   "users",
 ] as const;
 
+const REQUIRED_COLUMNS = {
+  shares: ["access_token", "snapshot_content", "snapshot_sha", "repo_private"],
+  mcp_grants: [
+    "github_token",
+    "token_version",
+    "expires_at",
+    "revoked_at",
+  ],
+  mcp_auth_codes: ["code_digest", "consumed_at"],
+} as const;
+
 export interface DbSchemaStatus {
   ready: boolean;
   missingTables: string[];
+  missingColumns: string[];
 }
 
 function ignoreNotice() {}
@@ -163,7 +177,27 @@ export async function getDbSchemaStatus(): Promise<DbSchemaStatus> {
   `;
   const present = new Set(rows.map((row) => row.table_name));
   const missingTables = REQUIRED_TABLES.filter((table) => !present.has(table));
-  return { ready: missingTables.length === 0, missingTables };
+  const requiredColumnTables = Object.keys(REQUIRED_COLUMNS);
+  const columnRows = await db<{ table_name: string; column_name: string }[]>`
+    SELECT table_name, column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = ANY(${requiredColumnTables})
+  `;
+  const presentColumns = new Set(
+    columnRows.map((row) => `${row.table_name}.${row.column_name}`),
+  );
+  const missingColumns = Object.entries(REQUIRED_COLUMNS).flatMap(
+    ([table, columns]) =>
+      columns
+        .map((column) => `${table}.${column}`)
+        .filter((column) => !presentColumns.has(column)),
+  );
+  return {
+    ready: missingTables.length === 0 && missingColumns.length === 0,
+    missingTables,
+    missingColumns,
+  };
 }
 
 export async function initDb() {
@@ -251,6 +285,43 @@ export async function initDb() {
   `);
   await ignoreDbError(db`
     ALTER TABLE shares ADD COLUMN IF NOT EXISTS shared_with_name TEXT
+  `);
+  await ignoreDbError(db`
+    ALTER TABLE shares ALTER COLUMN access_token DROP NOT NULL
+  `);
+  await ignoreDbError(db`
+    ALTER TABLE shares ADD COLUMN IF NOT EXISTS snapshot_content TEXT
+  `);
+  await ignoreDbError(db`
+    ALTER TABLE shares ADD COLUMN IF NOT EXISTS snapshot_sha TEXT
+  `);
+  await ignoreDbError(db`
+    ALTER TABLE shares ADD COLUMN IF NOT EXISTS repo_private BOOLEAN
+  `);
+  await db`
+    CREATE TABLE IF NOT EXISTS mcp_auth_codes (
+      code_digest TEXT PRIMARY KEY,
+      consumed_at TIMESTAMPTZ NOT NULL
+    )
+  `;
+  await db`
+    CREATE TABLE IF NOT EXISTS mcp_grants (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      login TEXT NOT NULL,
+      name TEXT NOT NULL,
+      avatar_url TEXT NOT NULL,
+      github_token TEXT NOT NULL,
+      token_version INTEGER NOT NULL DEFAULT 1,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL,
+      revoked_at TIMESTAMPTZ
+    )
+  `;
+  await ignoreDbError(db`
+    CREATE INDEX IF NOT EXISTS idx_mcp_grants_user_active
+    ON mcp_grants(user_id) WHERE revoked_at IS NULL
   `);
   await ignoreDbError(db`
     CREATE INDEX IF NOT EXISTS idx_shares_shared_with ON shares(shared_with)

@@ -1,5 +1,4 @@
 import { SignJWT, jwtVerify } from "jose";
-import { encrypt, decrypt } from "@/lib/crypto";
 import type { McpJwtPayload } from "./types";
 
 const ISSUER = "markbase";
@@ -29,10 +28,8 @@ function getSigningKey(): Uint8Array {
 
 interface McpTokenInput {
   sub: string;
-  login: string;
-  name: string;
-  avatar_url: string;
-  githubToken: string;
+  grantId: string;
+  tokenVersion: number;
 }
 
 async function signJwt(
@@ -40,13 +37,9 @@ async function signJwt(
   audience: string,
   expiry: string,
 ): Promise<string> {
-  const encryptedToken = encrypt(payload.githubToken);
-
   return new SignJWT({
-    login: payload.login,
-    name: payload.name,
-    avatar_url: payload.avatar_url,
-    github_token: encryptedToken,
+    grant_id: payload.grantId,
+    token_version: payload.tokenVersion,
   } satisfies Omit<McpJwtPayload, "sub">)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -76,13 +69,18 @@ export async function verifyMcpToken(token: string): Promise<McpJwtPayload> {
   });
 
   const p = payload as unknown as McpJwtPayload & { sub: string };
+  if (
+    typeof p.sub !== "string" ||
+    typeof p.grant_id !== "string" ||
+    !Number.isInteger(p.token_version)
+  ) {
+    throw new Error("Invalid MCP token payload");
+  }
 
   return {
     sub: p.sub,
-    login: p.login,
-    name: p.name,
-    avatar_url: p.avatar_url,
-    github_token: decrypt(p.github_token),
+    grant_id: p.grant_id,
+    token_version: p.token_version,
   };
 }
 
@@ -95,13 +93,18 @@ export async function verifyMcpRefreshToken(
   });
 
   const p = payload as unknown as McpJwtPayload & { sub: string };
+  if (
+    typeof p.sub !== "string" ||
+    typeof p.grant_id !== "string" ||
+    !Number.isInteger(p.token_version)
+  ) {
+    throw new Error("Invalid MCP token payload");
+  }
 
   return {
     sub: p.sub,
-    login: p.login,
-    name: p.name,
-    avatar_url: p.avatar_url,
-    github_token: decrypt(p.github_token),
+    grant_id: p.grant_id,
+    token_version: p.token_version,
   };
 }
 

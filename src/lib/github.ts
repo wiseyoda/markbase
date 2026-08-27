@@ -21,12 +21,45 @@ export interface MarkdownFile {
   sha: string;
 }
 
+export interface GitHubRepositoryMetadata {
+  defaultBranch: string;
+  private: boolean;
+}
+
 function encodeRepoPath(owner: string, repo: string): string {
   return `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
 }
 
 function encodeContentPath(path: string): string {
   return path.split("/").map(encodeURIComponent).join("/");
+}
+
+export async function getRepositoryMetadata(
+  accessToken: string,
+  owner: string,
+  repo: string,
+): Promise<GitHubRepositoryMetadata | null> {
+  const response = await fetch(githubApiUrl(encodeRepoPath(owner, repo)), {
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+  if (!response.ok) return null;
+  const repository = (await response.json()) as {
+    full_name?: string;
+    default_branch?: string;
+    private?: boolean;
+  };
+  if (repository.full_name?.toLowerCase() !== `${owner}/${repo}`.toLowerCase()) {
+    return null;
+  }
+  return {
+    defaultBranch: repository.default_branch || "main",
+    private: repository.private === true,
+  };
 }
 
 /**

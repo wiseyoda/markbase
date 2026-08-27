@@ -120,17 +120,21 @@ export default async function SharePage({
       );
     };
 
-    const content = await getFileContent(
-      share.accessToken,
-      owner,
-      repo,
-      share.branch,
-      share.file_path,
+    const content = share.snapshotContent ?? (
+      share.accessToken
+        ? await getFileContent(
+            share.accessToken,
+            owner,
+            repo,
+            share.branch,
+            share.file_path,
+          )
+        : null
     );
 
     if (content === null) notFound();
 
-    const blobSha = computeBlobSha(content);
+    const blobSha = share.snapshotSha ?? computeBlobSha(content);
     const cachedSummary = await withDbRetry(() =>
       getFileSummary({ owner, repo, filePath: share.file_path!, blobSha }),
     ).catch(() => null);
@@ -156,7 +160,9 @@ export default async function SharePage({
             <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
               shared
             </span>
-            {isSignedIn && <GitHubRefreshButton action={refreshAction} />}
+            {isSignedIn && !share.snapshotContent && (
+              <GitHubRefreshButton action={refreshAction} />
+            )}
             <ThemeToggle />
           </div>
         </header>
@@ -188,6 +194,7 @@ export default async function SharePage({
 
   // Repo or folder share: redirect to first file (sidebar is in the [...path] page)
   if (share.type === "repo" || share.type === "folder") {
+    if (!share.accessToken) notFound();
     let files = await getMarkdownTree(
       share.accessToken,
       owner,

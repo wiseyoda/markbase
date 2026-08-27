@@ -217,7 +217,10 @@ async function initializeDatabase() {
       repo TEXT NOT NULL,
       branch TEXT NOT NULL,
       file_path TEXT,
-      access_token TEXT NOT NULL,
+      access_token TEXT,
+      snapshot_content TEXT,
+      snapshot_sha TEXT,
+      repo_private BOOLEAN,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       expires_at TIMESTAMPTZ,
       deleted_at TIMESTAMPTZ,
@@ -258,6 +261,27 @@ async function initializeDatabase() {
       name TEXT,
       avatar_url TEXT,
       last_login TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS mcp_auth_codes (
+      code_digest TEXT PRIMARY KEY,
+      consumed_at TIMESTAMPTZ NOT NULL
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS mcp_grants (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      login TEXT NOT NULL,
+      name TEXT NOT NULL,
+      avatar_url TEXT NOT NULL,
+      github_token TEXT NOT NULL,
+      token_version INTEGER NOT NULL DEFAULT 1,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL,
+      revoked_at TIMESTAMPTZ
     )
   `;
   await sql.end({ timeout: 1 });

@@ -45,7 +45,7 @@ export async function clearTestDatabase() {
   await startTestDatabase();
   const db = getDb();
   await db`
-    TRUNCATE TABLE comments, shares, synced_repos, users
+    TRUNCATE TABLE comments, shares, synced_repos, users, mcp_auth_codes, mcp_grants
     RESTART IDENTITY CASCADE
   `;
 }

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const authMock = vi.fn();
 const getShareMock = vi.fn();
 const getFileContentMock = vi.fn();
-const getDefaultBranchMock = vi.fn();
+const getRepositoryMetadataMock = vi.fn();
 const withDbRetryMock = vi.fn((fn: () => Promise<unknown>) => fn());
 const getAiStatusMock = vi.fn();
 const getOrCreateFileSummaryMock = vi.fn();
@@ -14,7 +14,7 @@ const computeBlobShaMock = vi.fn(() => "blob-sha-abc");
 vi.mock("@/auth", () => ({ auth: authMock }));
 vi.mock("@/lib/github", () => ({
   getFileContent: getFileContentMock,
-  getDefaultBranch: getDefaultBranchMock,
+  getRepositoryMetadata: getRepositoryMetadataMock,
 }));
 vi.mock("@/lib/shares", () => ({ getShare: getShareMock }));
 vi.mock("@/lib/db", () => ({ withDbRetry: withDbRetryMock }));
@@ -31,7 +31,12 @@ function request(url: string) {
 describe("GET /api/summary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.AI_PRIVATE_REPO_SUMMARIES_ENABLED;
     getAiStatusMock.mockReturnValue({ enabled: true, provider: "openai", model: "mock" });
+    getRepositoryMetadataMock.mockResolvedValue({
+      defaultBranch: "main",
+      private: false,
+    });
   });
 
   it("returns 400 when required query params are missing", async () => {
@@ -61,7 +66,6 @@ describe("GET /api/summary", () => {
 
   it("generates a summary for authenticated users", async () => {
     authMock.mockResolvedValue({ accessToken: "tok", user: { id: "u1" } });
-    getDefaultBranchMock.mockResolvedValue("main");
     getFileContentMock.mockResolvedValue("# doc\nbody".repeat(50));
     getOrCreateFileSummaryMock.mockResolvedValue({
       summary: "A short summary.",
@@ -90,7 +94,6 @@ describe("GET /api/summary", () => {
 
   it("returns null summary when generation fails", async () => {
     authMock.mockResolvedValue({ accessToken: "tok" });
-    getDefaultBranchMock.mockResolvedValue("main");
     getFileContentMock.mockResolvedValue("short");
     getOrCreateFileSummaryMock.mockResolvedValue(null);
 
@@ -105,7 +108,6 @@ describe("GET /api/summary", () => {
 
   it("returns 404 when the file content cannot be fetched", async () => {
     authMock.mockResolvedValue({ accessToken: "tok" });
-    getDefaultBranchMock.mockResolvedValue("main");
     getFileContentMock.mockResolvedValue(null);
 
     const { GET } = await import("@/app/api/summary/route");
@@ -121,10 +123,11 @@ describe("GET /api/summary", () => {
       type: "file",
       file_path: "docs/a.md",
       branch: "main",
-      accessToken: "share-tok",
+      accessToken: null,
+      snapshotContent: "snapshot content".repeat(40),
+      repo_private: false,
       shared_with: null,
     });
-    getFileContentMock.mockResolvedValue("long content".repeat(40));
     getOrCreateFileSummaryMock.mockResolvedValue({
       summary: "ok",
       provider: "openai",
@@ -138,6 +141,42 @@ describe("GET /api/summary", () => {
       ),
     );
     expect(res.status).toBe(200);
+    expect(getFileContentMock).not.toHaveBeenCalled();
+    expect(getOrCreateFileSummaryMock).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining("snapshot content") }),
+    );
+  });
+
+  it("fails closed for private repositories without explicit operator opt-in", async () => {
+    authMock.mockResolvedValue({ accessToken: "tok", user: { id: "u1" } });
+    getRepositoryMetadataMock.mockResolvedValue({
+      defaultBranch: "main",
+      private: true,
+    });
+    const { GET } = await import("@/app/api/summary/route");
+
+    const res = await GET(
+      request("http://localhost/api/summary?owner=acme&repo=private&path=README.md"),
+    );
+    await expect(res.json()).resolves.toEqual({
+      enabled: false,
+      summary: null,
+      reason: "private repository summaries require explicit operator opt-in",
+    });
+    expect(getFileContentMock).not.toHaveBeenCalled();
+    expect(getOrCreateFileSummaryMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 502 when repository visibility cannot be verified", async () => {
+    authMock.mockResolvedValue({ accessToken: "tok", user: { id: "u1" } });
+    getRepositoryMetadataMock.mockResolvedValue(null);
+    const { GET } = await import("@/app/api/summary/route");
+
+    const res = await GET(
+      request("http://localhost/api/summary?owner=acme&repo=missing&path=README.md"),
+    );
+    expect(res.status).toBe(502);
+    expect(getFileContentMock).not.toHaveBeenCalled();
   });
 
   it("returns 404 when share does not exist", async () => {

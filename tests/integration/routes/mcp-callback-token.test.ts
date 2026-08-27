@@ -2,6 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { useTestDatabase } from "../../helpers/postgres";
 
 const upsertUserMock = vi.fn();
 
@@ -10,6 +11,7 @@ vi.mock("@/lib/users", () => ({
 }));
 
 describe("MCP callback and token routes", () => {
+  useTestDatabase();
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
@@ -280,6 +282,18 @@ describe("MCP callback and token routes", () => {
     expect(refreshedBody.access_token).toEqual(expect.any(String));
     expect(refreshedBody.refresh_token).toEqual(expect.any(String));
 
+    const replayed = await POST(
+      new NextRequest("https://markbase.test/api/mcp/token", {
+        method: "POST",
+        body: JSON.stringify({
+          grant_type: "refresh_token",
+          refresh_token: initialBody.refresh_token,
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    expect(replayed.status).toBe(400);
+
     // Invalid refresh token
     const invalid = await POST(
       new NextRequest("https://markbase.test/api/mcp/token", {
@@ -414,12 +428,38 @@ describe("MCP callback and token routes", () => {
     );
     expect(formEncoded.status).toBe(200);
 
-    const noContentType = await POST(
+    const replayedCode = await POST(
       new NextRequest("https://markbase.test/api/mcp/token", {
         method: "POST",
         body: JSON.stringify({
           grant_type: "authorization_code",
           code,
+          redirect_uri: "https://client.test/callback",
+          client_id: "client-1",
+          code_verifier: "verifier",
+        }),
+      }),
+    );
+    expect(replayedCode.status).toBe(400);
+
+    const noContentTypeCode = encodeAuthCode({
+      github_access_token: "oauth-access-token",
+      github_user_id: "101",
+      github_login: "owner-user",
+      github_name: "Owner User",
+      github_avatar: "https://example.com/owner.png",
+      code_challenge: "iMnq5o6zALKXGivsnlom_0F5_WYda32GHkxlV7mq7hQ",
+      code_challenge_method: "S256",
+      redirect_uri: "https://client.test/callback",
+      client_id: "client-1",
+      expires_at: Date.now() + 60_000,
+    });
+    const noContentType = await POST(
+      new NextRequest("https://markbase.test/api/mcp/token", {
+        method: "POST",
+        body: JSON.stringify({
+          grant_type: "authorization_code",
+          code: noContentTypeCode,
           redirect_uri: "https://client.test/callback",
           client_id: "client-1",
           code_verifier: "verifier",

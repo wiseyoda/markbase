@@ -18,6 +18,9 @@ export async function fetchFileHistory(
     { repo: `${owner}/${repo}`, branch, path: filePath },
     { shareId },
   );
+  if (!access.accessToken) {
+    throw new ResourceAccessError("History is unavailable for snapshot shares");
+  }
   return getFileHistory(access.accessToken, owner, repo, branch, filePath);
 }
 
@@ -33,6 +36,9 @@ export async function fetchFileAtCommit(
     { repo: `${owner}/${repo}`, branch, path: filePath },
     { shareId },
   );
+  if (!access.accessToken) {
+    throw new ResourceAccessError("History is unavailable for snapshot shares");
+  }
   const authorizedHistory = await getFileHistory(
     access.accessToken,
     owner,

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { getFileContent } from "@/lib/github";
+import { getFileContent, getRepositoryMetadata } from "@/lib/github";
 import { getShare } from "@/lib/shares";
 import { withDbRetry } from "@/lib/db";
 import { computeBlobSha, getOrCreateFileSummary } from "@/lib/file-summaries";
@@ -19,6 +19,10 @@ interface SummaryResponseBody {
 
 function respond(body: SummaryResponseBody, status = 200) {
   return NextResponse.json(body, { status });
+}
+
+function privateRepositorySummariesEnabled(): boolean {
+  return process.env.AI_PRIVATE_REPO_SUMMARIES_ENABLED === "true";
 }
 
 export async function GET(request: NextRequest) {
@@ -42,6 +46,8 @@ export async function GET(request: NextRequest) {
 
   let accessToken: string | null = null;
   let branch: string | null = null;
+  let snapshotContent: string | null = null;
+  let repositoryPrivate: boolean | null = null;
 
   if (shareId) {
     const share = await withDbRetry(() => getShare(shareId));
@@ -70,19 +76,38 @@ export async function GET(request: NextRequest) {
     }
     accessToken = share.accessToken;
     branch = share.branch;
+    snapshotContent = share.snapshotContent;
+    repositoryPrivate = share.repo_private;
   } else {
     const session = await auth();
     if (!session?.accessToken) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
     accessToken = session.accessToken;
-    // No branch supplied → default branch lookup per-call; simpler to trust the
-    // default branch since the viewer page already resolved it.
-    const { getDefaultBranch } = await import("@/lib/github");
-    branch = await getDefaultBranch(accessToken, owner, repo);
+    const metadata = await getRepositoryMetadata(accessToken, owner, repo);
+    if (!metadata) {
+      return NextResponse.json(
+        { error: "Repository access could not be verified" },
+        { status: 502 },
+      );
+    }
+    branch = metadata.defaultBranch;
+    repositoryPrivate = metadata.private;
   }
 
-  const content = await getFileContent(accessToken, owner, repo, branch, filePath);
+  if (repositoryPrivate !== false && !privateRepositorySummariesEnabled()) {
+    return respond({
+      enabled: false,
+      summary: null,
+      reason: "private repository summaries require explicit operator opt-in",
+    });
+  }
+
+  const content = snapshotContent ?? (
+    accessToken
+      ? await getFileContent(accessToken, owner, repo, branch, filePath)
+      : null
+  );
   if (content === null) {
     return NextResponse.json({ error: "File not found" }, { status: 404 });
   }
