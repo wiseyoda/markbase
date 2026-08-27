@@ -3,6 +3,8 @@ import { GenericContainer, Wait } from "testcontainers";
 import { getDb, initDb, resetDb } from "@/lib/db";
 
 let container: Awaited<ReturnType<GenericContainer["start"]>> | null = null;
+const DB_READY_ATTEMPTS = 20;
+const DB_READY_DELAY_MS = 250;
 
 export async function startTestDatabase() {
   if (!container) {
@@ -27,14 +29,14 @@ export async function startTestDatabase() {
     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
   Object.assign(process.env, { NODE_ENV: "test" });
 
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < DB_READY_ATTEMPTS; attempt++) {
     try {
       await resetDb();
       await initDb();
       return;
     } catch (error) {
-      if (attempt === 4) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      if (attempt === DB_READY_ATTEMPTS - 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, DB_READY_DELAY_MS));
     }
   }
 }
