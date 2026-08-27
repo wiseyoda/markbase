@@ -17,6 +17,7 @@ export function CommentThread({
   repo,
   branch,
   filePath,
+  shareId,
   onUpdate,
   toast,
 }: {
@@ -24,6 +25,7 @@ export function CommentThread({
   repo: string;
   branch: string;
   filePath: string;
+  shareId?: string;
   onUpdate: () => void;
   toast: (
     message: string,
@@ -37,11 +39,12 @@ export function CommentThread({
 
   const handleResolve = () => {
     startTransition(async () => {
+      const resource = { repo, branch, filePath, shareId };
       if (comment.resolved_at) {
-        await unresolveCommentAction(comment.id, repo.split("/")[0]);
+        await unresolveCommentAction(comment.id, resource);
         onUpdate();
       } else {
-        await resolveCommentAction(comment.id);
+        await resolveCommentAction(comment.id, resource);
         onUpdate();
         toast("Comment resolved", "success");
       }
@@ -50,14 +53,14 @@ export function CommentThread({
 
   const handleDelete = () => {
     startTransition(async () => {
-      const repoOwner = repo.split("/")[0];
-      await deleteCommentAction(comment.id, repoOwner);
+      const resource = { repo, branch, filePath, shareId };
+      await deleteCommentAction(comment.id, resource);
       setDeleteOpen(false);
       onUpdate();
       toast("Comment deleted", "info", {
         label: "Undo",
         onClick: () => {
-          restoreCommentAction(comment.id, repoOwner).then(() => onUpdate());
+          restoreCommentAction(comment.id, resource).then(() => onUpdate());
         },
       });
     });
@@ -186,6 +189,7 @@ export function CommentThread({
             branch={branch}
             filePath={filePath}
             parentId={comment.id}
+            shareId={shareId}
             toast={toast}
             onSubmit={() => {
               setShowReply(false);

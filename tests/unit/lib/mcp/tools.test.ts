@@ -13,6 +13,8 @@ const {
   mockResolveComments,
   mockUnresolveComment,
   mockSoftDeleteComment,
+  mockAuthorizeMcpRepositoryAccess,
+  mockRepositoryFromFileKey,
 } = vi.hoisted(() => ({
   mockBuildFileKey: vi.fn(),
   mockCountOpenComments: vi.fn(),
@@ -24,6 +26,13 @@ const {
   mockResolveComments: vi.fn(),
   mockUnresolveComment: vi.fn(),
   mockSoftDeleteComment: vi.fn(),
+  mockAuthorizeMcpRepositoryAccess: vi.fn(),
+  mockRepositoryFromFileKey: vi.fn(),
+}));
+
+vi.mock("@/lib/resource-access", () => ({
+  authorizeMcpRepositoryAccess: mockAuthorizeMcpRepositoryAccess,
+  repositoryFromFileKey: mockRepositoryFromFileKey,
 }));
 
 vi.mock("@/lib/comments", () => ({
@@ -52,6 +61,8 @@ const context = {
 describe("MCP tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuthorizeMcpRepositoryAccess.mockResolvedValue({ canModerate: true });
+    mockRepositoryFromFileKey.mockReturnValue("owner/repo");
   });
 
   it("lists tools", () => {
@@ -167,7 +178,8 @@ describe("MCP tools", () => {
     });
     mockGetCommentById.mockResolvedValue({
       id: "parent",
-      file_key: "key",
+      file_key: "owner/repo/main/README.md",
+      author_id: "1",
     });
     mockResolveComment.mockResolvedValue(true);
     mockResolveComments.mockResolvedValue(["1"]);
@@ -258,6 +270,12 @@ describe("MCP tools", () => {
     await expect(
       executeTool("reply_to_comment", { comment_id: "missing", body: "Reply" }, context),
     ).rejects.toThrow("Comment missing not found");
+
+    mockGetCommentById.mockResolvedValue({
+      id: "1",
+      file_key: "owner/repo/main/README.md",
+      author_id: "1",
+    });
     await expect(
       executeTool("resolve_comment", { comment_id: "1" }, context),
     ).rejects.toThrow("Comment not found or already resolved");
@@ -270,6 +288,8 @@ describe("MCP tools", () => {
     await expect(
       executeTool("unknown_tool", {}, context),
     ).rejects.toThrow("Unknown tool: unknown_tool");
+
+    mockGetCommentById.mockResolvedValue(null);
     await expect(
       executeTool(
         "reply_and_resolve",
@@ -277,6 +297,27 @@ describe("MCP tools", () => {
         context,
       ),
     ).rejects.toThrow("Comment missing not found");
+  });
+
+  it("denies repository and comment access before reading or mutating data", async () => {
+    mockAuthorizeMcpRepositoryAccess.mockRejectedValue(
+      new Error("Repository access could not be verified"),
+    );
+
+    await expect(
+      executeTool("get_comments", { repo: "blocked/private", path: "README.md" }, context),
+    ).rejects.toThrow("Repository access could not be verified");
+    expect(mockGetComments).not.toHaveBeenCalled();
+
+    mockGetCommentById.mockResolvedValue({
+      id: "foreign",
+      file_key: "blocked/private/main/README.md",
+      author_id: "2",
+    });
+    await expect(
+      executeTool("resolve_comment", { comment_id: "foreign" }, context),
+    ).rejects.toThrow("Repository access could not be verified");
+    expect(mockResolveComment).not.toHaveBeenCalled();
   });
 
   it("formats replies when reading comments", async () => {

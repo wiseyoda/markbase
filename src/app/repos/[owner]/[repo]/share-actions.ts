@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { createShare, deleteShare } from "@/lib/shares";
 import { withDbRetry } from "@/lib/db";
 import { githubApiUrl } from "@/lib/github-config";
+import { authorizeResourceAccess } from "@/lib/resource-access";
 
 export interface GitHubUserResult {
   login: string;
@@ -20,17 +21,27 @@ export async function createShareAction(opts: {
   sharedWith: string | null;
   sharedWithName: string | null;
 }): Promise<string> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Not authenticated");
+  if (opts.type !== "repo" && !opts.filePath) {
+    throw new Error("A file path is required for file and folder shares");
+  }
+  const access = await authorizeResourceAccess(
+    {
+      repo: opts.repo,
+      branch: opts.branch,
+      path: opts.type === "repo" ? null : opts.filePath,
+    },
+    { requireUser: true },
+  );
+  if (!access.actorId) throw new Error("Not authenticated");
 
   return withDbRetry(() =>
     createShare({
       type: opts.type,
-      ownerId: session.user.id,
+      ownerId: access.actorId!,
       repo: opts.repo,
       branch: opts.branch,
       filePath: opts.filePath,
-      accessToken: session.accessToken,
+      accessToken: access.accessToken,
       expiresIn: opts.expiresIn,
       sharedWith: opts.sharedWith,
       sharedWithName: opts.sharedWithName,

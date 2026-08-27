@@ -256,6 +256,27 @@ describe("github API helpers", () => {
     ).resolves.toBeNull();
   });
 
+  it("encodes repository paths, refs, and filenames as data", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => "content",
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getFileContent(
+      "token",
+      "owner",
+      "repo",
+      "feature/docs",
+      "notes/a?b#c.md",
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.github.com/repos/owner/repo/contents/notes/a%3Fb%23c.md?ref=feature%2Fdocs",
+      expect.any(Object),
+    );
+  });
+
   it("handles failed GitHub responses", async () => {
     vi.stubGlobal(
       "fetch",

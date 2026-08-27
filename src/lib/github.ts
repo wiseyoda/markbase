@@ -21,6 +21,14 @@ export interface MarkdownFile {
   sha: string;
 }
 
+function encodeRepoPath(owner: string, repo: string): string {
+  return `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+}
+
+function encodeContentPath(path: string): string {
+  return path.split("/").map(encodeURIComponent).join("/");
+}
+
 /**
  * Fetches the default branch name for a GitHub repository.
  * @returns The repository's default branch, or `"main"` if the API request
@@ -33,7 +41,7 @@ export async function getDefaultBranch(
   repo: string,
 ): Promise<string> {
   const res = await fetch(
-    githubApiUrl(`/repos/${owner}/${repo}`),
+    githubApiUrl(encodeRepoPath(owner, repo)),
     {
       cache: "force-cache",
       headers: {
@@ -59,7 +67,9 @@ export async function getMarkdownTree(
   branch: string,
 ): Promise<MarkdownFile[]> {
   const res = await fetch(
-    githubApiUrl(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`),
+    githubApiUrl(
+      `${encodeRepoPath(owner, repo)}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+    ),
     {
       cache: "force-cache",
       headers: {
@@ -91,7 +101,7 @@ export async function getFileContent(
 ): Promise<string | null> {
   const res = await fetch(
     githubApiUrl(
-      `/repos/${owner}/${repo}/contents/${encodeURI(path)}?ref=${branch}`,
+      `${encodeRepoPath(owner, repo)}/contents/${encodeContentPath(path)}?ref=${encodeURIComponent(branch)}`,
     ),
     {
       cache: "force-cache",
@@ -135,7 +145,7 @@ export async function getFileHistory(
   // commits-list endpoint.
   const res = await fetch(
     githubApiUrl(
-      `/repos/${owner}/${repo}/commits?sha=${branch}&path=${encodeURIComponent(path)}&per_page=30`,
+      `${encodeRepoPath(owner, repo)}/commits?sha=${encodeURIComponent(branch)}&path=${encodeURIComponent(path)}&per_page=30`,
     ),
     {
       cache: "no-store",
@@ -176,7 +186,7 @@ export async function getLastModified(
 ): Promise<string | null> {
   const res = await fetch(
     githubApiUrl(
-      `/repos/${owner}/${repo}/commits?sha=${branch}&path=${encodeURIComponent(path)}&per_page=1`,
+      `${encodeRepoPath(owner, repo)}/commits?sha=${encodeURIComponent(branch)}&path=${encodeURIComponent(path)}&per_page=1`,
     ),
     {
       cache: "force-cache",
@@ -207,7 +217,9 @@ export async function getFileAtCommit(
   path: string,
 ): Promise<string | null> {
   const res = await fetch(
-    githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeURI(path)}?ref=${sha}`),
+    githubApiUrl(
+      `${encodeRepoPath(owner, repo)}/contents/${encodeContentPath(path)}?ref=${encodeURIComponent(sha)}`,
+    ),
     {
       cache: "force-cache",
       headers: {

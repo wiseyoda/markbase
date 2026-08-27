@@ -37,6 +37,20 @@ describe("share actions", () => {
         avatar_url: "https://example.com/recipient.png",
       },
     ]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        const match = url.match(/\/repos\/([^/]+)\/([^/?]+)/);
+        const fullName = match
+          ? `${decodeURIComponent(match[1])}/${decodeURIComponent(match[2])}`
+          : "";
+        return new Response(JSON.stringify({ full_name: fullName, permissions: {} }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
   });
 
   it("creates and deletes shares using the authenticated user", async () => {
@@ -112,6 +126,25 @@ describe("share actions", () => {
         sharedWithName: null,
       }),
     ).rejects.toThrow("Not authenticated");
+  });
+
+  it("rejects share creation for a repository the caller cannot access", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("{}", { status: 404 })),
+    );
+
+    await expect(
+      createShareAction({
+        type: "file",
+        repo: "other/private",
+        branch: "main",
+        filePath: "README.md",
+        expiresIn: null,
+        sharedWith: null,
+        sharedWithName: null,
+      }),
+    ).rejects.toThrow("Repository access could not be verified");
   });
 
   it("returns empty results for blank user searches", async () => {

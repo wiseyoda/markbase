@@ -345,6 +345,7 @@ export default async function SharedFilePage({
                   filePath={filePath}
                   articleId="shared-markdown-content"
                   initialComments={initialComments}
+                  shareId={id}
                 />
               )}
             </main>

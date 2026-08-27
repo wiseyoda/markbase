@@ -79,9 +79,9 @@ function HistoryPanel({
       setFullContent(null);
 
       const [newContent, oldContent] = await Promise.all([
-        fetchFileAtCommit(owner, repo, sha, filePath, shareId),
+        fetchFileAtCommit(owner, repo, branch, sha, filePath, shareId),
         prevSha
-          ? fetchFileAtCommit(owner, repo, prevSha, filePath, shareId)
+          ? fetchFileAtCommit(owner, repo, branch, prevSha, filePath, shareId)
           : Promise.resolve(""),
       ]);
 
@@ -91,7 +91,7 @@ function HistoryPanel({
       }
       setDiffLoading(false);
     },
-    [owner, repo, filePath, shareId],
+    [owner, repo, branch, filePath, shareId],
   );
 
   return createPortal(

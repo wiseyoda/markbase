@@ -11,6 +11,7 @@ export function NewCommentForm({
   branch,
   filePath,
   parentId,
+  shareId,
   onOptimistic,
   toast,
   onSubmit,
@@ -22,6 +23,7 @@ export function NewCommentForm({
   branch: string;
   filePath: string;
   parentId: string | null;
+  shareId?: string;
   onOptimistic?: (comment: Comment) => void;
   toast: (
     message: string,
@@ -90,6 +92,7 @@ export function NewCommentForm({
         quoteContext,
         body: text,
         parentId,
+        shareId,
       });
       toast("Comment added", "success");
       onSubmit();

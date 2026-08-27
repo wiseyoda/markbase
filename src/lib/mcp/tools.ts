@@ -10,7 +10,25 @@ import {
   unresolveComment,
   softDeleteComment,
 } from "@/lib/comments";
+import {
+  authorizeMcpRepositoryAccess,
+  repositoryFromFileKey,
+} from "@/lib/resource-access";
 import type { McpToolDefinition, McpContext } from "./types";
+
+async function authorizeToolRepository(repo: string, ctx: McpContext) {
+  return authorizeMcpRepositoryAccess(repo, ctx);
+}
+
+async function getAuthorizedToolComment(commentId: string, ctx: McpContext) {
+  const comment = await getCommentById(commentId);
+  if (!comment) throw new Error(`Comment ${commentId} not found`);
+  const access = await authorizeToolRepository(
+    repositoryFromFileKey(comment.file_key),
+    ctx,
+  );
+  return { comment, access };
+}
 
 const TOOLS: McpToolDefinition[] = [
   {
@@ -37,8 +55,9 @@ const TOOLS: McpToolDefinition[] = [
       },
       required: ["repo"],
     },
-    async execute(args) {
+    async execute(args, ctx) {
       const repo = args.repo as string;
+      await authorizeToolRepository(repo, ctx);
       const branch = (args.branch as string) || "main";
       const folder = (args.folder as string) || "";
       const prefix = `${repo}/${branch}/${folder}`;
@@ -97,8 +116,9 @@ const TOOLS: McpToolDefinition[] = [
       },
       required: ["repo", "path"],
     },
-    async execute(args) {
+    async execute(args, ctx) {
       const repo = args.repo as string;
+      await authorizeToolRepository(repo, ctx);
       const branch = (args.branch as string) || "main";
       const path = args.path as string;
       const includeResolved = (args.include_resolved as boolean) || false;
@@ -164,6 +184,7 @@ const TOOLS: McpToolDefinition[] = [
     },
     async execute(args, ctx) {
       const repo = args.repo as string;
+      await authorizeToolRepository(repo, ctx);
       const branch = (args.branch as string) || "main";
       const filePath = args.file_path as string;
       const fileKey = await buildFileKey(repo, branch, filePath);
@@ -199,10 +220,7 @@ const TOOLS: McpToolDefinition[] = [
     },
     async execute(args, ctx) {
       const parentId = args.comment_id as string;
-      const parent = await getCommentById(parentId);
-      if (!parent) {
-        throw new Error(`Comment ${parentId} not found`);
-      }
+      const { comment: parent } = await getAuthorizedToolComment(parentId, ctx);
 
       const comment = await createComment({
         fileKey: parent.file_key,
@@ -230,7 +248,9 @@ const TOOLS: McpToolDefinition[] = [
       required: ["comment_id"],
     },
     async execute(args, ctx) {
-      const ok = await resolveComment(args.comment_id as string, ctx.userId);
+      const commentId = args.comment_id as string;
+      await getAuthorizedToolComment(commentId, ctx);
+      const ok = await resolveComment(commentId, ctx.userId);
       if (!ok) {
         throw new Error("Comment not found or already resolved");
       }
@@ -256,6 +276,9 @@ const TOOLS: McpToolDefinition[] = [
     },
     async execute(args, ctx) {
       const ids = args.comment_ids as string[];
+      await Promise.all(
+        ids.map((id) => getAuthorizedToolComment(id, ctx)),
+      );
       const resolvedIds = await resolveComments(ids, ctx.userId);
       const failed = ids.filter((id) => !resolvedIds.includes(id));
       return { resolved: resolvedIds.length, failed, total: ids.length };
@@ -283,10 +306,7 @@ const TOOLS: McpToolDefinition[] = [
     },
     async execute(args, ctx) {
       const parentId = args.comment_id as string;
-      const parent = await getCommentById(parentId);
-      if (!parent) {
-        throw new Error(`Comment ${parentId} not found`);
-      }
+      const { comment: parent } = await getAuthorizedToolComment(parentId, ctx);
 
       const reply = await createComment({
         fileKey: parent.file_key,
@@ -315,8 +335,10 @@ const TOOLS: McpToolDefinition[] = [
       },
       required: ["comment_id"],
     },
-    async execute(args) {
-      const ok = await unresolveComment(args.comment_id as string);
+    async execute(args, ctx) {
+      const commentId = args.comment_id as string;
+      await getAuthorizedToolComment(commentId, ctx);
+      const ok = await unresolveComment(commentId);
       if (!ok) {
         throw new Error("Comment not found or not resolved");
       }
@@ -328,29 +350,26 @@ const TOOLS: McpToolDefinition[] = [
     name: "delete_comment",
     description:
       "Delete a comment. Authors can delete their own comments. " +
-      "Repo owners can delete any comment if repo_owner is provided.",
+      "Repository maintainers can delete any comment.",
     inputSchema: {
       type: "object",
       properties: {
         comment_id: { type: "string", description: "ID of the comment" },
-        repo_owner: {
-          type: "string",
-          description:
-            "GitHub username of the repo owner (enables owner-level delete)",
-        },
       },
       required: ["comment_id"],
     },
     async execute(args, ctx) {
-      const repoOwner = args.repo_owner as string | undefined;
-      const isOwner = repoOwner
-        ? ctx.userLogin.toLowerCase() === repoOwner.toLowerCase()
-        : false;
+      const commentId = args.comment_id as string;
+      const { comment, access } = await getAuthorizedToolComment(commentId, ctx);
+      const isAuthor = comment.author_id === ctx.userId;
+      if (!isAuthor && !access.canModerate) {
+        throw new Error("Comment not found or not authorized to delete");
+      }
 
       const ok = await softDeleteComment(
-        args.comment_id as string,
+        commentId,
         ctx.userId,
-        isOwner,
+        access.canModerate,
       );
       if (!ok) {
         throw new Error("Comment not found or not authorized to delete");

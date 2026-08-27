@@ -22,8 +22,15 @@ vi.mock("@/auth", () => ({
 describe("comment actions", () => {
   useTestDatabase();
 
+  const resource = {
+    repo: "owner-user/notes",
+    branch: "main",
+    filePath: "README.md",
+  };
+
   beforeEach(() => {
     authMock.mockResolvedValue({
+      accessToken: "owner-token",
       user: {
         id: "1",
         login: "owner-user",
@@ -31,6 +38,21 @@ describe("comment actions", () => {
         image: null,
       },
     });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        const match = url.match(/\/repos\/([^/]+)\/([^/?]+)/);
+        const fullName = match
+          ? `${decodeURIComponent(match[1])}/${decodeURIComponent(match[2])}`
+          : "";
+        const status = fullName.startsWith("blocked/") ? 404 : 200;
+        return new Response(
+          JSON.stringify({ full_name: fullName, permissions: {} }),
+          { status, headers: { "content-type": "application/json" } },
+        );
+      }),
+    );
   });
 
   it("creates, fetches, resolves, deletes, and restores comments", async () => {
@@ -48,10 +70,10 @@ describe("comment actions", () => {
     expect(await fetchComments("owner-user/notes", "main", "README.md")).toHaveLength(
       1,
     );
-    expect(await resolveCommentAction(created.id)).toBe(true);
-    expect(await unresolveCommentAction(created.id, "owner-user")).toBe(true);
-    expect(await deleteCommentAction(created.id, "owner-user")).toBe(true);
-    expect(await restoreCommentAction(created.id, "owner-user")).toBe(true);
+    expect(await resolveCommentAction(created.id, resource)).toBe(true);
+    expect(await unresolveCommentAction(created.id, resource)).toBe(true);
+    expect(await deleteCommentAction(created.id, resource)).toBe(true);
+    expect(await restoreCommentAction(created.id, resource)).toBe(true);
   });
 
   it("rejects unauthenticated access", async () => {
@@ -80,13 +102,14 @@ describe("comment actions", () => {
       body: "To be resolved",
       parentId: null,
     });
-    await resolveCommentAction(created.id);
+    await resolveCommentAction(created.id, resource);
 
     authMock.mockResolvedValue({
+      accessToken: "other-token",
       user: { id: "2", login: "other-user", name: "Other User", image: null },
     });
 
-    await expect(unresolveCommentAction(created.id)).rejects.toThrow(
+    await expect(unresolveCommentAction(created.id, resource)).rejects.toThrow(
       "Not authorized",
     );
   });
@@ -101,13 +124,14 @@ describe("comment actions", () => {
       body: "To be deleted then restored",
       parentId: null,
     });
-    await deleteCommentAction(created.id, "owner-user");
+    await deleteCommentAction(created.id, resource);
 
     authMock.mockResolvedValue({
+      accessToken: "other-token",
       user: { id: "2", login: "other-user", name: "Other User", image: null },
     });
 
-    await expect(restoreCommentAction(created.id)).rejects.toThrow(
+    await expect(restoreCommentAction(created.id, resource)).rejects.toThrow(
       "Not authorized",
     );
   });
@@ -124,15 +148,16 @@ describe("comment actions", () => {
     });
 
     authMock.mockResolvedValue({
+      accessToken: "other-token",
       user: { id: "2", login: "other-user", name: "Other User", image: null },
     });
 
-    expect(await deleteCommentAction(created.id)).toBe(false);
+    expect(await deleteCommentAction(created.id, resource)).toBe(false);
   });
 
   it("repo owner can delete another user's comment", async () => {
     const created = await addComment({
-      repo: "owner-user/notes",
+      repo: "repo-owner/notes",
       branch: "main",
       filePath: "README.md",
       quote: null,
@@ -142,20 +167,83 @@ describe("comment actions", () => {
     });
 
     authMock.mockResolvedValue({
+      accessToken: "repo-owner-token",
       user: { id: "2", login: "repo-owner", name: "Repo Owner", image: null },
     });
 
-    expect(await deleteCommentAction(created.id, "repo-owner")).toBe(true);
+    expect(
+      await deleteCommentAction(created.id, {
+        ...resource,
+        repo: "repo-owner/notes",
+      }),
+    ).toBe(true);
   });
 
-  it("fetchComments works without authentication", async () => {
+  it("rejects unauthenticated comment reads without a share capability", async () => {
     authMock.mockResolvedValue(null);
 
-    const comments = await fetchComments(
-      "owner-user/notes",
-      "main",
-      "README.md",
-    );
-    expect(Array.isArray(comments)).toBe(true);
+    await expect(
+      fetchComments("owner-user/notes", "main", "README.md"),
+    ).rejects.toThrow("Not authenticated");
+  });
+
+  it("allows public-share reads only for the shared file", async () => {
+    const created = await addComment({
+      ...resource,
+      quote: null,
+      quoteContext: null,
+      body: "Shared feedback",
+      parentId: null,
+    });
+    const { createShare } = await import("@/lib/shares");
+    const shareId = await createShare({
+      type: "file",
+      ownerId: "1",
+      repo: resource.repo,
+      branch: resource.branch,
+      filePath: resource.filePath,
+      accessToken: "share-token",
+      expiresIn: null,
+      sharedWith: null,
+      sharedWithName: null,
+    });
+    authMock.mockResolvedValue(null);
+
+    await expect(
+      fetchComments(resource.repo, resource.branch, resource.filePath, shareId),
+    ).resolves.toMatchObject([{ id: created.id }]);
+    await expect(
+      fetchComments(resource.repo, resource.branch, "SECRET.md", shareId),
+    ).rejects.toThrow("Not authorized");
+  });
+
+  it("rejects a forged resource when mutating a comment", async () => {
+    const created = await addComment({
+      ...resource,
+      quote: null,
+      quoteContext: null,
+      body: "Scoped feedback",
+      parentId: null,
+    });
+
+    await expect(
+      resolveCommentAction(created.id, {
+        ...resource,
+        filePath: "OTHER.md",
+      }),
+    ).rejects.toThrow("Not authorized");
+  });
+
+  it("rejects repositories the caller cannot access", async () => {
+    await expect(
+      addComment({
+        ...resource,
+        repo: "blocked/private",
+        quote: null,
+        quoteContext: null,
+        body: "Unauthorized feedback",
+        parentId: null,
+      }),
+    ).rejects.toThrow("Repository access could not be verified");
   });
 });
