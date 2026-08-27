@@ -6,6 +6,12 @@ import {
   verifyMcpRefreshToken,
   ACCESS_EXPIRES_IN,
 } from "@/lib/mcp/jwt";
+import {
+  consumeMcpAuthorizationCode,
+  createMcpGrant,
+  rotateMcpGrant,
+  type McpGrant,
+} from "@/lib/mcp/grants";
 
 async function parseBody(req: NextRequest) {
   const contentType = req.headers.get("content-type") || "";
@@ -31,15 +37,12 @@ async function parseBody(req: NextRequest) {
   };
 }
 
-interface TokenPayload {
-  sub: string;
-  login: string;
-  name: string;
-  avatar_url: string;
-  githubToken: string;
-}
-
-async function issueTokens(payload: TokenPayload) {
+async function issueTokens(grant: McpGrant) {
+  const payload = {
+    sub: grant.userId,
+    grantId: grant.id,
+    tokenVersion: grant.tokenVersion,
+  };
   const [accessToken, refreshToken] = await Promise.all([
     signMcpToken(payload),
     signMcpRefreshToken(payload),
@@ -109,13 +112,21 @@ async function handleAuthorizationCode(params: {
     );
   }
 
-  return issueTokens({
-    sub: authCode.github_user_id,
+  if (!(await consumeMcpAuthorizationCode(code))) {
+    return NextResponse.json(
+      { error: "invalid_grant", error_description: "Authorization code was already used" },
+      { status: 400 },
+    );
+  }
+
+  const grant = await createMcpGrant({
+    userId: authCode.github_user_id,
     login: authCode.github_login,
     name: authCode.github_name,
-    avatar_url: authCode.github_avatar,
+    avatarUrl: authCode.github_avatar,
     githubToken: authCode.github_access_token,
   });
+  return issueTokens(grant);
 }
 
 async function handleRefreshToken(refreshToken: string | null) {
@@ -136,14 +147,14 @@ async function handleRefreshToken(refreshToken: string | null) {
     );
   }
 
-  // Issue new access + refresh token pair (token rotation)
-  return issueTokens({
-    sub: payload.sub,
-    login: payload.login,
-    name: payload.name,
-    avatar_url: payload.avatar_url,
-    githubToken: payload.github_token,
-  });
+  const grant = await rotateMcpGrant(payload.grant_id, payload.token_version);
+  if (!grant) {
+    return NextResponse.json(
+      { error: "invalid_grant", error_description: "Refresh token was already used or revoked" },
+      { status: 400 },
+    );
+  }
+  return issueTokens(grant);
 }
 
 export async function POST(req: NextRequest) {

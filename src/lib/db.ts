@@ -8,6 +8,8 @@ const REQUIRED_TABLES = [
   "file_section_hashes",
   "file_summaries",
   "file_views",
+  "mcp_auth_codes",
+  "mcp_grants",
   "share_visits",
   "shares",
   "synced_repos",
@@ -263,6 +265,31 @@ export async function initDb() {
   `);
   await ignoreDbError(db`
     ALTER TABLE shares ADD COLUMN IF NOT EXISTS repo_private BOOLEAN
+  `);
+  await db`
+    CREATE TABLE IF NOT EXISTS mcp_auth_codes (
+      code_digest TEXT PRIMARY KEY,
+      consumed_at TIMESTAMPTZ NOT NULL
+    )
+  `;
+  await db`
+    CREATE TABLE IF NOT EXISTS mcp_grants (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      login TEXT NOT NULL,
+      name TEXT NOT NULL,
+      avatar_url TEXT NOT NULL,
+      github_token TEXT NOT NULL,
+      token_version INTEGER NOT NULL DEFAULT 1,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL,
+      revoked_at TIMESTAMPTZ
+    )
+  `;
+  await ignoreDbError(db`
+    CREATE INDEX IF NOT EXISTS idx_mcp_grants_user_active
+    ON mcp_grants(user_id) WHERE revoked_at IS NULL
   `);
   await ignoreDbError(db`
     CREATE INDEX IF NOT EXISTS idx_shares_shared_with ON shares(shared_with)

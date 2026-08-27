@@ -5,15 +5,14 @@ export interface McpContext {
   userName: string;
   userAvatar: string;
   githubToken: string;
+  grantId?: string;
 }
 
 /** JWT payload stored in MCP access tokens */
 export interface McpJwtPayload {
   sub: string;
-  login: string;
-  name: string;
-  avatar_url: string;
-  github_token: string; // encrypted via crypto.ts
+  grant_id: string;
+  token_version: number;
 }
 
 /** OAuth state encrypted into the GitHub redirect */

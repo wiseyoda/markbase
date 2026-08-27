@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyMcpToken } from "@/lib/mcp/jwt";
 import { getToolsList, executeTool } from "@/lib/mcp/tools";
 import type { McpContext, JsonRpcRequest, JsonRpcResponse } from "@/lib/mcp/types";
+import { getMcpGrant, revokeMcpGrant } from "@/lib/mcp/grants";
 
 const BASE_URL =
   process.env.NEXTAUTH_URL || "https://markbase.io";
@@ -44,12 +45,15 @@ async function authenticate(
   try {
     const token = authHeader.slice(7);
     const payload = await verifyMcpToken(token);
+    const grant = await getMcpGrant(payload.grant_id, payload.token_version);
+    if (!grant || grant.userId !== payload.sub) return null;
     return {
-      userId: payload.sub,
-      userLogin: payload.login,
-      userName: payload.name,
-      userAvatar: payload.avatar_url,
-      githubToken: payload.github_token,
+      userId: grant.userId,
+      userLogin: grant.login,
+      userName: grant.name,
+      userAvatar: grant.avatarUrl,
+      githubToken: grant.githubToken,
+      grantId: grant.id,
     };
   } catch {
     return null;
@@ -127,7 +131,9 @@ export async function GET() {
   return new NextResponse(null, { status: 405 });
 }
 
-export async function DELETE() {
-  // Session cleanup — stateless, nothing to clean
+export async function DELETE(req: NextRequest) {
+  const context = await authenticate(req);
+  if (!context?.grantId) return unauthorized();
+  await revokeMcpGrant(context.grantId);
   return NextResponse.json({ ok: true });
 }

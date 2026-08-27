@@ -36,6 +36,9 @@ export default function SecurityPage() {
           <Section title="AI summaries">
             When AI summaries are enabled by the operator, Markbase may send up to 30,000 characters of public document content to the configured OpenAI, Anthropic, or Google model. Private or unknown repository visibility fails closed unless the operator separately opts in. Generated summaries and provider/model metadata are cached in Postgres. Per-repository consent and deletion controls are still planned; keep private summaries disabled until that policy matches your requirements.
           </Section>
+          <Section title="MCP access">
+            MCP access and refresh tokens contain a revocable server-side grant identifier, not a GitHub credential. The encrypted GitHub token remains on the server. Refresh rotation invalidates the previous grant version, authorization codes are single-use, and an authenticated MCP DELETE request revokes the grant.
+          </Section>
           <Section title="Stored product data">
             Markbase stores user profile metadata, repository names, share scope and recipient metadata, comments, review baselines, content hashes, and cached AI outputs. It does not store a second editable copy of your repository documents.
           </Section>

@@ -15,20 +15,16 @@ describe("MCP JWT helpers", () => {
 
     const token = await signMcpToken({
       sub: "1",
-      login: "owner-user",
-      name: "Owner User",
-      avatar_url: "https://example.com/owner.png",
-      githubToken: "owner-token",
+      grantId: "grant-1",
+      tokenVersion: 1,
     });
 
     expect(token).not.toContain("owner-token");
 
     await expect(verifyMcpToken(token)).resolves.toEqual({
       sub: "1",
-      login: "owner-user",
-      name: "Owner User",
-      avatar_url: "https://example.com/owner.png",
-      github_token: "owner-token",
+      grant_id: "grant-1",
+      token_version: 1,
     });
   });
 
@@ -39,10 +35,8 @@ describe("MCP JWT helpers", () => {
     await expect(
       signMcpToken({
         sub: "1",
-        login: "owner-user",
-        name: "Owner User",
-        avatar_url: "https://example.com/owner.png",
-        githubToken: "owner-token",
+        grantId: "grant-1",
+        tokenVersion: 1,
       }),
     ).rejects.toThrow("SHARE_ENCRYPTION_KEY must be a 64-char hex string");
   });
@@ -53,10 +47,8 @@ describe("MCP JWT helpers", () => {
     await expect(
       signMcpToken({
         sub: "1",
-        login: "owner-user",
-        name: "Owner User",
-        avatar_url: "https://example.com/owner.png",
-        githubToken: "owner-token",
+        grantId: "grant-1",
+        tokenVersion: 1,
       }),
     ).rejects.toThrow("SHARE_ENCRYPTION_KEY must be a 64-char hex string");
   });
@@ -70,18 +62,14 @@ describe("MCP JWT helpers", () => {
 
     const token = await signMcpRefreshToken({
       sub: "1",
-      login: "owner-user",
-      name: "Owner User",
-      avatar_url: "https://example.com/owner.png",
-      githubToken: "owner-token",
+      grantId: "grant-1",
+      tokenVersion: 1,
     });
 
     await expect(verifyMcpRefreshToken(token)).resolves.toEqual({
       sub: "1",
-      login: "owner-user",
-      name: "Owner User",
-      avatar_url: "https://example.com/owner.png",
-      github_token: "owner-token",
+      grant_id: "grant-1",
+      token_version: 1,
     });
   });
 
@@ -94,10 +82,8 @@ describe("MCP JWT helpers", () => {
 
     const accessToken = await signMcpToken({
       sub: "1",
-      login: "owner-user",
-      name: "Owner User",
-      avatar_url: "https://example.com/owner.png",
-      githubToken: "owner-token",
+      grantId: "grant-1",
+      tokenVersion: 1,
     });
 
     await expect(verifyMcpRefreshToken(accessToken)).rejects.toThrow();

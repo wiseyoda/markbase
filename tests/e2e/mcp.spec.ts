@@ -106,4 +106,38 @@ test("completes the MCP OAuth and JSON-RPC flow", async ({ request }) => {
   });
   const toolCall = await getComments.json();
   expect(toolCall.result.content[0].text).toContain('"comments": []');
+
+  const refresh = await request.post("/api/mcp/token", {
+    data: {
+      grant_type: "refresh_token",
+      refresh_token: tokenBody.refresh_token,
+    },
+  });
+  expect(refresh.ok()).toBeTruthy();
+  const refreshed = await refresh.json();
+
+  const oldAccess = await request.post("/api/mcp", {
+    headers: { authorization: `Bearer ${tokenBody.access_token}` },
+    data: { jsonrpc: "2.0", method: "initialize", id: 4 },
+  });
+  expect(oldAccess.status()).toBe(401);
+
+  const replay = await request.post("/api/mcp/token", {
+    data: {
+      grant_type: "refresh_token",
+      refresh_token: tokenBody.refresh_token,
+    },
+  });
+  expect(replay.status()).toBe(400);
+
+  const revoke = await request.delete("/api/mcp", {
+    headers: { authorization: `Bearer ${refreshed.access_token}` },
+  });
+  expect(revoke.ok()).toBeTruthy();
+
+  const revokedAccess = await request.post("/api/mcp", {
+    headers: { authorization: `Bearer ${refreshed.access_token}` },
+    data: { jsonrpc: "2.0", method: "initialize", id: 5 },
+  });
+  expect(revokedAccess.status()).toBe(401);
 });

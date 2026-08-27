@@ -6,6 +6,8 @@ import { NextRequest } from "next/server";
 const verifyMcpTokenMock = vi.fn();
 const getToolsListMock = vi.fn();
 const executeToolMock = vi.fn();
+const getMcpGrantMock = vi.fn();
+const revokeMcpGrantMock = vi.fn();
 
 vi.mock("@/lib/mcp/jwt", () => ({
   verifyMcpToken: verifyMcpTokenMock,
@@ -14,6 +16,10 @@ vi.mock("@/lib/mcp/jwt", () => ({
 vi.mock("@/lib/mcp/tools", () => ({
   getToolsList: getToolsListMock,
   executeTool: executeToolMock,
+}));
+vi.mock("@/lib/mcp/grants", () => ({
+  getMcpGrant: getMcpGrantMock,
+  revokeMcpGrant: revokeMcpGrantMock,
 }));
 
 describe("MCP JSON-RPC route", () => {
@@ -26,8 +32,19 @@ describe("MCP JSON-RPC route", () => {
       login: "owner-user",
       name: "Owner User",
       avatar_url: "https://example.com/owner.png",
-      github_token: "owner-token",
+      grant_id: "grant-1",
+      token_version: 1,
     });
+    getMcpGrantMock.mockResolvedValue({
+      id: "grant-1",
+      userId: "1",
+      login: "owner-user",
+      name: "Owner User",
+      avatarUrl: "https://example.com/owner.png",
+      githubToken: "owner-token",
+      tokenVersion: 1,
+    });
+    revokeMcpGrantMock.mockResolvedValue(true);
     getToolsListMock.mockReturnValue([{ name: "get_comments" }]);
     executeToolMock.mockResolvedValue({ ok: true });
   });
@@ -226,7 +243,14 @@ describe("MCP JSON-RPC route", () => {
     expect((await unknownMethod.json()).error.code).toBe(-32601);
 
     expect((await GET()).status).toBe(405);
-    await expect((await DELETE()).json()).resolves.toEqual({ ok: true });
+    const deleted = await DELETE(
+      new NextRequest("https://markbase.test/api/mcp", {
+        method: "DELETE",
+        headers: { authorization: "Bearer token" },
+      }),
+    );
+    await expect(deleted.json()).resolves.toEqual({ ok: true });
+    expect(revokeMcpGrantMock).toHaveBeenCalledWith("grant-1");
   });
 
   it("uses the default metadata URL when NEXTAUTH_URL is unset", async () => {
