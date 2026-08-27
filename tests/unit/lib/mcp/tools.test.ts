@@ -8,6 +8,7 @@ const {
   mockGetComments,
   mockGetCommentsByPrefix,
   mockGetCommentById,
+  mockGetCommentsByIds,
   mockCreateComment,
   mockResolveComment,
   mockResolveComments,
@@ -22,6 +23,7 @@ const {
   mockGetComments: vi.fn(),
   mockGetCommentsByPrefix: vi.fn(),
   mockGetCommentById: vi.fn(),
+  mockGetCommentsByIds: vi.fn(),
   mockCreateComment: vi.fn(),
   mockResolveComment: vi.fn(),
   mockResolveComments: vi.fn(),
@@ -44,6 +46,7 @@ vi.mock("@/lib/comments", () => ({
   getComments: mockGetComments,
   getCommentsByPrefix: mockGetCommentsByPrefix,
   getCommentById: mockGetCommentById,
+  getCommentsByIds: mockGetCommentsByIds,
   createComment: mockCreateComment,
   resolveComment: mockResolveComment,
   resolveComments: mockResolveComments,
@@ -73,6 +76,14 @@ describe("MCP tools", () => {
       canModerate: true,
     });
     mockRepositoryFromFileKey.mockReturnValue("owner/repo");
+    mockGetCommentsByIds.mockImplementation(async (ids: string[]) =>
+      ids.map((id) => ({
+        id,
+        file_key: "owner/repo/main/README.md",
+        author_id: "1",
+        parent_id: null,
+      })),
+    );
   });
 
   it("lists tools", () => {
@@ -376,6 +387,14 @@ describe("MCP tools", () => {
       author_id: "2",
       parent_id: null,
     });
+    mockGetCommentsByIds.mockResolvedValue([
+      {
+        id: "other-comment",
+        file_key: "owner/repo/main/README.md",
+        author_id: "2",
+        parent_id: null,
+      },
+    ]);
 
     for (const [name, args] of [
       ["resolve_comment", { comment_id: "other-comment" }],
@@ -417,12 +436,6 @@ describe("MCP tools", () => {
   });
 
   it("authorizes each repository once during bulk resolution", async () => {
-    mockGetCommentById.mockImplementation(async (id: string) => ({
-      id,
-      file_key: "owner/repo/main/README.md",
-      author_id: "1",
-      parent_id: null,
-    }));
     mockResolveComments.mockResolvedValue(["1", "2"]);
 
     await executeTool(
@@ -432,6 +445,7 @@ describe("MCP tools", () => {
     );
 
     expect(mockAuthorizeMcpRepositoryAccess).toHaveBeenCalledTimes(1);
+    expect(mockGetCommentsByIds).toHaveBeenCalledWith(["1", "2"]);
     expect(mockResolveComments).toHaveBeenCalledWith(["1", "2"], "1");
   });
 

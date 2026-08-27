@@ -4,6 +4,7 @@ import {
   getComments,
   getCommentsByPrefix,
   getCommentById,
+  getCommentsByIds,
   createComment,
   resolveComment,
   resolveComments,
@@ -362,14 +363,28 @@ const TOOLS: McpToolDefinition[] = [
         throw new Error("comment_ids must contain at most 100 valid IDs");
       }
       const uniqueIds = [...new Set(ids)];
-      const comments = await Promise.all(uniqueIds.map(getToolComment));
+      const loadedComments = await getCommentsByIds(uniqueIds);
+      if (loadedComments.length !== uniqueIds.length) {
+        throw new Error("Comment not found or not authorized");
+      }
+      const byId = new Map(loadedComments.map((comment) => [comment.id, comment]));
+      const comments = uniqueIds.map((id) => {
+        const comment = byId.get(id)!;
+        return { comment, repo: repositoryFromFileKey(comment.file_key) };
+      });
       const repositories = [...new Set(comments.map(({ repo }) => repo))];
-      const accessEntries = await Promise.all(
-        repositories.map(async (repo) => [
-          repo,
-          await authorizeToolRepository(repo, ctx),
-        ] as const),
-      );
+      const accessEntries: Array<readonly [string, ResourceAccess]> = [];
+      for (let index = 0; index < repositories.length; index += 3) {
+        const chunk = repositories.slice(index, index + 3);
+        accessEntries.push(
+          ...(await Promise.all(
+            chunk.map(async (repo) => [
+              repo,
+              await authorizeToolRepository(repo, ctx),
+            ] as const),
+          )),
+        );
+      }
       const accessByRepo = new Map(accessEntries);
       for (const { comment, repo } of comments) {
         requireCommentMutationPermission(comment, accessByRepo.get(repo)!);

@@ -219,6 +219,16 @@ export async function getCommentById(
   return rows.length > 0 ? rowToComment(rows[0]) : null;
 }
 
+export async function getCommentsByIds(commentIds: string[]): Promise<Comment[]> {
+  if (commentIds.length === 0) return [];
+  const db = getDb();
+  const rows = await db`
+    SELECT * FROM comments
+    WHERE id = ANY(${commentIds}) AND deleted_at IS NULL
+  `;
+  return rows.map(rowToComment);
+}
+
 /**
  * Fetch threaded comments across multiple files by prefix, with cursor pagination.
  * @param prefix File key prefix to match (e.g. `"owner/repo/branch/"` for repo scope).

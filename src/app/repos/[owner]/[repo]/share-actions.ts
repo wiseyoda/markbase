@@ -12,6 +12,35 @@ export interface GitHubUserResult {
   avatar_url: string;
 }
 
+const SHARE_TYPES = new Set(["file", "repo", "folder"]);
+const SHARE_EXPIRIES = new Set(["1h", "1d", "7d", "30d"]);
+
+async function verifyShareRecipient(
+  accessToken: string,
+  userId: string,
+  login: string,
+): Promise<void> {
+  if (!/^\d+$/.test(userId) || !/^[A-Za-z0-9-]{1,39}$/.test(login)) {
+    throw new Error("Invalid share recipient");
+  }
+  const response = await fetch(githubApiUrl(`/user/${userId}`), {
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+  if (!response.ok) throw new Error("Invalid share recipient");
+  const user = (await response.json()) as { id?: number; login?: string };
+  if (
+    String(user.id) !== userId ||
+    user.login?.toLowerCase() !== login.toLowerCase()
+  ) {
+    throw new Error("Invalid share recipient");
+  }
+}
+
 export async function createShareAction(opts: {
   type: "file" | "repo" | "folder";
   repo: string;
@@ -21,8 +50,18 @@ export async function createShareAction(opts: {
   sharedWith: string | null;
   sharedWithName: string | null;
 }): Promise<string> {
+  if (!SHARE_TYPES.has(opts.type)) throw new Error("Invalid share type");
+  if (opts.expiresIn !== null && !SHARE_EXPIRIES.has(opts.expiresIn)) {
+    throw new Error("Invalid share expiry");
+  }
   if (opts.type !== "repo" && !opts.filePath) {
     throw new Error("A file path is required for file and folder shares");
+  }
+  if (opts.type === "repo" && opts.filePath !== null) {
+    throw new Error("Repository shares cannot include a file path");
+  }
+  if (Boolean(opts.sharedWith) !== Boolean(opts.sharedWithName)) {
+    throw new Error("Share recipient ID and name must be provided together");
   }
   const access = await authorizeResourceAccess(
     {
@@ -33,6 +72,13 @@ export async function createShareAction(opts: {
     { requireUser: true },
   );
   if (!access.actorId) throw new Error("Not authenticated");
+  if (opts.sharedWith && opts.sharedWithName) {
+    await verifyShareRecipient(
+      access.accessToken,
+      opts.sharedWith,
+      opts.sharedWithName,
+    );
+  }
 
   return withDbRetry(() =>
     createShare({

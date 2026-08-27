@@ -86,6 +86,9 @@ export function CommentRail({
   // Optimistic: add a temp comment to local state immediately
   const addOptimisticComment = useCallback((tempComment: Comment) => {
     setComments((prev) => [...prev, tempComment]);
+    return () => {
+      setComments((prev) => prev.filter((comment) => comment.id !== tempComment.id));
+    };
   }, []);
 
   // Keep context count in sync with unresolved comments

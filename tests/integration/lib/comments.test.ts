@@ -10,6 +10,7 @@ import {
   getRecentCommentsForRepos,
   getCommentById,
   getComments,
+  getCommentsByIds,
   getCommentsByPrefix,
   purgeComment,
   purgeDeletedComments,
@@ -151,6 +152,8 @@ describe("comments", () => {
       nextCursor: null,
     });
     expect(await resolveComments([], "1")).toEqual([]);
+    await expect(getCommentsByIds([a.id, b.id])).resolves.toHaveLength(2);
+    await expect(getCommentsByIds([])).resolves.toEqual([]);
 
     const paged = await getCommentsByPrefix("owner-user/notes/main/", {
       includeResolved: true,
