@@ -9,12 +9,15 @@ pnpm dev              # Start dev server (localhost:3000)
 pnpm build            # Production build
 pnpm lint             # ESLint
 npx tsc --noEmit      # Type check
+pnpm env:check        # Validate local config without printing secrets
+pnpm db:migrate       # Apply the current idempotent schema from the CLI
+pnpm db:status        # Read-only schema readiness check
 pnpm test:unit        # Unit + integration tests (Vitest, coverage enforced)
 pnpm test:unit:watch  # Watch mode
 pnpm test:e2e         # E2E tests (Playwright, requires build + Docker)
 ```
 
-**After DB schema changes:** Hit `/api/init-db` (local or production) to run migrations.
+**After DB schema changes:** run `pnpm db:migrate`, then `pnpm db:status`. Database migrations are never exposed through an HTTP route.
 
 ## Project Structure
 
@@ -43,7 +46,6 @@ src/
 │   ├── not-found.tsx               # Custom 404
 │   ├── error.tsx                   # Error boundary
 │   └── api/
-│       ├── init-db/                # DB migrations
 │       ├── repos/                  # On-demand GitHub repo list (client-fetched)
 │       ├── github/webhook/         # GitHub push webhook → cache invalidation
 │       └── mcp/                    # MCP server (JSON-RPC + OAuth)
@@ -86,7 +88,7 @@ src/
 
 ## Environment Variables
 
-See `.env.example` for all required variables. Key notes:
+See `.env.example` for the complete, mode-grouped contract. Key notes:
 - `PRISMA_DATABASE_URL` is preferred over `POSTGRES_URL` (Prisma Accelerate proxy)
 - `AUTH_BYPASS=true` + `GITHUB_PAT` for local dev without OAuth
 - With AUTH_BYPASS, visit `/?preview` to view the landing page (dev only)
@@ -117,12 +119,12 @@ Remote HTTP MCP server at `/api/mcp` with GitHub OAuth (stateless, Vercel-compat
 
 ## Testing
 
-**Unit + Integration** (Vitest): `pnpm test:unit` — 34 test files, 160 tests.
+**Unit + Integration** (Vitest): `pnpm test:unit` — coverage-enforced source, route, and action tests.
 - Config: `vitest.config.mts`, setup in `tests/setup/`
 - Unit tests: `tests/unit/` — pure logic, mocked dependencies
 - Integration tests: `tests/integration/` — hit real Postgres via testcontainers
 - Integration helper: `tests/helpers/postgres.ts` — `useTestDatabase()` hook spins up a container
-- Coverage thresholds enforced: 99% lines/functions, 93% branches, 98% statements
+- Coverage thresholds are authoritative in `vitest.config.mts`; do not duplicate numeric claims in docs.
 
 **E2E** (Playwright): `pnpm test:e2e` — requires `pnpm build` first + Docker for Postgres.
 - Config: `playwright.config.ts`, tests in `tests/e2e/`
@@ -163,5 +165,5 @@ Remote HTTP MCP server at `/api/mcp` with GitHub OAuth (stateless, Vercel-compat
 - Production: https://markbase.io (old markbase-github.vercel.app 308-redirects)
 - Repo: wiseyoda/markbase
 - Versioning: date-based YYYY.MMDD in VERSION file. Tags: `v2026.0408`
-- CI: GitHub Actions — typecheck (strict), lint (soft-fail), unit tests (no coverage thresholds)
+- CI: GitHub Actions — pinned Node/pnpm, environment contract, strict typecheck/lint, and unit tests. Browser E2E/build parity is a queued hardening gate.
 - Branch protection: force-push and deletion blocked on main

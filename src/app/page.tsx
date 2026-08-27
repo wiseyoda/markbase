@@ -5,6 +5,7 @@ import { Logo } from "@/components/logo";
 import { redirect } from "next/navigation";
 import { ProductDemo } from "./product-demo";
 import { ScrollReveal } from "./scroll-reveal";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "markbase — Browse, share, and discuss markdown from GitHub",
@@ -51,9 +52,8 @@ export default async function Home(props: {
               className="landing-stagger mt-6 max-w-lg text-lg leading-relaxed text-zinc-500 dark:text-zinc-400"
               style={{ "--stagger": 1 } as React.CSSProperties}
             >
-              Browse, share, and discuss the docs your team writes in
-              GitHub — with beautiful rendering, granular sharing, and
-              inline comments.
+              Review, share, and discuss the markdown you and your collaborators
+              keep in GitHub — without moving the source out of the repository.
             </p>
             <form
               action={async () => {
@@ -74,7 +74,11 @@ export default async function Home(props: {
               className="landing-stagger mt-4 text-xs text-zinc-400 dark:text-zinc-500"
               style={{ "--stagger": 3 } as React.CSSProperties}
             >
-              Read-only GitHub access. Your repos stay untouched.
+              GitHub&apos;s current OAuth scope is broad. Markbase only reads repository
+              contents and never commits changes.{" "}
+              <Link href="/security" className="font-medium text-zinc-600 underline underline-offset-2 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white">
+                How access and sharing work
+              </Link>
             </p>
           </div>
         </section>

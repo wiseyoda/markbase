@@ -61,8 +61,21 @@ function isBypass(): boolean {
     process.env.AUTH_BYPASS === "true" &&
     (
       process.env.NODE_ENV === "development" ||
-      process.env.MARKBASE_TEST_MODE === "true"
+      isTestMode()
     )
+  );
+}
+
+function isProductionRuntime(): boolean {
+  return process.env.VERCEL_ENV === "production";
+}
+
+function isTestMode(): boolean {
+  const secret = process.env.MARKBASE_TEST_SECRET;
+  return (
+    process.env.MARKBASE_TEST_MODE === "true" &&
+    Boolean(secret && secret.length >= 32) &&
+    !isProductionRuntime()
   );
 }
 
@@ -85,7 +98,7 @@ function bypassSession(): Session {
 }
 
 async function testSession(): Promise<Session | null | undefined> {
-  if (process.env.MARKBASE_TEST_MODE !== "true") return undefined;
+  if (!isTestMode()) return undefined;
 
   const cookieStore = await cookies();
   const raw = cookieStore.get(TEST_AUTH_COOKIE)?.value;
@@ -110,7 +123,7 @@ async function testSession(): Promise<Session | null | undefined> {
 }
 
 async function auth(): Promise<Session | null> {
-  if (process.env.MARKBASE_TEST_MODE === "true") {
+  if (isTestMode()) {
     return (await testSession()) ?? null;
   }
 

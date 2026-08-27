@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { encodeTestAuthCookie, TEST_AUTH_COOKIE, type TestAuthPayload } from "@/lib/test-auth";
 
@@ -23,7 +24,12 @@ export const otherUser: TestAuthPayload = {
 };
 
 export async function resetApp(request: import("@playwright/test").APIRequestContext) {
-  const res = await request.post("/api/test/reset");
+  const env = JSON.parse(
+    await readFile(".e2e-test-env.json", "utf8"),
+  ) as { testSecret: string };
+  const res = await request.post("/api/test/reset", {
+    headers: { "x-markbase-test-secret": env.testSecret },
+  });
   expect(res.ok()).toBeTruthy();
 }
 

@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, describe, expect, it } from "vitest";
-import { getDb, initDb, resetDb } from "@/lib/db";
+import { getDb, getDbSchemaStatus, initDb, resetDb } from "@/lib/db";
 import { startTestDatabase, stopTestDatabase } from "../../helpers/postgres";
 
 describe("db", () => {
@@ -24,6 +24,10 @@ describe("db", () => {
     expect(first).toBe(second);
 
     await initDb();
+    await expect(getDbSchemaStatus()).resolves.toEqual({
+      ready: true,
+      missingTables: [],
+    });
     await resetDb();
 
     const third = getDb();
