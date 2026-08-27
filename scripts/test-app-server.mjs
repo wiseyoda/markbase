@@ -220,6 +220,7 @@ async function initializeDatabase() {
       access_token TEXT,
       snapshot_content TEXT,
       snapshot_sha TEXT,
+      repo_private BOOLEAN,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       expires_at TIMESTAMPTZ,
       deleted_at TIMESTAMPTZ,

@@ -113,6 +113,7 @@ export async function createShareAction(opts: {
       accessToken: opts.type === "file" ? null : access.accessToken,
       snapshotContent,
       snapshotSha,
+      repoPrivate: access.repositoryPrivate,
       expiresIn: opts.expiresIn,
       sharedWith: opts.sharedWith,
       sharedWithName: opts.sharedWithName,

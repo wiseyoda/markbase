@@ -262,6 +262,9 @@ export async function initDb() {
     ALTER TABLE shares ADD COLUMN IF NOT EXISTS snapshot_sha TEXT
   `);
   await ignoreDbError(db`
+    ALTER TABLE shares ADD COLUMN IF NOT EXISTS repo_private BOOLEAN
+  `);
+  await ignoreDbError(db`
     CREATE INDEX IF NOT EXISTS idx_shares_shared_with ON shares(shared_with)
   `);
   // Composite index for countOpenComments and getCommentsByPrefix hot path

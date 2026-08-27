@@ -8,6 +8,7 @@ import {
   getFileHistory,
   getLastModified,
   getMarkdownTree,
+  getRepositoryMetadata,
 } from "@/lib/github";
 import {
   getGitHubBranchTags,
@@ -54,6 +55,31 @@ describe("github API helpers", () => {
         },
       }),
     );
+  });
+
+  it("returns strict repository visibility metadata", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          full_name: "owner/repo",
+          default_branch: "trunk",
+          private: true,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ full_name: "other/repo", private: false }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      getRepositoryMetadata("token", "owner", "repo"),
+    ).resolves.toEqual({ defaultBranch: "trunk", private: true });
+    await expect(
+      getRepositoryMetadata("token", "owner", "repo"),
+    ).resolves.toBeNull();
   });
 
   it("filters markdown files", async () => {

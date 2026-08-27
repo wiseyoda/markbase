@@ -16,6 +16,7 @@ export interface Share {
   created_at: string;
   expires_at: string | null;
   deleted_at: string | null;
+  repo_private: boolean | null;
 }
 
 export interface ShareWithToken extends Share {
@@ -33,6 +34,7 @@ export async function createShare(opts: {
   accessToken: string | null;
   snapshotContent?: string | null;
   snapshotSha?: string | null;
+  repoPrivate?: boolean | null;
   expiresIn: string | null;
   sharedWith: string | null;
   sharedWithName: string | null;
@@ -62,12 +64,12 @@ export async function createShare(opts: {
     INSERT INTO shares (
       id, type, owner_id, repo, branch, file_path, access_token,
       snapshot_content, snapshot_sha,
-      expires_at, shared_with, shared_with_name
+      repo_private, expires_at, shared_with, shared_with_name
     )
     VALUES (
       ${id}, ${opts.type}, ${opts.ownerId}, ${opts.repo}, ${opts.branch},
       ${opts.filePath}, ${encryptedToken}, ${encryptedSnapshot},
-      ${opts.snapshotSha ?? null}, ${expiresAt}, ${opts.sharedWith},
+      ${opts.snapshotSha ?? null}, ${opts.repoPrivate ?? null}, ${expiresAt}, ${opts.sharedWith},
       ${opts.sharedWithName}
     )
   `;
@@ -99,6 +101,7 @@ export async function getShare(id: string): Promise<ShareWithToken | null> {
     created_at: row.created_at as string,
     expires_at: row.expires_at as string | null,
     deleted_at: row.deleted_at as string | null,
+    repo_private: (row.repo_private as boolean | null) ?? null,
     accessToken: row.access_token ? decrypt(row.access_token as string) : null,
     snapshotContent: row.snapshot_content
       ? decrypt(row.snapshot_content as string)
@@ -120,6 +123,7 @@ function rowToShare(row: Record<string, unknown>): Share {
     created_at: row.created_at as string,
     expires_at: row.expires_at as string | null,
     deleted_at: row.deleted_at as string | null,
+    repo_private: (row.repo_private as boolean | null) ?? null,
   };
 }
 

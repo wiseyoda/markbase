@@ -137,6 +137,8 @@ describe("resource access", () => {
         new Response(
           JSON.stringify({
             full_name: "owner/repo",
+            private: true,
+            default_branch: "trunk",
             permissions: { maintain: true },
           }),
           { status: 200 },
@@ -146,7 +148,11 @@ describe("resource access", () => {
 
     await expect(
       verifyGitHubRepositoryAccess("secret-token", "owner/repo"),
-    ).resolves.toEqual({ canModerate: true });
+    ).resolves.toEqual({
+      canModerate: true,
+      repositoryPrivate: true,
+      defaultBranch: "trunk",
+    });
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining("/repos/owner/repo"),
       expect.objectContaining({
