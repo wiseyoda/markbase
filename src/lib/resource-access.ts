@@ -37,7 +37,9 @@ export function parseRepositorySlug(repo: string): {
   const parts = repo.split("/");
   if (
     parts.length !== 2 ||
-    parts.some((part) => !part || !/^[A-Za-z0-9_.-]+$/.test(part))
+    parts.some((part) => !part || !/^[A-Za-z0-9_.-]+$/.test(part)) ||
+    parts[0].length > 39 ||
+    parts[1].length > 100
   ) {
     throw new ResourceAccessError("Invalid repository");
   }
@@ -50,6 +52,7 @@ export function validateResourceRef(resource: ResourceRef): ResourceRef {
   if (
     typeof resource.branch !== "string" ||
     !resource.branch ||
+    resource.branch.length > 255 ||
     /[\0-\x20~^:?*[\]\\\x7f]/.test(resource.branch) ||
     resource.branch.includes("..") ||
     resource.branch.includes("@{") ||
@@ -75,6 +78,7 @@ export function validateResourceRef(resource: ResourceRef): ResourceRef {
     const segments = path.split("/");
     if (
       path.startsWith("/") ||
+      path.length > 4_096 ||
       /[\0-\x1f\x7f\\]/.test(path) ||
       segments.some((segment) => segment === "." || segment === "..")
     ) {

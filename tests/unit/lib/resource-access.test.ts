@@ -53,6 +53,9 @@ describe("resource access", () => {
     expect(() => parseRepositorySlug(null as unknown as string)).toThrow(
       "Invalid repository",
     );
+    expect(() => parseRepositorySlug(`${"o".repeat(40)}/repo`)).toThrow(
+      "Invalid repository",
+    );
   });
 
   it("rejects refs and paths that can change GitHub request semantics", async () => {

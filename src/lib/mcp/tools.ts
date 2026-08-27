@@ -30,7 +30,11 @@ async function authorizeToolResource(
 }
 
 async function getToolComment(commentId: string) {
-  if (typeof commentId !== "string" || !commentId) {
+  if (
+    typeof commentId !== "string" ||
+    !commentId ||
+    commentId.length > 100
+  ) {
     throw new Error("Invalid comment ID");
   }
   const comment = await getCommentById(commentId);
