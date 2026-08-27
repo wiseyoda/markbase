@@ -39,30 +39,42 @@ export function CommentThread({
 
   const handleResolve = () => {
     startTransition(async () => {
-      const resource = { repo, branch, filePath, shareId };
-      if (comment.resolved_at) {
-        await unresolveCommentAction(comment.id, resource);
+      try {
+        const resource = { repo, branch, filePath, shareId };
+        const changed = comment.resolved_at
+          ? await unresolveCommentAction(comment.id, resource)
+          : await resolveCommentAction(comment.id, resource);
+        if (!changed) throw new Error("Comment state did not change");
         onUpdate();
-      } else {
-        await resolveCommentAction(comment.id, resource);
-        onUpdate();
-        toast("Comment resolved", "success");
+        toast(comment.resolved_at ? "Comment reopened" : "Comment resolved", "success");
+      } catch {
+        toast("Could not update this comment.", "error");
       }
     });
   };
 
   const handleDelete = () => {
     startTransition(async () => {
-      const resource = { repo, branch, filePath, shareId };
-      await deleteCommentAction(comment.id, resource);
-      setDeleteOpen(false);
-      onUpdate();
-      toast("Comment deleted", "info", {
-        label: "Undo",
-        onClick: () => {
-          restoreCommentAction(comment.id, resource).then(() => onUpdate());
-        },
-      });
+      try {
+        const resource = { repo, branch, filePath, shareId };
+        const deleted = await deleteCommentAction(comment.id, resource);
+        if (!deleted) throw new Error("Comment was not deleted");
+        setDeleteOpen(false);
+        onUpdate();
+        toast("Comment deleted", "info", {
+          label: "Undo",
+          onClick: () => {
+            restoreCommentAction(comment.id, resource)
+              .then((restored) => {
+                if (!restored) throw new Error("Comment was not restored");
+                onUpdate();
+              })
+              .catch(() => toast("Could not restore this comment.", "error"));
+          },
+        });
+      } catch {
+        toast("Could not delete this comment.", "error");
+      }
     });
   };
 
