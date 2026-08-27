@@ -58,6 +58,7 @@ export default async function SharedFilePage({
   const share = await withDbRetry(() => getShare(id));
 
   if (!share || (share.type !== "repo" && share.type !== "folder")) notFound();
+  if (!share.accessToken) notFound();
 
   // User-targeted shares require the correct user to be signed in
   if (share.shared_with) {

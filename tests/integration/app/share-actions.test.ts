@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDatabase } from "../../helpers/postgres";
 import { createShareAction, deleteShareAction, searchGitHubUsers } from "@/app/repos/[owner]/[repo]/share-actions";
+import { getShare } from "@/lib/shares";
 
 const { authMock, searchUsersMock } = vi.hoisted(() => ({
   authMock: vi.fn(),
@@ -65,6 +66,11 @@ describe("share actions", () => {
     });
 
     expect(shareId).toHaveLength(12);
+    await expect(getShare(shareId)).resolves.toMatchObject({
+      accessToken: null,
+      snapshotContent: expect.any(String),
+      snapshotSha: expect.any(String),
+    });
     await expect(deleteShareAction(shareId)).resolves.toBe(true);
   });
 
@@ -235,6 +241,43 @@ describe("share actions", () => {
         sharedWithName: "wrong-user",
       }),
     ).rejects.toThrow("Invalid share recipient");
+  });
+
+  it("rejects file snapshots that cannot be read or exceed the size limit", async () => {
+    const base = {
+      type: "file" as const,
+      repo: "owner-user/notes",
+      branch: "main",
+      filePath: "README.md",
+      expiresIn: "7d",
+      sharedWith: null,
+      sharedWithName: null,
+    };
+    const repositoryResponse = () =>
+      new Response(
+        JSON.stringify({ full_name: "owner-user/notes", permissions: {} }),
+        { status: 200 },
+      );
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(repositoryResponse())
+        .mockResolvedValueOnce(new Response("not found", { status: 404 })),
+    );
+    await expect(createShareAction(base)).rejects.toThrow(
+      "shared file could not be read",
+    );
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(repositoryResponse())
+        .mockResolvedValueOnce(new Response("x".repeat(1_000_001), { status: 200 })),
+    );
+    await expect(createShareAction(base)).rejects.toThrow(
+      "exceeds the 1 MB snapshot limit",
+    );
   });
 
   it("returns empty results for blank user searches", async () => {

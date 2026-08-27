@@ -143,4 +143,26 @@ describe("history actions", () => {
     ).rejects.toThrow("Not authorized");
     expect(getFileAtCommitMock).not.toHaveBeenCalled();
   });
+
+  it("does not expose live GitHub history for immutable snapshot shares", async () => {
+    const shareId = await createShare({
+      type: "file",
+      ownerId: "1",
+      repo: "owner-user/notes",
+      branch: "main",
+      filePath: "README.md",
+      accessToken: null,
+      snapshotContent: "# Snapshot",
+      snapshotSha: "snapshot-sha",
+      expiresIn: null,
+      sharedWith: null,
+      sharedWithName: null,
+    });
+    getFileHistoryMock.mockClear();
+
+    await expect(
+      fetchFileHistory("owner-user", "notes", "main", "README.md", shareId),
+    ).rejects.toThrow("History is unavailable for snapshot shares");
+    expect(getFileHistoryMock).not.toHaveBeenCalled();
+  });
 });

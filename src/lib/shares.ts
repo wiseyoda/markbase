@@ -19,7 +19,9 @@ export interface Share {
 }
 
 export interface ShareWithToken extends Share {
-  accessToken: string;
+  accessToken: string | null;
+  snapshotContent: string | null;
+  snapshotSha: string | null;
 }
 
 export async function createShare(opts: {
@@ -28,14 +30,19 @@ export async function createShare(opts: {
   repo: string;
   branch: string;
   filePath: string | null;
-  accessToken: string;
+  accessToken: string | null;
+  snapshotContent?: string | null;
+  snapshotSha?: string | null;
   expiresIn: string | null;
   sharedWith: string | null;
   sharedWithName: string | null;
 }): Promise<string> {
   const sql = getDb();
   const id = nanoid(12);
-  const encryptedToken = encrypt(opts.accessToken);
+  const encryptedToken = opts.accessToken ? encrypt(opts.accessToken) : null;
+  const encryptedSnapshot = opts.snapshotContent
+    ? encrypt(opts.snapshotContent)
+    : null;
 
   let expiresAt: string | null = null;
   if (opts.expiresIn) {
@@ -52,8 +59,17 @@ export async function createShare(opts: {
   }
 
   await sql`
-    INSERT INTO shares (id, type, owner_id, repo, branch, file_path, access_token, expires_at, shared_with, shared_with_name)
-    VALUES (${id}, ${opts.type}, ${opts.ownerId}, ${opts.repo}, ${opts.branch}, ${opts.filePath}, ${encryptedToken}, ${expiresAt}, ${opts.sharedWith}, ${opts.sharedWithName})
+    INSERT INTO shares (
+      id, type, owner_id, repo, branch, file_path, access_token,
+      snapshot_content, snapshot_sha,
+      expires_at, shared_with, shared_with_name
+    )
+    VALUES (
+      ${id}, ${opts.type}, ${opts.ownerId}, ${opts.repo}, ${opts.branch},
+      ${opts.filePath}, ${encryptedToken}, ${encryptedSnapshot},
+      ${opts.snapshotSha ?? null}, ${expiresAt}, ${opts.sharedWith},
+      ${opts.sharedWithName}
+    )
   `;
 
   return id;
@@ -83,7 +99,11 @@ export async function getShare(id: string): Promise<ShareWithToken | null> {
     created_at: row.created_at as string,
     expires_at: row.expires_at as string | null,
     deleted_at: row.deleted_at as string | null,
-    accessToken: decrypt(row.access_token as string),
+    accessToken: row.access_token ? decrypt(row.access_token as string) : null,
+    snapshotContent: row.snapshot_content
+      ? decrypt(row.snapshot_content as string)
+      : null,
+    snapshotSha: (row.snapshot_sha as string | null) ?? null,
   };
 }
 

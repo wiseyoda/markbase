@@ -85,6 +85,28 @@ describe("shares", () => {
     expect(await getVisitedShares("99")).toHaveLength(0);
   });
 
+  it("stores encrypted file snapshots without a reusable GitHub token", async () => {
+    const id = await createShare({
+      type: "file",
+      ownerId: "1",
+      repo: "owner-user/notes",
+      branch: "main",
+      filePath: "README.md",
+      accessToken: null,
+      snapshotContent: "# Immutable snapshot",
+      snapshotSha: "snapshot-sha",
+      expiresIn: "7d",
+      sharedWith: null,
+      sharedWithName: null,
+    });
+
+    await expect(getShare(id)).resolves.toMatchObject({
+      accessToken: null,
+      snapshotContent: "# Immutable snapshot",
+      snapshotSha: "snapshot-sha",
+    });
+  });
+
   it("ignores unknown expiry values", async () => {
     const id = await createShare({
       type: "repo",

@@ -192,7 +192,7 @@ async function authorizeShare(
 
   const repoOwner = parseRepositorySlug(resource.repo).owner;
   return {
-    accessToken: share.accessToken,
+    accessToken: share.accessToken || "",
     actorId: session?.user?.id || null,
     actorLogin: session?.user?.login || null,
     actorName: session?.user?.name || null,

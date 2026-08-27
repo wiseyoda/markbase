@@ -121,10 +121,10 @@ describe("GET /api/summary", () => {
       type: "file",
       file_path: "docs/a.md",
       branch: "main",
-      accessToken: "share-tok",
+      accessToken: null,
+      snapshotContent: "snapshot content".repeat(40),
       shared_with: null,
     });
-    getFileContentMock.mockResolvedValue("long content".repeat(40));
     getOrCreateFileSummaryMock.mockResolvedValue({
       summary: "ok",
       provider: "openai",
@@ -138,6 +138,10 @@ describe("GET /api/summary", () => {
       ),
     );
     expect(res.status).toBe(200);
+    expect(getFileContentMock).not.toHaveBeenCalled();
+    expect(getOrCreateFileSummaryMock).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining("snapshot content") }),
+    );
   });
 
   it("returns 404 when share does not exist", async () => {

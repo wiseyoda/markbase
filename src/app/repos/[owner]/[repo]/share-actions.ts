@@ -5,6 +5,8 @@ import { createShare, deleteShare } from "@/lib/shares";
 import { withDbRetry } from "@/lib/db";
 import { githubApiUrl } from "@/lib/github-config";
 import { authorizeResourceAccess } from "@/lib/resource-access";
+import { getFileContent } from "@/lib/github";
+import { computeBlobSha } from "@/lib/file-summaries";
 
 export interface GitHubUserResult {
   login: string;
@@ -14,6 +16,7 @@ export interface GitHubUserResult {
 
 const SHARE_TYPES = new Set(["file", "repo", "folder"]);
 const SHARE_EXPIRIES = new Set(["1h", "1d", "7d", "30d"]);
+const MAX_FILE_SNAPSHOT_BYTES = 1_000_000;
 
 async function verifyShareRecipient(
   accessToken: string,
@@ -80,6 +83,26 @@ export async function createShareAction(opts: {
     );
   }
 
+  let snapshotContent: string | null = null;
+  let snapshotSha: string | null = null;
+  if (opts.type === "file" && opts.filePath) {
+    const [owner, repo] = opts.repo.split("/");
+    snapshotContent = await getFileContent(
+      access.accessToken,
+      owner,
+      repo,
+      opts.branch,
+      opts.filePath,
+    );
+    if (snapshotContent === null) {
+      throw new Error("The shared file could not be read");
+    }
+    if (Buffer.byteLength(snapshotContent, "utf8") > MAX_FILE_SNAPSHOT_BYTES) {
+      throw new Error("The shared file exceeds the 1 MB snapshot limit");
+    }
+    snapshotSha = computeBlobSha(snapshotContent);
+  }
+
   return withDbRetry(() =>
     createShare({
       type: opts.type,
@@ -87,7 +110,9 @@ export async function createShareAction(opts: {
       repo: opts.repo,
       branch: opts.branch,
       filePath: opts.filePath,
-      accessToken: access.accessToken,
+      accessToken: opts.type === "file" ? null : access.accessToken,
+      snapshotContent,
+      snapshotSha,
       expiresIn: opts.expiresIn,
       sharedWith: opts.sharedWith,
       sharedWithName: opts.sharedWithName,

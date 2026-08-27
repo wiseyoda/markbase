@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
 
   let accessToken: string | null = null;
   let branch: string | null = null;
+  let snapshotContent: string | null = null;
 
   if (shareId) {
     const share = await withDbRetry(() => getShare(shareId));
@@ -70,6 +71,7 @@ export async function GET(request: NextRequest) {
     }
     accessToken = share.accessToken;
     branch = share.branch;
+    snapshotContent = share.snapshotContent;
   } else {
     const session = await auth();
     if (!session?.accessToken) {
@@ -82,7 +84,11 @@ export async function GET(request: NextRequest) {
     branch = await getDefaultBranch(accessToken, owner, repo);
   }
 
-  const content = await getFileContent(accessToken, owner, repo, branch, filePath);
+  const content = snapshotContent ?? (
+    accessToken
+      ? await getFileContent(accessToken, owner, repo, branch, filePath)
+      : null
+  );
   if (content === null) {
     return NextResponse.json({ error: "File not found" }, { status: 404 });
   }
