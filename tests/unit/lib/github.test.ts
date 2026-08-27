@@ -71,6 +71,11 @@ describe("github API helpers", () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ full_name: "other/repo", private: false }),
+      })
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ full_name: "owner/repo", private: false }),
       });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -80,6 +85,19 @@ describe("github API helpers", () => {
     await expect(
       getRepositoryMetadata("token", "owner", "repo"),
     ).resolves.toBeNull();
+    await expect(
+      getRepositoryMetadata("token", "owner", "repo"),
+    ).resolves.toBeNull();
+    await expect(
+      getRepositoryMetadata("token", "owner", "repo"),
+    ).resolves.toEqual({ defaultBranch: "main", private: false });
+  });
+
+  it("returns an empty tree when the GitHub tree request fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    await expect(
+      getMarkdownTree("token", "owner", "repo", "main"),
+    ).resolves.toEqual([]);
   });
 
   it("filters markdown files", async () => {

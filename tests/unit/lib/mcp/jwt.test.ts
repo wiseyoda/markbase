@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { SignJWT } from "jose";
 
 describe("MCP JWT helpers", () => {
   afterEach(() => {
@@ -87,5 +88,31 @@ describe("MCP JWT helpers", () => {
     });
 
     await expect(verifyMcpRefreshToken(accessToken)).rejects.toThrow();
+  });
+
+  it("rejects signed tokens with malformed grant payloads", async () => {
+    const hex =
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    process.env.SHARE_ENCRYPTION_KEY = hex;
+    const { verifyMcpToken, verifyMcpRefreshToken } = await import(
+      "@/lib/mcp/jwt"
+    );
+    const key = new Uint8Array(Buffer.from(hex, "hex"));
+    const signInvalid = (audience: string) =>
+      new SignJWT({ grant_id: 42, token_version: "one" })
+        .setProtectedHeader({ alg: "HS256" })
+        .setIssuedAt()
+        .setIssuer("markbase")
+        .setAudience(audience)
+        .setSubject("1")
+        .setExpirationTime("1h")
+        .sign(key);
+
+    await expect(verifyMcpToken(await signInvalid("mcp"))).rejects.toThrow(
+      "Invalid MCP token payload",
+    );
+    await expect(
+      verifyMcpRefreshToken(await signInvalid("mcp-refresh")),
+    ).rejects.toThrow("Invalid MCP token payload");
   });
 });

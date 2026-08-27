@@ -167,6 +167,18 @@ describe("GET /api/summary", () => {
     expect(getOrCreateFileSummaryMock).not.toHaveBeenCalled();
   });
 
+  it("returns 502 when repository visibility cannot be verified", async () => {
+    authMock.mockResolvedValue({ accessToken: "tok", user: { id: "u1" } });
+    getRepositoryMetadataMock.mockResolvedValue(null);
+    const { GET } = await import("@/app/api/summary/route");
+
+    const res = await GET(
+      request("http://localhost/api/summary?owner=acme&repo=missing&path=README.md"),
+    );
+    expect(res.status).toBe(502);
+    expect(getFileContentMock).not.toHaveBeenCalled();
+  });
+
   it("returns 404 when share does not exist", async () => {
     getShareMock.mockResolvedValue(null);
     const { GET } = await import("@/app/api/summary/route");

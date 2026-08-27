@@ -196,6 +196,13 @@ describe("share actions", () => {
     await expect(
       createShareAction({
         ...base,
+        sharedWith: "not-an-id",
+        sharedWithName: "bad_login!",
+      }),
+    ).rejects.toThrow("Invalid share recipient");
+    await expect(
+      createShareAction({
+        ...base,
         type: "invalid" as "file",
       }),
     ).rejects.toThrow("Invalid share type");
