@@ -1,5 +1,9 @@
 import nextEnv from "@next/env";
-import { getDbSchemaStatus, resetDb } from "../src/lib/db";
+const loadedDbModule = await import("../src/lib/db");
+const dbModule = (
+  "default" in loadedDbModule ? loadedDbModule.default : loadedDbModule
+) as typeof import("../src/lib/db");
+const { getDbSchemaStatus, resetDb } = dbModule;
 
 nextEnv.loadEnvConfig(process.cwd());
 
