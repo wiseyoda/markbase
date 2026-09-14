@@ -1,7 +1,10 @@
 {
   "mcpServers": {
     "cra": {
-      "command": "/Users/ppatterson/dev/code-review-agent/bin/cra-mcp.sh"
+      "command": "/Users/patrickpatterson/dev/code-review-agent/bin/cra-mcp.sh",
+      "env": {
+        "PATH": "/Users/patrickpatterson/.nvm/versions/node/v24.13.0/bin:/opt/homebrew/bin:/usr/bin:/bin"
+      }
     }
   }
 }
