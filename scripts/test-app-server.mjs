@@ -280,6 +280,8 @@ async function initializeDatabase() {
       github_token_expires_at TIMESTAMPTZ,
       github_refresh_token TEXT,
       github_refresh_token_expires_at TIMESTAMPTZ,
+      github_refresh_claim_id TEXT,
+      github_refresh_claimed_at TIMESTAMPTZ,
       token_version INTEGER NOT NULL DEFAULT 1,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
