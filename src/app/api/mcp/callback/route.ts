@@ -6,6 +6,13 @@ import { upsertUser } from "@/lib/users";
 const GITHUB_ID = process.env.GITHUB_ID!;
 const GITHUB_SECRET = process.env.GITHUB_SECRET!;
 
+function expiresAt(seconds: unknown, now: number): number | undefined {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) {
+    return undefined;
+  }
+  return now + seconds * 1000;
+}
+
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
   const code = params.get("code");
@@ -56,6 +63,7 @@ export async function GET(req: NextRequest) {
   }
 
   const accessToken: string = tokenData.access_token;
+  const issuedAt = Date.now();
 
   // Fetch GitHub user profile
   const userRes = await fetch(githubApiUrl("/user"), {
@@ -85,6 +93,15 @@ export async function GET(req: NextRequest) {
   // Create an encrypted auth code carrying the GitHub token and PKCE challenge
   const authCode = encodeAuthCode({
     github_access_token: accessToken,
+    github_token_expires_at: expiresAt(tokenData.expires_in, issuedAt),
+    github_refresh_token:
+      typeof tokenData.refresh_token === "string"
+        ? tokenData.refresh_token
+        : undefined,
+    github_refresh_token_expires_at: expiresAt(
+      tokenData.refresh_token_expires_in,
+      issuedAt,
+    ),
     github_user_id: String(user.id),
     github_login: user.login,
     github_name: user.name || user.login,

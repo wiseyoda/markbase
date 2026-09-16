@@ -36,4 +36,34 @@ describe("db", () => {
 
     await stopTestDatabase();
   });
+
+  it("idempotently migrates and reports GitHub credential columns", async () => {
+    await startTestDatabase();
+    const db = getDb();
+    await db`
+      ALTER TABLE mcp_grants
+      DROP COLUMN github_token_expires_at,
+      DROP COLUMN github_refresh_token,
+      DROP COLUMN github_refresh_token_expires_at
+    `;
+
+    const before = await getDbSchemaStatus();
+    expect(before.ready).toBe(false);
+    expect(before.missingColumns).toEqual(
+      expect.arrayContaining([
+        "mcp_grants.github_token_expires_at",
+        "mcp_grants.github_refresh_token",
+        "mcp_grants.github_refresh_token_expires_at",
+      ]),
+    );
+
+    await initDb();
+    await initDb();
+    await expect(getDbSchemaStatus()).resolves.toEqual({
+      ready: true,
+      missingTables: [],
+      missingColumns: [],
+    });
+    await stopTestDatabase();
+  });
 });

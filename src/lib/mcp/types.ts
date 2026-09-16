@@ -27,6 +27,9 @@ export interface OAuthState {
 /** Auth code payload encrypted into the one-time code */
 export interface AuthCodePayload {
   github_access_token: string;
+  github_token_expires_at?: number;
+  github_refresh_token?: string;
+  github_refresh_token_expires_at?: number;
   github_user_id: string;
   github_login: string;
   github_name: string;

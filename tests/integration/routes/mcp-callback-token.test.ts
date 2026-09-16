@@ -26,7 +26,12 @@ describe("MCP callback and token routes", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({
-        json: async () => ({ access_token: "oauth-access-token" }),
+        json: async () => ({
+          access_token: "oauth-access-token",
+          expires_in: 28_800,
+          refresh_token: "oauth-refresh-token",
+          refresh_token_expires_in: 15_552_000,
+        }),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -58,6 +63,15 @@ describe("MCP callback and token routes", () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toContain("https://client.test/callback");
+    const { decodeAuthCode } = await import("@/lib/mcp/oauth");
+    const redirect = new URL(response.headers.get("location")!);
+    const payload = decodeAuthCode(redirect.searchParams.get("code")!);
+    expect(payload.github_access_token).toBe("oauth-access-token");
+    expect(payload.github_refresh_token).toBe("oauth-refresh-token");
+    expect(payload.github_token_expires_at).toBeGreaterThan(Date.now());
+    expect(payload.github_refresh_token_expires_at).toBeGreaterThan(
+      payload.github_token_expires_at!,
+    );
     expect(upsertUserMock).toHaveBeenCalledWith({
       id: "101",
       login: "owner-user",

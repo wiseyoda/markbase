@@ -20,6 +20,9 @@ const REQUIRED_COLUMNS = {
   shares: ["access_token", "snapshot_content", "snapshot_sha", "repo_private"],
   mcp_grants: [
     "github_token",
+    "github_token_expires_at",
+    "github_refresh_token",
+    "github_refresh_token_expires_at",
     "token_version",
     "expires_at",
     "revoked_at",
@@ -312,6 +315,9 @@ export async function initDb() {
       name TEXT NOT NULL,
       avatar_url TEXT NOT NULL,
       github_token TEXT NOT NULL,
+      github_token_expires_at TIMESTAMPTZ,
+      github_refresh_token TEXT,
+      github_refresh_token_expires_at TIMESTAMPTZ,
       token_version INTEGER NOT NULL DEFAULT 1,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -319,6 +325,18 @@ export async function initDb() {
       revoked_at TIMESTAMPTZ
     )
   `;
+  await ignoreDbError(db`
+    ALTER TABLE mcp_grants
+    ADD COLUMN IF NOT EXISTS github_token_expires_at TIMESTAMPTZ
+  `);
+  await ignoreDbError(db`
+    ALTER TABLE mcp_grants
+    ADD COLUMN IF NOT EXISTS github_refresh_token TEXT
+  `);
+  await ignoreDbError(db`
+    ALTER TABLE mcp_grants
+    ADD COLUMN IF NOT EXISTS github_refresh_token_expires_at TIMESTAMPTZ
+  `);
   await ignoreDbError(db`
     CREATE INDEX IF NOT EXISTS idx_mcp_grants_user_active
     ON mcp_grants(user_id) WHERE revoked_at IS NULL

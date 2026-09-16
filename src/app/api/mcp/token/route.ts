@@ -125,6 +125,9 @@ async function handleAuthorizationCode(params: {
     name: authCode.github_name,
     avatarUrl: authCode.github_avatar,
     githubToken: authCode.github_access_token,
+    githubTokenExpiresAt: authCode.github_token_expires_at,
+    githubRefreshToken: authCode.github_refresh_token,
+    githubRefreshTokenExpiresAt: authCode.github_refresh_token_expires_at,
   });
   return issueTokens(grant);
 }
