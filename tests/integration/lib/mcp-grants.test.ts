@@ -118,14 +118,17 @@ describe("MCP grants", () => {
       githubRefreshToken: "current-refresh-token",
       githubRefreshTokenExpiresAt: Date.now() + 60_000,
     });
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        access_token: "refreshed-access-token",
-        expires_in: 28_800,
-        refresh_token: "rotated-refresh-token",
-        refresh_token_expires_in: 15_552_000,
-      }),
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return {
+        ok: true,
+        json: async () => ({
+          access_token: "refreshed-access-token",
+          expires_in: 28_800,
+          refresh_token: "rotated-refresh-token",
+          refresh_token_expires_in: 15_552_000,
+        }),
+      };
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -142,6 +145,56 @@ describe("MCP grants", () => {
     expect(body.get("client_secret")).toBe("test-github-secret");
     expect(body.get("grant_type")).toBe("refresh_token");
     expect(body.get("refresh_token")).toBe("current-refresh-token");
+  });
+
+  it("keeps a newer authorization when an older refresh finishes later", async () => {
+    process.env.GITHUB_ID = "test-github-id";
+    process.env.GITHUB_SECRET = "test-github-secret";
+    const grant = await createMcpGrant({
+      userId: "101",
+      login: "owner-user",
+      name: "Owner User",
+      avatarUrl: "https://example.com/owner.png",
+      githubToken: "expired-access-token",
+      githubTokenExpiresAt: Date.now() - 1_000,
+      githubRefreshToken: "old-refresh-token",
+      githubRefreshTokenExpiresAt: Date.now() + 60_000,
+    });
+    let finishRefresh!: () => void;
+    const refreshBlocked = new Promise<void>((resolve) => {
+      finishRefresh = resolve;
+    });
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      await refreshBlocked;
+      return {
+        ok: true,
+        json: async () => ({
+          access_token: "older-lineage-access-token",
+          expires_in: 28_800,
+          refresh_token: "older-lineage-refresh-token",
+          refresh_token_expires_in: 15_552_000,
+        }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const refreshing = getMcpGrant(grant.id, 1);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await createMcpGrant({
+      userId: "101",
+      login: "owner-user",
+      name: "Owner User",
+      avatarUrl: "https://example.com/owner.png",
+      githubToken: "new-authorization-token",
+    });
+    finishRefresh();
+
+    await expect(refreshing).resolves.toMatchObject({
+      githubToken: "new-authorization-token",
+    });
+    await expect(getMcpGrant(grant.id, 1)).resolves.toMatchObject({
+      githubToken: "new-authorization-token",
+    });
   });
 
   it("preserves non-expiring OAuth credentials without refreshing", async () => {

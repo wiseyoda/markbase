@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import { nanoid } from "nanoid";
 import { decrypt, encrypt } from "@/lib/crypto";
 import { getDb, withDbRetry } from "@/lib/db";
 import { githubWebUrl } from "@/lib/github-config";
 
 const GITHUB_REFRESH_WINDOW_MS = 5 * 60 * 1000;
-const GITHUB_REFRESH_LEASE_MS = 30 * 1000;
+const GITHUB_REFRESH_LEASE_MS = 2 * 60 * 1000;
 const GITHUB_REFRESH_TIMEOUT_MS = 10 * 1000;
+const GITHUB_REFRESH_WAIT_MS = 12 * 1000;
 
 export interface McpGrant {
   id: string;
@@ -114,6 +116,8 @@ export async function createMcpGrant(input: {
             github_token_expires_at = ${accessExpiresAt},
             github_refresh_token = ${encryptedRefreshToken},
             github_refresh_token_expires_at = ${refreshExpiresAt},
+            github_refresh_claim_id = NULL,
+            github_refresh_claimed_at = NULL,
             updated_at = NOW()
         WHERE user_id = ${input.userId}
           AND revoked_at IS NULL
@@ -170,6 +174,13 @@ async function claimGitHubCredentialRefresh(
             github_refresh_claim_id IS NULL
             OR github_refresh_claimed_at <= NOW() - (${GITHUB_REFRESH_LEASE_MS} * INTERVAL '1 millisecond')
           )
+          AND EXISTS (
+            SELECT 1 FROM mcp_grants target
+            WHERE target.id = ${id}
+              AND target.token_version = ${tokenVersion}
+              AND target.revoked_at IS NULL
+              AND target.expires_at > NOW()
+          )
         RETURNING user_id
       `;
       if (claimed.length === 0) return null;
@@ -223,22 +234,26 @@ async function refreshMcpGrantCredential(
 ): Promise<McpGrant | null> {
   const current = await claimGitHubCredentialRefresh(id, tokenVersion, userId);
   if (!current) {
-    const rows = await withDbRetry(() => getDb()<McpGrantRow[]>`
-      SELECT id, user_id, login, name, avatar_url, github_token,
-             github_token_expires_at, github_refresh_token,
-             github_refresh_token_expires_at, github_refresh_claim_id,
-             github_refresh_claimed_at, token_version
-      FROM mcp_grants
-      WHERE id = ${id}
-        AND token_version = ${tokenVersion}
-        AND revoked_at IS NULL
-        AND expires_at > NOW()
-      LIMIT 1
-    `);
-    const latest = rows[0];
-    if (!latest) return null;
-    if (!needsRefresh(latest) || latest.github_token_expires_at!.getTime() > Date.now()) {
-      return rowToGrant(latest);
+    const deadline = Date.now() + GITHUB_REFRESH_WAIT_MS;
+    while (Date.now() < deadline) {
+      const rows = await withDbRetry(() => getDb()<McpGrantRow[]>`
+        SELECT id, user_id, login, name, avatar_url, github_token,
+               github_token_expires_at, github_refresh_token,
+               github_refresh_token_expires_at, github_refresh_claim_id,
+               github_refresh_claimed_at, token_version
+        FROM mcp_grants
+        WHERE id = ${id}
+          AND token_version = ${tokenVersion}
+          AND revoked_at IS NULL
+          AND expires_at > NOW()
+        LIMIT 1
+      `);
+      const latest = rows[0];
+      if (!latest) return null;
+      if (!needsRefresh(latest) || latest.github_token_expires_at!.getTime() > Date.now()) {
+        return rowToGrant(latest);
+      }
+      await delay(200);
     }
     throw new Error("GitHub credential refresh is already in progress");
   }
@@ -302,7 +317,7 @@ async function refreshMcpGrantCredential(
     // withDbRetry may replay only this persistence step, never the exchange.
     return await withDbRetry(() =>
       getDb().begin(async (db) => {
-        await db`
+        const persisted = await db<{ id: string }[]>`
           UPDATE mcp_grants
           SET github_token = ${encryptedAccessToken},
               github_token_expires_at = ${accessExpiresAt},
@@ -315,6 +330,7 @@ async function refreshMcpGrantCredential(
             AND github_refresh_claim_id = ${claimId}
             AND revoked_at IS NULL
             AND expires_at > NOW()
+          RETURNING id
         `;
         const refreshed = await db<McpGrantRow[]>`
           SELECT id, user_id, login, name, avatar_url, github_token,
@@ -325,7 +341,11 @@ async function refreshMcpGrantCredential(
           WHERE id = ${id} AND token_version = ${tokenVersion}
           LIMIT 1
         `;
-        return refreshed[0] ? rowToGrant(refreshed[0]) : null;
+        if (!refreshed[0]) return null;
+        if (persisted.length === 0 && needsRefresh(refreshed[0])) {
+          throw new Error("GitHub credential changed during refresh");
+        }
+        return rowToGrant(refreshed[0]);
       }),
     );
   } catch (error) {
