@@ -12,6 +12,10 @@ import {
   rotateMcpGrant,
   type McpGrant,
 } from "@/lib/mcp/grants";
+import { consumeDeviceCode, pollDeviceCode } from "@/lib/mcp/device";
+import type { AuthCodePayload } from "@/lib/mcp/types";
+
+const DEVICE_CODE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
 
 async function parseBody(req: NextRequest) {
   const contentType = req.headers.get("content-type") || "";
@@ -24,6 +28,7 @@ async function parseBody(req: NextRequest) {
       clientId: form.get("client_id"),
       codeVerifier: form.get("code_verifier"),
       refreshToken: form.get("refresh_token"),
+      deviceCode: form.get("device_code"),
     };
   }
   const body = await req.json();
@@ -34,6 +39,7 @@ async function parseBody(req: NextRequest) {
     clientId: body.client_id ?? null,
     codeVerifier: body.code_verifier ?? null,
     refreshToken: body.refresh_token ?? null,
+    deviceCode: body.device_code ?? null,
   };
 }
 
@@ -112,6 +118,11 @@ async function handleAuthorizationCode(params: {
     );
   }
 
+  return redeemAuthCode(code, authCode);
+}
+
+/** Single-use redemption shared by the authorization-code and device grants. */
+async function redeemAuthCode(code: string, authCode: AuthCodePayload) {
   if (!(await consumeMcpAuthorizationCode(code))) {
     return NextResponse.json(
       { error: "invalid_grant", error_description: "Authorization code was already used" },
@@ -130,6 +141,61 @@ async function handleAuthorizationCode(params: {
     githubRefreshTokenExpiresAt: authCode.github_refresh_token_expires_at,
   });
   return issueTokens(grant);
+}
+
+/** RFC 8628 section 3.4/3.5: device access token request. */
+async function handleDeviceCode(deviceCode: string | null) {
+  if (!deviceCode) {
+    return NextResponse.json(
+      { error: "invalid_request", error_description: "Missing device_code" },
+      { status: 400 },
+    );
+  }
+
+  const poll = await pollDeviceCode(deviceCode);
+  switch (poll.status) {
+    case "pending":
+      return NextResponse.json({ error: "authorization_pending" }, { status: 400 });
+    case "slow_down":
+      return NextResponse.json({ error: "slow_down" }, { status: 400 });
+    case "expired":
+      return NextResponse.json({ error: "expired_token" }, { status: 400 });
+    case "denied":
+      return NextResponse.json({ error: "access_denied" }, { status: 400 });
+    case "unknown":
+      return NextResponse.json(
+        { error: "invalid_grant", error_description: "Unknown device code" },
+        { status: 400 },
+      );
+    case "authorized":
+      break;
+  }
+
+  // Take the stored auth code exactly once, even under concurrent polls.
+  const code = await consumeDeviceCode(deviceCode);
+  if (!code) {
+    return NextResponse.json(
+      { error: "invalid_grant", error_description: "Device code was already used" },
+      { status: 400 },
+    );
+  }
+
+  // The embedded PKCE challenge belongs to the browser leg and is not
+  // verified here; possession of the device_code is the client proof.
+  let authCode;
+  try {
+    authCode = decodeAuthCode(code);
+  } catch (err) {
+    return NextResponse.json(
+      {
+        error: "invalid_grant",
+        error_description: err instanceof Error ? err.message : "Invalid authorization code",
+      },
+      { status: 400 },
+    );
+  }
+
+  return redeemAuthCode(code, authCode);
 }
 
 async function handleRefreshToken(refreshToken: string | null) {
@@ -168,6 +234,8 @@ export async function POST(req: NextRequest) {
       return handleAuthorizationCode(params);
     case "refresh_token":
       return handleRefreshToken(params.refreshToken);
+    case DEVICE_CODE_GRANT:
+      return handleDeviceCode(params.deviceCode);
     default:
       return NextResponse.json(
         { error: "unsupported_grant_type" },

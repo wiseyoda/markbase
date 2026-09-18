@@ -9,6 +9,7 @@ const REQUIRED_TABLES = [
   "file_summaries",
   "file_views",
   "mcp_auth_codes",
+  "mcp_device_codes",
   "mcp_grants",
   "share_visits",
   "shares",
@@ -31,6 +32,16 @@ const REQUIRED_COLUMNS = {
     "revoked_at",
   ],
   mcp_auth_codes: ["code_digest", "consumed_at"],
+  mcp_device_codes: [
+    "device_code_digest",
+    "user_code",
+    "client_id",
+    "status",
+    "auth_code",
+    "created_at",
+    "expires_at",
+    "last_polled_at",
+  ],
 } as const;
 
 export interface DbSchemaStatus {
@@ -352,6 +363,19 @@ export async function initDb() {
   await ignoreDbError(db`
     ALTER TABLE mcp_grants ADD COLUMN IF NOT EXISTS token_rotated_at TIMESTAMPTZ
   `);
+  // RFC 8628 device authorization grant for headless MCP clients
+  await db`
+    CREATE TABLE IF NOT EXISTS mcp_device_codes (
+      device_code_digest TEXT PRIMARY KEY,
+      user_code TEXT NOT NULL UNIQUE,
+      client_id TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('pending', 'authorized', 'denied', 'consumed')),
+      auth_code TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL,
+      last_polled_at TIMESTAMPTZ
+    )
+  `;
   await ignoreDbError(db`
     CREATE INDEX IF NOT EXISTS idx_mcp_grants_user_active
     ON mcp_grants(user_id) WHERE revoked_at IS NULL

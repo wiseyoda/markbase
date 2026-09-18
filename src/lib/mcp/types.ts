@@ -22,6 +22,8 @@ export interface OAuthState {
   redirect_uri: string;
   client_id: string;
   client_state: string;
+  /** Set when the browser approval belongs to an RFC 8628 device flow */
+  device_user_code?: string;
 }
 
 /** Auth code payload encrypted into the one-time code */
