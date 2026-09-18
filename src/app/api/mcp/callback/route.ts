@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { decodeOAuthState, encodeAuthCode } from "@/lib/mcp/oauth";
+import { authorizeDevice } from "@/lib/mcp/device";
 import { githubApiUrl, githubWebUrl } from "@/lib/github-config";
 import { upsertUser } from "@/lib/users";
 
+const BASE_URL =
+  process.env.NEXTAUTH_URL || "https://markbase.io";
 const GITHUB_ID = process.env.GITHUB_ID!;
 const GITHUB_SECRET = process.env.GITHUB_SECRET!;
 
@@ -112,6 +115,18 @@ export async function GET(req: NextRequest) {
     client_id: oauthState.client_id,
     expires_at: Date.now() + 10 * 60 * 1000,
   });
+
+  // Device flow: park the auth code on the pending device request instead
+  // of handing it to a browser redirect; the polling client collects it.
+  if (oauthState.device_user_code) {
+    const doneUrl = new URL(`${BASE_URL}/mcp/device/done`);
+    const authorized = await authorizeDevice(
+      oauthState.device_user_code,
+      authCode,
+    );
+    if (!authorized) doneUrl.searchParams.set("error", "expired");
+    return NextResponse.redirect(doneUrl.toString(), 302);
+  }
 
   const redirectUrl = new URL(oauthState.redirect_uri);
   redirectUrl.searchParams.set("code", authCode);

@@ -164,14 +164,57 @@ describe("resource access", () => {
     );
   });
 
-  it("fails closed when GitHub denies access or returns a different repository", async () => {
+  it("fails closed and names the GitHub status when access is denied", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("{}", { status: 401 })),
+    );
+    await expect(
+      verifyGitHubRepositoryAccess("token", "owner/private"),
+    ).rejects.toThrow(
+      "Repository access could not be verified: GitHub rejected the stored credential (401) for owner/private; re-authorize Markbase",
+    );
+    expect(warn).toHaveBeenCalledWith(
+      "[markbase] repository verification failed",
+      { repo: "owner/private", status: 401 },
+    );
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("{}", { status: 403 })),
+    );
+    await expect(
+      verifyGitHubRepositoryAccess("token", "owner/private"),
+    ).rejects.toThrow(
+      "Repository access could not be verified: GitHub returned 403 for owner/private (forbidden or rate limited)",
+    );
+
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response("{}", { status: 404 })),
     );
     await expect(
       verifyGitHubRepositoryAccess("token", "owner/private"),
-    ).rejects.toThrow("Repository access could not be verified");
+    ).rejects.toThrow(
+      "Repository access could not be verified: GitHub returned 404 for owner/private (repository not found or not accessible to this GitHub account)",
+    );
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("{}", { status: 502 })),
+    );
+    await expect(
+      verifyGitHubRepositoryAccess("token", "owner/private"),
+    ).rejects.toThrow(
+      "Repository access could not be verified: GitHub returned 502 for owner/private",
+    );
+    expect(warn).toHaveBeenCalledTimes(4);
+  });
+
+  it("fails closed when GitHub resolves a different repository", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     vi.stubGlobal(
       "fetch",
@@ -183,7 +226,27 @@ describe("resource access", () => {
     );
     await expect(
       verifyGitHubRepositoryAccess("token", "owner/repo"),
-    ).rejects.toThrow("Repository access could not be verified");
+    ).rejects.toThrow(
+      "Repository access could not be verified: GitHub resolved owner/repo to other/repo",
+    );
+    expect(warn).toHaveBeenCalledWith(
+      "[markbase] repository verification failed",
+      { repo: "owner/repo", status: 200, resolved: "other/repo" },
+    );
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("{}", { status: 200 })),
+    );
+    await expect(
+      verifyGitHubRepositoryAccess("token", "owner/repo"),
+    ).rejects.toThrow(
+      "Repository access could not be verified: GitHub resolved owner/repo to an unknown repository",
+    );
+    expect(warn).toHaveBeenLastCalledWith(
+      "[markbase] repository verification failed",
+      { repo: "owner/repo", status: 200, resolved: null },
+    );
 
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
     await expect(

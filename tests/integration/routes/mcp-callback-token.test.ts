@@ -2,6 +2,8 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { getDb } from "@/lib/db";
+import { MCP_ROTATION_GRACE_MS } from "@/lib/mcp/grants";
 import { useTestDatabase } from "../../helpers/postgres";
 
 const upsertUserMock = vi.fn();
@@ -296,6 +298,8 @@ describe("MCP callback and token routes", () => {
     expect(refreshedBody.access_token).toEqual(expect.any(String));
     expect(refreshedBody.refresh_token).toEqual(expect.any(String));
 
+    // A raced or retried refresh inside the grace window receives the
+    // current token pair instead of killing the session.
     const replayed = await POST(
       new NextRequest("https://markbase.test/api/mcp/token", {
         method: "POST",
@@ -306,7 +310,29 @@ describe("MCP callback and token routes", () => {
         headers: { "content-type": "application/json" },
       }),
     );
-    expect(replayed.status).toBe(400);
+    expect(replayed.status).toBe(200);
+    const replayedBody = await replayed.json();
+    expect(replayedBody.access_token).toEqual(expect.any(String));
+
+    // Once the grace has elapsed the old refresh token is rejected.
+    await getDb()`
+      UPDATE mcp_grants
+      SET token_rotated_at = NOW() - (${MCP_ROTATION_GRACE_MS + 1_000} * INTERVAL '1 millisecond')
+    `;
+    const replayedLate = await POST(
+      new NextRequest("https://markbase.test/api/mcp/token", {
+        method: "POST",
+        body: JSON.stringify({
+          grant_type: "refresh_token",
+          refresh_token: initialBody.refresh_token,
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    expect(replayedLate.status).toBe(400);
+    expect((await replayedLate.json()).error_description).toBe(
+      "Refresh token was already used or revoked",
+    );
 
     // Invalid refresh token
     const invalid = await POST(

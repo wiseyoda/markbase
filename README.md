@@ -84,6 +84,35 @@ claude mcp add --transport http markbase https://markbase.io/api/mcp
 
 **Tools:** `get_comments`, `add_comment`, `reply_to_comment`, `resolve_comment`, `bulk_resolve_comments`, `reply_and_resolve`, `unresolve_comment`, `delete_comment`, `list_files_with_comments`
 
+### Headless / device login
+
+On a machine without a browser (a server, a container, an agent host), use the
+RFC 8628 device authorization grant instead of the loopback redirect flow.
+Clients that read `device_authorization_endpoint` from
+`/.well-known/oauth-authorization-server` pick it up automatically; Hermes:
+
+```bash
+hermes mcp login markbase --flow device
+```
+
+The curl equivalent:
+
+```bash
+# 1. Request a device code and a short user code
+curl -s -X POST https://markbase.io/api/mcp/device
+#   -> { "device_code": "...", "user_code": "BCDF-GHJK",
+#        "verification_uri": "https://markbase.io/mcp/device", "expires_in": 900, "interval": 5 }
+
+# 2. Open verification_uri in any browser, enter the user code, approve with GitHub
+
+# 3. Poll the token endpoint (every `interval` seconds) until it returns tokens
+curl -s -X POST https://markbase.io/api/mcp/token \
+  -d grant_type=urn:ietf:params:oauth:grant-type:device_code \
+  -d device_code=...
+#   -> { "error": "authorization_pending" } while waiting, then
+#   -> { "access_token": "...", "refresh_token": "...", "token_type": "Bearer", ... }
+```
+
 ## Testing
 
 ```bash

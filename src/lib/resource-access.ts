@@ -139,6 +139,19 @@ interface GitHubRepositoryResponse {
   };
 }
 
+function describeGitHubFailure(status: number, repo: string): string {
+  switch (status) {
+    case 401:
+      return `GitHub rejected the stored credential (401) for ${repo}; re-authorize Markbase`;
+    case 403:
+      return `GitHub returned 403 for ${repo} (forbidden or rate limited)`;
+    case 404:
+      return `GitHub returned 404 for ${repo} (repository not found or not accessible to this GitHub account)`;
+    default:
+      return `GitHub returned ${status} for ${repo}`;
+  }
+}
+
 export async function verifyGitHubRepositoryAccess(
   accessToken: string,
   repo: string,
@@ -163,12 +176,30 @@ export async function verifyGitHubRepositoryAccess(
   );
 
   if (!response.ok) {
-    throw new ResourceAccessError("Repository access could not be verified");
+    console.warn("[markbase] repository verification failed", {
+      repo,
+      status: response.status,
+    });
+    throw new ResourceAccessError(
+      `Repository access could not be verified: ${describeGitHubFailure(
+        response.status,
+        repo,
+      )}`,
+    );
   }
 
   const repository = (await response.json()) as GitHubRepositoryResponse;
   if (repository.full_name?.toLowerCase() !== repo.toLowerCase()) {
-    throw new ResourceAccessError("Repository access could not be verified");
+    console.warn("[markbase] repository verification failed", {
+      repo,
+      status: response.status,
+      resolved: repository.full_name ?? null,
+    });
+    throw new ResourceAccessError(
+      `Repository access could not be verified: GitHub resolved ${repo} to ${
+        repository.full_name ?? "an unknown repository"
+      }`,
+    );
   }
 
   return {

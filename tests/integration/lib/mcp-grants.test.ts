@@ -2,6 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  MCP_ROTATION_GRACE_MS,
   consumeMcpAuthorizationCode,
   createMcpGrant,
   getMcpGrant,
@@ -33,15 +34,91 @@ describe("MCP grants", () => {
     });
     const rotated = await rotateMcpGrant(grant.id, 1);
     expect(rotated?.tokenVersion).toBe(2);
+    // Inside the grace window the previous version still resolves: a raced
+    // refresh receives the current pair without a second bump, and the
+    // previous access token keeps working.
+    await expect(rotateMcpGrant(grant.id, 1)).resolves.toMatchObject({
+      tokenVersion: 2,
+    });
+    await expect(getMcpGrant(grant.id, 1)).resolves.toMatchObject({
+      tokenVersion: 2,
+    });
+    await expect(getMcpGrant(grant.id, 2)).resolves.toMatchObject({
+      tokenVersion: 2,
+    });
+    // Versions older than the immediately previous one never resolve.
+    await expect(getMcpGrant(grant.id, 0)).resolves.toBeNull();
+    await expect(rotateMcpGrant(grant.id, 0)).resolves.toBeNull();
+
+    await expect(revokeMcpGrant(grant.id)).resolves.toBe(true);
+    await expect(getMcpGrant(grant.id, 2)).resolves.toBeNull();
+    await expect(getMcpGrant(grant.id, 1)).resolves.toBeNull();
+    await expect(rotateMcpGrant(grant.id, 1)).resolves.toBeNull();
+    await expect(revokeMcpGrant(grant.id)).resolves.toBe(false);
+  });
+
+  it("rejects the previous token version once the rotation grace has elapsed", async () => {
+    const grant = await createMcpGrant({
+      userId: "101",
+      login: "owner-user",
+      name: "Owner User",
+      avatarUrl: "https://example.com/owner.png",
+      githubToken: "github-secret-token",
+    });
+    await expect(rotateMcpGrant(grant.id, 1)).resolves.toMatchObject({
+      tokenVersion: 2,
+    });
+
+    await getDb()`
+      UPDATE mcp_grants
+      SET token_rotated_at = NOW() - (${MCP_ROTATION_GRACE_MS + 1_000} * INTERVAL '1 millisecond')
+      WHERE id = ${grant.id}
+    `;
+
     await expect(rotateMcpGrant(grant.id, 1)).resolves.toBeNull();
     await expect(getMcpGrant(grant.id, 1)).resolves.toBeNull();
     await expect(getMcpGrant(grant.id, 2)).resolves.toMatchObject({
       tokenVersion: 2,
     });
+    // The current version rotates normally afterwards.
+    await expect(rotateMcpGrant(grant.id, 2)).resolves.toMatchObject({
+      tokenVersion: 3,
+    });
+  });
 
-    await expect(revokeMcpGrant(grant.id)).resolves.toBe(true);
-    await expect(getMcpGrant(grant.id, 2)).resolves.toBeNull();
-    await expect(revokeMcpGrant(grant.id)).resolves.toBe(false);
+  it("refreshes an expiring GitHub credential for a token inside the rotation grace", async () => {
+    process.env.GITHUB_ID = "test-github-id";
+    process.env.GITHUB_SECRET = "test-github-secret";
+    const grant = await createMcpGrant({
+      userId: "101",
+      login: "owner-user",
+      name: "Owner User",
+      avatarUrl: "https://example.com/owner.png",
+      githubToken: "expiring-access-token",
+      githubTokenExpiresAt: Date.now() - 1_000,
+      githubRefreshToken: "current-refresh-token",
+      githubRefreshTokenExpiresAt: Date.now() + 60_000,
+    });
+    await getDb()`
+      UPDATE mcp_grants
+      SET token_version = 2, token_rotated_at = NOW()
+      WHERE id = ${grant.id}
+    `;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          access_token: "refreshed-access-token",
+          expires_in: 28_800,
+        }),
+      }),
+    );
+
+    await expect(getMcpGrant(grant.id, 1)).resolves.toMatchObject({
+      githubToken: "refreshed-access-token",
+      tokenVersion: 2,
+    });
   });
 
   it("consumes authorization codes exactly once", async () => {
