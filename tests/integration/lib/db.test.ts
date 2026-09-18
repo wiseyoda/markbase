@@ -46,7 +46,8 @@ describe("db", () => {
       DROP COLUMN github_refresh_token,
       DROP COLUMN github_refresh_token_expires_at,
       DROP COLUMN github_refresh_claim_id,
-      DROP COLUMN github_refresh_claimed_at
+      DROP COLUMN github_refresh_claimed_at,
+      DROP COLUMN token_rotated_at
     `;
 
     const before = await getDbSchemaStatus();
@@ -58,6 +59,7 @@ describe("db", () => {
         "mcp_grants.github_refresh_token_expires_at",
         "mcp_grants.github_refresh_claim_id",
         "mcp_grants.github_refresh_claimed_at",
+        "mcp_grants.token_rotated_at",
       ]),
     );
 

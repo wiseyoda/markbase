@@ -10,6 +10,13 @@ const GITHUB_REFRESH_LEASE_MS = 2 * 60 * 1000;
 const GITHUB_REFRESH_TIMEOUT_MS = 10 * 1000;
 const GITHUB_REFRESH_WAIT_MS = 12 * 1000;
 
+/**
+ * After a refresh-token rotation, the previous token version stays valid for
+ * this long so a raced or retried refresh (and the still-unexpired access
+ * token that accompanied it) does not kill an otherwise healthy session.
+ */
+export const MCP_ROTATION_GRACE_MS = 10 * 60 * 1000;
+
 export interface McpGrant {
   id: string;
   userId: string;
@@ -33,6 +40,7 @@ interface McpGrantRow {
   github_refresh_claim_id: string | null;
   github_refresh_claimed_at: Date | null;
   token_version: number;
+  token_rotated_at: Date | null;
 }
 
 interface GitHubCredentialInput {
@@ -137,7 +145,8 @@ export async function createMcpGrant(input: {
         )
         RETURNING id, user_id, login, name, avatar_url, github_token,
                   github_token_expires_at, github_refresh_token,
-                  github_refresh_token_expires_at, token_version
+                  github_refresh_token_expires_at, token_version,
+                  token_rotated_at
       `;
       return rowToGrant(rows[0]);
     }),
@@ -198,7 +207,7 @@ async function claimGitHubCredentialRefresh(
         SELECT id, user_id, login, name, avatar_url, github_token,
                github_token_expires_at, github_refresh_token,
                github_refresh_token_expires_at, github_refresh_claim_id,
-               github_refresh_claimed_at, token_version
+               github_refresh_claimed_at, token_version, token_rotated_at
         FROM mcp_grants
         WHERE id = ${id}
           AND token_version = ${tokenVersion}
@@ -240,7 +249,7 @@ async function refreshMcpGrantCredential(
         SELECT id, user_id, login, name, avatar_url, github_token,
                github_token_expires_at, github_refresh_token,
                github_refresh_token_expires_at, github_refresh_claim_id,
-               github_refresh_claimed_at, token_version
+               github_refresh_claimed_at, token_version, token_rotated_at
         FROM mcp_grants
         WHERE id = ${id}
           AND token_version = ${tokenVersion}
@@ -336,7 +345,7 @@ async function refreshMcpGrantCredential(
           SELECT id, user_id, login, name, avatar_url, github_token,
                  github_token_expires_at, github_refresh_token,
                  github_refresh_token_expires_at, github_refresh_claim_id,
-                 github_refresh_claimed_at, token_version
+                 github_refresh_claimed_at, token_version, token_rotated_at
           FROM mcp_grants
           WHERE id = ${id} AND token_version = ${tokenVersion}
           LIMIT 1
@@ -362,10 +371,16 @@ export async function getMcpGrant(
     SELECT id, user_id, login, name, avatar_url, github_token,
            github_token_expires_at, github_refresh_token,
            github_refresh_token_expires_at, github_refresh_claim_id,
-           github_refresh_claimed_at, token_version
+           github_refresh_claimed_at, token_version, token_rotated_at
     FROM mcp_grants
     WHERE id = ${id}
-      AND token_version = ${tokenVersion}
+      AND (
+        token_version = ${tokenVersion}
+        OR (
+          token_version = ${tokenVersion} + 1
+          AND token_rotated_at > NOW() - (${MCP_ROTATION_GRACE_MS} * INTERVAL '1 millisecond')
+        )
+      )
       AND revoked_at IS NULL
       AND expires_at > NOW()
     LIMIT 1
@@ -373,7 +388,9 @@ export async function getMcpGrant(
   const grant = rows[0];
   if (!grant) return null;
   if (!needsRefresh(grant)) return rowToGrant(grant);
-  return refreshMcpGrantCredential(id, tokenVersion, grant.user_id);
+  // Refresh against the row's current version: a token inside the rotation
+  // grace window resolves to the already-bumped row.
+  return refreshMcpGrantCredential(id, grant.token_version, grant.user_id);
 }
 
 export async function rotateMcpGrant(
@@ -383,6 +400,7 @@ export async function rotateMcpGrant(
   const rows = await withDbRetry(() => getDb()<McpGrantRow[]>`
     UPDATE mcp_grants
     SET token_version = token_version + 1,
+        token_rotated_at = NOW(),
         updated_at = NOW()
     WHERE id = ${id}
       AND token_version = ${tokenVersion}
@@ -391,9 +409,26 @@ export async function rotateMcpGrant(
     RETURNING id, user_id, login, name, avatar_url, github_token,
               github_token_expires_at, github_refresh_token,
               github_refresh_token_expires_at, github_refresh_claim_id,
-              github_refresh_claimed_at, token_version
+              github_refresh_claimed_at, token_version, token_rotated_at
   `);
-  return rows[0] ? rowToGrant(rows[0]) : null;
+  if (rows[0]) return rowToGrant(rows[0]);
+
+  // A raced or retried refresh with the just-rotated token: hand back the
+  // current pair inside the grace window without bumping the version again.
+  const graced = await withDbRetry(() => getDb()<McpGrantRow[]>`
+    SELECT id, user_id, login, name, avatar_url, github_token,
+           github_token_expires_at, github_refresh_token,
+           github_refresh_token_expires_at, github_refresh_claim_id,
+           github_refresh_claimed_at, token_version, token_rotated_at
+    FROM mcp_grants
+    WHERE id = ${id}
+      AND token_version = ${tokenVersion} + 1
+      AND token_rotated_at > NOW() - (${MCP_ROTATION_GRACE_MS} * INTERVAL '1 millisecond')
+      AND revoked_at IS NULL
+      AND expires_at > NOW()
+    LIMIT 1
+  `);
+  return graced[0] ? rowToGrant(graced[0]) : null;
 }
 
 export async function revokeMcpGrant(id: string): Promise<boolean> {

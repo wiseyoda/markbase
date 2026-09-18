@@ -26,6 +26,7 @@ const REQUIRED_COLUMNS = {
     "github_refresh_claim_id",
     "github_refresh_claimed_at",
     "token_version",
+    "token_rotated_at",
     "expires_at",
     "revoked_at",
   ],
@@ -323,6 +324,7 @@ export async function initDb() {
       github_refresh_claim_id TEXT,
       github_refresh_claimed_at TIMESTAMPTZ,
       token_version INTEGER NOT NULL DEFAULT 1,
+      token_rotated_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       expires_at TIMESTAMPTZ NOT NULL,
@@ -346,6 +348,9 @@ export async function initDb() {
   `);
   await ignoreDbError(db`
     ALTER TABLE mcp_grants ADD COLUMN IF NOT EXISTS github_refresh_claimed_at TIMESTAMPTZ
+  `);
+  await ignoreDbError(db`
+    ALTER TABLE mcp_grants ADD COLUMN IF NOT EXISTS token_rotated_at TIMESTAMPTZ
   `);
   await ignoreDbError(db`
     CREATE INDEX IF NOT EXISTS idx_mcp_grants_user_active
