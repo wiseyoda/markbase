@@ -96,7 +96,7 @@ async function approveInBrowser(userCode: string) {
   const { GET: callback } = await import("@/app/api/mcp/callback/route");
   return callback(
     new NextRequest(
-      `https://markbase.test/api/mcp/callback?code=oauth-code&state=${state}`,
+      `https://markbase.test/api/mcp/callback?code=oauth-code&state=${encodeURIComponent(state)}`,
     ),
   );
 }
@@ -198,7 +198,7 @@ describe("MCP device authorization flow", () => {
     const { GET: callback } = await import("@/app/api/mcp/callback/route");
     const done = await callback(
       new NextRequest(
-        `https://markbase.test/api/mcp/callback?code=oauth-code&state=${state}`,
+        `https://markbase.test/api/mcp/callback?code=oauth-code&state=${encodeURIComponent(state)}`,
       ),
     );
     expect(done.status).toBe(302);
