@@ -219,11 +219,6 @@ function CommandPaletteDialog({
     return groups;
   }, [filtered]);
 
-  // Reset selection when filter changes
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [query]);
-
   // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus();
@@ -351,7 +346,10 @@ function CommandPaletteDialog({
               ref={inputRef}
               type="text"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setSelectedIndex(0);
+              }}
               placeholder="Search or jump to..."
               className="flex-1 bg-transparent px-3 py-3 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />

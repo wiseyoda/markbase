@@ -1,9 +1,11 @@
 # Session Handoff
 
-> Updated 2026-04-14 after session 8 (AI summaries + change digest + section highlights + file-tree TLDR tooltips).
+> Updated 2026-10-25 (security maintenance: Next.js 16.4.3 + dependency refresh). Previous: 2026-04-14 session 8.
 > Read this first in the next session.
 
 ## Current State
+
+**2026-10-25 security maintenance:** Next.js upgraded 16.3.3 → 16.4.3 (closes GHSA-2464-fhr4-w9xw image-optimizer RCE via sharp, GHSA-p3m5-59mp-jv5r server-action DoS, and the 16.3.8 SSRF/cache-poisoning set; `use cache`/`next/og` RCEs did not apply since neither is used). In-range dependency refresh took `pnpm audit` from 104 findings (4 critical) to 1 moderate (`uuid` under testcontainers, dev-only). `vite` is now an explicit devDependency so its patched version is pinned. New `eslint-config-next` enforces `react-hooks/set-state-in-effect`; three components were refactored to derive state instead of setting it inside effects. Lockfile checked against the 2026 npm worm waves (ChainDrop/keyv, Tensorlake): clean.
 
 Markbase is stable at https://markbase.io. Dashboard loads instantly (no bulk GitHub API calls on SSR). GitHub content caching with tag-based invalidation and webhook support. **41 test files, 245 tests, all passing with coverage thresholds met**. All lint errors resolved. All markdown viewers now have multi-provider AI summaries, change digests, and inline section-change highlights — none of which block SSR.
 
