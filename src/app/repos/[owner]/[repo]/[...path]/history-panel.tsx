@@ -46,6 +46,14 @@ export function HistoryButton(props: HistoryPanelProps) {
   );
 }
 
+interface HistoryResult {
+  key: string;
+  commits: FileCommit[];
+  error: string | null;
+}
+
+const EMPTY_COMMITS: FileCommit[] = [];
+
 function HistoryPanel({
   owner,
   repo,
@@ -56,10 +64,12 @@ function HistoryPanel({
   onClose,
 }: HistoryPanelProps & { onClose: () => void }) {
   void _currentContent; // Reserved for future inline diff
-  const [commits, setCommits] = useState<FileCommit[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyAttempt, setHistoryAttempt] = useState(0);
+  const historyKey = [owner, repo, branch, filePath, shareId ?? "", historyAttempt].join("\0");
+  const [history, setHistory] = useState<HistoryResult | null>(null);
+  const loading = history?.key !== historyKey;
+  const commits = loading ? EMPTY_COMMITS : history.commits;
+  const historyError = loading ? null : history.error;
   const [selectedSha, setSelectedSha] = useState<string | null>(null);
   const [diffData, setDiffData] = useState<DiffLine[] | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
@@ -70,22 +80,19 @@ function HistoryPanel({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setHistoryError(null);
     fetchFileHistory(owner, repo, branch, filePath, shareId)
       .then((data) => {
-        if (!cancelled) setCommits(data);
+        if (!cancelled) setHistory({ key: historyKey, commits: data, error: null });
       })
       .catch(() => {
-        if (!cancelled) setHistoryError("Could not load file history.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setHistory({ key: historyKey, commits: [], error: "Could not load file history." });
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [owner, repo, branch, filePath, shareId, historyAttempt]);
+  }, [owner, repo, branch, filePath, shareId, historyKey]);
 
   useEffect(() => () => {
     diffRequestRef.current += 1;

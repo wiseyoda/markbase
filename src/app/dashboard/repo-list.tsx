@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { timeAgo, formatSize } from "@/lib/format";
 import { LANGUAGE_COLORS } from "@/lib/language-colors";
 import { SyncButton } from "./sync-button";
@@ -190,31 +190,35 @@ function RepoListSkeleton() {
 export function RepoList({ syncedRepos }: RepoListProps) {
   const [groups, setGroups] = useState<RepoGroup[] | null>(null);
   const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [search, setSearch] = useState("");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const syncedSet = useMemo(() => new Set(syncedRepos), [syncedRepos]);
 
-  const loadRepos = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/repos");
-      if (!res.ok) return;
-      const data = await res.json();
-      setGroups(data.groups);
-      setTotalCount(data.totalCount);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const loading = expanded && groups === null && !loadFailed;
 
   // Fetch repos when user expands the section
   useEffect(() => {
-    if (expanded && !groups) {
-      loadRepos();
-    }
-  }, [expanded, groups, loadRepos]);
+    if (!expanded || groups) return;
+    let cancelled = false;
+    fetch("/api/repos")
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to load repos: ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setGroups(data.groups);
+        setTotalCount(data.totalCount);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [expanded, groups]);
 
   const filteredGroups = useMemo(() => {
     if (!groups) return [];
@@ -236,15 +240,18 @@ export function RepoList({ syncedRepos }: RepoListProps) {
 
   // Paginate: flatten active repos, slice to visibleCount, rebuild groups
   const paginatedGroups = useMemo(() => {
+    const result: RepoGroup[] = [];
     let remaining = visibleCount;
-    return filteredGroups.map((group) => {
-      if (remaining <= 0) {
-        return { ...group, active: [], archived: [] };
-      }
+    for (const group of filteredGroups) {
+      if (remaining <= 0) break;
       const active = group.active.slice(0, remaining);
       remaining -= active.length;
-      return { ...group, active, archived: remaining > 0 ? group.archived : [] };
-    }).filter((g) => g.active.length > 0 || g.archived.length > 0);
+      const archived = remaining > 0 ? group.archived : [];
+      if (active.length > 0 || archived.length > 0) {
+        result.push({ ...group, active, archived });
+      }
+    }
+    return result;
   }, [filteredGroups, visibleCount]);
 
   const hasMore = filteredCount > visibleCount;
