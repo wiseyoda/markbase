@@ -138,6 +138,16 @@ describe("MCP registration and authorization routes", () => {
     );
     expect(missingRedirect.status).toBe(400);
 
+    const userinfoBypass = await GET(
+      new NextRequest(
+        "https://markbase.test/api/mcp/authorize?response_type=code&redirect_uri=" +
+          encodeURIComponent("http://localhost:@evil.example/cb") +
+          "&code_challenge=challenge&code_challenge_method=S256",
+      ),
+    );
+    expect(userinfoBypass.status).toBe(400);
+    expect((await userinfoBypass.json()).error_description).toBe("redirect_uri not allowed");
+
     const disallowedRedirect = await GET(
       new NextRequest(
         "https://markbase.test/api/mcp/authorize?response_type=code&redirect_uri=https://evil.com/steal&code_challenge=challenge&code_challenge_method=S256",

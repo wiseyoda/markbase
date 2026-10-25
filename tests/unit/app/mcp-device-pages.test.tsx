@@ -12,7 +12,7 @@ describe("MCP device pages", () => {
     const input = screen.getByLabelText("Device code") as HTMLInputElement;
     expect(input.value).toBe("BCDF-GHJK");
     expect(input.form?.getAttribute("action")).toBe("/api/mcp/device/verify");
-    expect(input.form?.getAttribute("method")).toBe("get");
+    expect(input.form?.getAttribute("method")).toBe("post");
   });
 
   it("renders an empty form without a code and takes the first repeated value", async () => {

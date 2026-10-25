@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 
 import { auth } from "@/auth";
 import { getDb } from "./db";

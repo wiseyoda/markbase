@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { getFileContent, getRepositoryMetadata } from "@/lib/github";
 import { getShare } from "@/lib/shares";
+import { isShareResourceInScope, ResourceAccessError } from "@/lib/resource-access";
 import { withDbRetry } from "@/lib/db";
 import { computeBlobSha, getOrCreateFileSummary } from "@/lib/file-summaries";
 import { getAiStatus } from "@/lib/ai";
@@ -57,15 +58,24 @@ export async function GET(request: NextRequest) {
     if (share.repo !== `${owner}/${repo}`) {
       return NextResponse.json({ error: "Share mismatch" }, { status: 403 });
     }
-    // Folder shares scope access to a subtree; enforce path prefix.
-    if (share.type === "folder" && share.file_path) {
-      const scope = share.file_path.replace(/\/$/, "");
-      if (filePath !== scope && !filePath.startsWith(`${scope}/`)) {
+    // Enforce share scope with the traversal-aware validator: it rejects "." and
+    // ".." segments (which GitHub would resolve into another repository) and
+    // scopes file/folder shares to their path.
+    try {
+      if (
+        !isShareResourceInScope(share, {
+          repo: `${owner}/${repo}`,
+          branch: share.branch,
+          path: filePath,
+        })
+      ) {
         return NextResponse.json({ error: "Path out of share scope" }, { status: 403 });
       }
-    }
-    if (share.type === "file" && share.file_path && share.file_path !== filePath) {
-      return NextResponse.json({ error: "Path out of share scope" }, { status: 403 });
+    } catch (error) {
+      if (error instanceof ResourceAccessError) {
+        return NextResponse.json({ error: "Invalid path" }, { status: 400 });
+      }
+      throw error;
     }
     // Private shares must be accessed by the target user.
     if (share.shared_with) {

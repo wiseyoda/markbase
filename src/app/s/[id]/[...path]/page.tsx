@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getShare } from "@/lib/shares";
+import { isShareResourceInScope, ResourceAccessError } from "@/lib/resource-access";
 
 export async function generateMetadata({
   params,
@@ -75,11 +76,22 @@ export default async function SharedFilePage({
   const [owner, repo] = share.repo.split("/");
   const filePath = pathSegments.map(decodeURIComponent).join("/");
 
-  // For folder shares, verify the path is within the shared folder
-  if (share.type === "folder" && share.file_path) {
-    if (!filePath.startsWith(share.file_path + "/")) {
+  // Reject traversal segments and enforce folder scope. A plain prefix check is
+  // not enough: "docs/../../other-repo/contents/x" passes startsWith("docs/")
+  // but GitHub resolves the dot-segments into a different repository.
+  try {
+    if (
+      !isShareResourceInScope(share, {
+        repo: `${owner}/${repo}`,
+        branch: share.branch,
+        path: filePath,
+      })
+    ) {
       notFound();
     }
+  } catch (error) {
+    if (error instanceof ResourceAccessError) notFound();
+    throw error;
   }
 
   const fullRepo = `${owner}/${repo}`;

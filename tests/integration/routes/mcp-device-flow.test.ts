@@ -78,14 +78,22 @@ async function allowNextPoll(userCode: string) {
   `;
 }
 
+function verifyPost(userCode: string) {
+  const body = new URLSearchParams({ user_code: userCode });
+  return new NextRequest("https://markbase.test/api/mcp/device/verify", {
+    method: "POST",
+    body,
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      origin: "https://markbase.test",
+    },
+  });
+}
+
 async function approveInBrowser(userCode: string) {
-  const { GET: verify } = await import("@/app/api/mcp/device/verify/route");
-  const redirect = await verify(
-    new NextRequest(
-      `https://markbase.test/api/mcp/device/verify?user_code=${encodeURIComponent(userCode)}`,
-    ),
-  );
-  expect(redirect.status).toBe(302);
+  const { POST: verify } = await import("@/app/api/mcp/device/verify/route");
+  const redirect = await verify(verifyPost(userCode));
+  expect(redirect.status).toBe(303);
   const githubUrl = new URL(redirect.headers.get("location")!);
   expect(githubUrl.origin + githubUrl.pathname).toBe(
     "https://github.test/login/oauth/authorize",
@@ -167,23 +175,15 @@ describe("MCP device authorization flow", () => {
     expect((await replayed.json()).error).toBe("invalid_grant");
 
     // The user code cannot be approved twice.
-    const { GET: verify } = await import("@/app/api/mcp/device/verify/route");
-    const reused = await verify(
-      new NextRequest(
-        `https://markbase.test/api/mcp/device/verify?user_code=${device.user_code}`,
-      ),
-    );
+    const { POST: verify } = await import("@/app/api/mcp/device/verify/route");
+    const reused = await verify(verifyPost(device.user_code));
     expect(reused.status).toBe(400);
   });
 
   it("reports expiry to both the browser and the polling client", async () => {
     const device = await requestDeviceCode();
-    const { GET: verify } = await import("@/app/api/mcp/device/verify/route");
-    const redirect = await verify(
-      new NextRequest(
-        `https://markbase.test/api/mcp/device/verify?user_code=${device.user_code}`,
-      ),
-    );
+    const { POST: verify } = await import("@/app/api/mcp/device/verify/route");
+    const redirect = await verify(verifyPost(device.user_code));
     const state = new URL(redirect.headers.get("location")!).searchParams.get(
       "state",
     )!;

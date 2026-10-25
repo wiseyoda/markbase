@@ -9,6 +9,7 @@ import {
   getLastModified,
   getMarkdownTree,
   getRepositoryMetadata,
+  isSafeContentPath,
 } from "@/lib/github";
 import {
   getGitHubBranchTags,
@@ -351,5 +352,24 @@ describe("github API helpers", () => {
     await expect(
       getFileAtCommit("token", "owner", "repo", "abc", "README.md"),
     ).resolves.toBeNull();
+  });
+  it("refuses content paths with dot-segments without calling GitHub", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (const path of [
+      "docs/../../../other-private/contents/SECRET.md",
+      "../README.md",
+      "./README.md",
+      "docs//README.md",
+      "",
+    ]) {
+      expect(isSafeContentPath(path)).toBe(false);
+      await expect(getFileContent("token", "owner", "repo", "main", path)).resolves.toBeNull();
+      await expect(getFileAtCommit("token", "owner", "repo", "abc", path)).resolves.toBeNull();
+    }
+    expect(isSafeContentPath("docs/guide/README.md")).toBe(true);
+    expect(isSafeContentPath("docs/.hidden/notes.md")).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

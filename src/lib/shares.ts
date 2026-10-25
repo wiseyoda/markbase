@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 
 import { nanoid } from "nanoid";
 import { getDb } from "./db";

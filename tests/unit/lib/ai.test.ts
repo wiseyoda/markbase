@@ -7,7 +7,7 @@ import {
   getAiStatus,
   type AiProvider,
 } from "@/lib/ai";
-import { MockLanguageModelV3 } from "ai/test";
+import { MockLanguageModelV4 } from "ai/test";
 
 const ENV_VARS = [
   "AI_SUMMARIES_ENABLED",
@@ -48,13 +48,13 @@ function buildGenerateResult(text: string, inputTokens = 42, outputTokens = 18) 
 }
 
 function buildMockModel(text: string, inputTokens = 42, outputTokens = 18) {
-  return new MockLanguageModelV3({
+  return new MockLanguageModelV4({
     doGenerate: async () => buildGenerateResult(text, inputTokens, outputTokens),
   });
 }
 
 function buildCapturingModel(text: string, captured: Array<{ temperature?: number }>) {
-  return new MockLanguageModelV3({
+  return new MockLanguageModelV4({
     doGenerate: async (options) => {
       captured.push({ temperature: options.temperature });
       return buildGenerateResult(text, 1, 1);
@@ -196,7 +196,7 @@ describe("generateAiText", () => {
     __setAiTestModel({
       provider: "openai" as AiProvider,
       model: "mock-model",
-      instance: new MockLanguageModelV3({
+      instance: new MockLanguageModelV4({
         doGenerate: async () => {
           throw new Error("provider boom");
         },
@@ -207,6 +207,23 @@ describe("generateAiText", () => {
     expect(result).toBeNull();
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it("sends the system text as a system message via `instructions`", async () => {
+    process.env.ANTHROPIC_API_KEY = "anthropic-key";
+    const model = buildMockModel("ok");
+    __setAiTestModel({
+      provider: "anthropic" as AiProvider,
+      model: "claude-haiku-4-5",
+      instance: model,
+    });
+    await generateAiText({ system: "be terse", prompt: "summarize" });
+    const [call] = model.doGenerateCalls;
+    expect(call.prompt[0]).toEqual({ role: "system", content: "be terse" });
+    expect(call.prompt.at(-1)).toMatchObject({
+      role: "user",
+      content: [{ type: "text", text: "summarize" }],
+    });
   });
 
   it("skips temperature for gpt-5.x reasoning models", async () => {
@@ -300,7 +317,7 @@ describe("generateAiText", () => {
     __setAiTestModel({
       provider: "openai" as AiProvider,
       model: "mock",
-      instance: new MockLanguageModelV3({
+      instance: new MockLanguageModelV4({
         doGenerate: async () => buildGenerateResult("hi", 0, 0),
       }),
     });
@@ -308,7 +325,7 @@ describe("generateAiText", () => {
     __setAiTestModel({
       provider: "openai" as AiProvider,
       model: "mock",
-      instance: new MockLanguageModelV3({
+      instance: new MockLanguageModelV4({
         doGenerate: async () => ({
           ...buildGenerateResult("hi"),
           usage: buildUsage(undefined, undefined),

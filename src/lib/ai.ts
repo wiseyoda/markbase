@@ -1,7 +1,7 @@
 import { generateText, type LanguageModel } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createGoogle } from "@ai-sdk/google";
 
 export type AiProvider = "openai" | "anthropic" | "google";
 
@@ -36,7 +36,8 @@ const DEFAULT_MODELS: Record<AiProvider, string> = {
 
 /**
  * OpenAI gpt-5.x models are reasoning models that reject the `temperature`
- * parameter. Callers should skip temperature for these.
+ * parameter. `@ai-sdk/openai` v4 also strips it, but emits an "unsupported"
+ * warning on every call, so skip it here to keep logs clean.
  */
 function supportsTemperature(provider: AiProvider, model: string): boolean {
   if (provider === "openai" && /^gpt-5/.test(model)) return false;
@@ -114,7 +115,7 @@ function buildModel(provider: AiProvider, model: string): LanguageModel {
     case "anthropic":
       return createAnthropic({ apiKey })(model);
     case "google":
-      return createGoogleGenerativeAI({ apiKey })(model);
+      return createGoogle({ apiKey })(model);
   }
 }
 
@@ -136,7 +137,7 @@ export async function generateAiText(
     const allowTemperature = supportsTemperature(provider, model);
     const result = await generateText({
       model: buildModel(status.provider, status.model),
-      system: input.system,
+      instructions: input.system,
       prompt: input.prompt,
       maxOutputTokens: input.maxOutputTokens ?? 300,
       ...(allowTemperature ? { temperature: input.temperature ?? 0.3 } : {}),

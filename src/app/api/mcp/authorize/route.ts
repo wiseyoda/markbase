@@ -54,11 +54,15 @@ export async function GET(req: NextRequest) {
       { status: 400 },
     );
   }
+  // Decide on the parsed hostname only. A string-prefix fallback such as
+  // startsWith("http://localhost:") accepts "http://localhost:@evil.example/cb",
+  // whose real host is evil.example.
   const allowedHosts = ["localhost", "127.0.0.1", "[::1]"];
   if (
-    !allowedHosts.includes(redirectUrl.hostname) &&
-    !redirectUri.startsWith("http://localhost:") &&
-    !redirectUri.startsWith("http://127.0.0.1:")
+    (redirectUrl.protocol !== "http:" && redirectUrl.protocol !== "https:") ||
+    redirectUrl.username ||
+    redirectUrl.password ||
+    !allowedHosts.includes(redirectUrl.hostname)
   ) {
     return NextResponse.json(
       { error: "invalid_request", error_description: "redirect_uri not allowed" },

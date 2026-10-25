@@ -274,7 +274,8 @@ function CommandPaletteDialog({
 
       if (e.key === "Enter" && filtered.length > 0) {
         e.preventDefault();
-        executeItem(filtered[selectedIndex]);
+        // The list can shrink while the dialog is open; never index past its end.
+        executeItem(filtered[Math.min(selectedIndex, filtered.length - 1)]);
         return;
       }
     }

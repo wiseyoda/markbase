@@ -4,12 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const authMock = vi.fn();
 const getDefaultBranchMock = vi.fn();
+const getRepositoryMetadataMock = vi.fn();
 const assembleChangeDigestMock = vi.fn();
 const getAiStatusMock = vi.fn();
 
 vi.mock("@/auth", () => ({ auth: authMock }));
 vi.mock("@/lib/github", () => ({
   getDefaultBranch: getDefaultBranchMock,
+  getRepositoryMetadata: getRepositoryMetadataMock,
 }));
 vi.mock("@/lib/change-digest", () => ({
   assembleChangeDigest: assembleChangeDigestMock,
@@ -25,7 +27,31 @@ function request(url: string) {
 describe("GET /api/change-digest", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.AI_PRIVATE_REPO_SUMMARIES_ENABLED;
     getAiStatusMock.mockReturnValue({ enabled: true, provider: "openai", model: "m" });
+    getRepositoryMetadataMock.mockResolvedValue({ defaultBranch: "main", private: false });
+  });
+
+  it("does not send private repository content to the AI provider without opt-in", async () => {
+    authMock.mockResolvedValue({ accessToken: "tok" });
+    getRepositoryMetadataMock.mockResolvedValue({ defaultBranch: "main", private: true });
+    const { GET } = await import("@/app/api/change-digest/route");
+    const res = await GET(
+      request("http://localhost/api/change-digest?owner=acme&repo=secret&path=a.md&to=t"),
+    );
+    const body = await res.json();
+    expect(body.enabled).toBe(false);
+    expect(body.digest).toBeNull();
+    expect(assembleChangeDigestMock).not.toHaveBeenCalled();
+
+    process.env.AI_PRIVATE_REPO_SUMMARIES_ENABLED = "true";
+    getDefaultBranchMock.mockResolvedValue("main");
+    assembleChangeDigestMock.mockResolvedValue(null);
+    const optedIn = await GET(
+      request("http://localhost/api/change-digest?owner=acme&repo=secret&path=a.md&to=t"),
+    );
+    expect((await optedIn.json()).enabled).toBe(true);
+    expect(assembleChangeDigestMock).toHaveBeenCalled();
   });
 
   it("returns 400 when required query params are missing", async () => {
@@ -63,6 +89,17 @@ describe("GET /api/change-digest", () => {
       ),
     );
     expect(res.status).toBe(401);
+  });
+
+  it("fails closed when repository metadata cannot be fetched", async () => {
+    authMock.mockResolvedValue({ accessToken: "tok" });
+    getRepositoryMetadataMock.mockRejectedValue(new Error("github down"));
+    const { GET } = await import("@/app/api/change-digest/route");
+    const res = await GET(
+      request("http://localhost/api/change-digest?owner=acme&repo=widgets&path=a.md&to=t"),
+    );
+    expect((await res.json()).enabled).toBe(false);
+    expect(assembleChangeDigestMock).not.toHaveBeenCalled();
   });
 
   it("returns the assembled digest for an authenticated user", async () => {

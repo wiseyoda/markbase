@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { MockLanguageModelV3 } from "ai/test";
+import { MockLanguageModelV4 } from "ai/test";
 import { getDb } from "@/lib/db";
 import { __setAiTestModel } from "@/lib/ai";
 import {
@@ -51,13 +51,13 @@ function buildGenerateResult(text: string, inputTokens = 80, outputTokens = 20) 
 }
 
 function mockModel(text: string) {
-  return new MockLanguageModelV3({
+  return new MockLanguageModelV4({
     doGenerate: async () => buildGenerateResult(text),
   });
 }
 
 function throwingModel(message: string) {
-  return new MockLanguageModelV3({
+  return new MockLanguageModelV4({
     doGenerate: async () => {
       throw new Error(message);
     },
@@ -306,7 +306,7 @@ describe("file summaries", () => {
     __setAiTestModel({
       provider: "openai",
       model: "mock",
-      instance: new MockLanguageModelV3({
+      instance: new MockLanguageModelV4({
         doGenerate: async () => buildGenerateResult("", 10, 0),
       }),
     });

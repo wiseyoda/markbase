@@ -82,6 +82,7 @@ beforeEach(() => {
       }
       root = null;
       rootMargin = "";
+      scrollMargin = "";
       thresholds = [];
     };
   }
