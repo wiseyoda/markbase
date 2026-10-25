@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { getDefaultBranch } from "@/lib/github";
+import { getDefaultBranch, getRepositoryMetadata } from "@/lib/github";
 import { assembleChangeDigest, type ChangeDigest } from "@/lib/change-digest";
 import { getAiStatus } from "@/lib/ai";
 
@@ -37,6 +37,19 @@ export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session?.accessToken) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  // Same data-governance gate as /api/summary: private repository content only
+  // goes to the AI provider when the operator has opted in.
+  if (process.env.AI_PRIVATE_REPO_SUMMARIES_ENABLED !== "true") {
+    const metadata = await getRepositoryMetadata(session.accessToken, owner, repo).catch(() => null);
+    if (metadata?.private !== false) {
+      return respond({
+        enabled: false,
+        digest: null,
+        reason: "private repository summaries require explicit operator opt-in",
+      });
+    }
   }
 
   const branch = await getDefaultBranch(session.accessToken, owner, repo);

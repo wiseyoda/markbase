@@ -236,6 +236,32 @@ describe("GET /api/summary", () => {
     expect(res.status).toBe(403);
   });
 
+  it("rejects traversal paths that would escape the shared repository", async () => {
+    getShareMock.mockResolvedValue({
+      repo: "a/b",
+      type: "folder",
+      file_path: "docs",
+      branch: "main",
+      accessToken: "tok",
+      shared_with: null,
+    });
+    const { GET } = await import("@/app/api/summary/route");
+    const res = await GET(
+      request(
+        "http://localhost/api/summary?owner=a&repo=b&shareId=sh&path=" +
+          encodeURIComponent("docs/../../../other-private/contents/SECRET.md"),
+      ),
+    );
+    expect(res.status).toBe(400);
+    expect(getFileContentMock).not.toHaveBeenCalled();
+
+    const repoShare = await GET(
+      request("http://localhost/api/summary?owner=a&repo=b&shareId=sh&path=" +
+        encodeURIComponent("../x/contents/y.md")),
+    );
+    expect(repoShare.status).toBe(400);
+  });
+
   it("enforces user-targeted share auth", async () => {
     getShareMock.mockResolvedValue({
       repo: "a/b",

@@ -23,10 +23,19 @@ export const otherUser: TestAuthPayload = {
   accessToken: "other-token",
 };
 
+async function readTestEnv(): Promise<{ testSecret: string }> {
+  return JSON.parse(await readFile(".e2e-test-env.json", "utf8")) as { testSecret: string };
+}
+
+/** Test cookies are HMAC-signed with the server's MARKBASE_TEST_SECRET. */
+async function signedTestCookie(user: TestAuthPayload): Promise<string> {
+  const env = await readTestEnv();
+  process.env.MARKBASE_TEST_SECRET = env.testSecret;
+  return encodeTestAuthCookie(user);
+}
+
 export async function resetApp(request: import("@playwright/test").APIRequestContext) {
-  const env = JSON.parse(
-    await readFile(".e2e-test-env.json", "utf8"),
-  ) as { testSecret: string };
+  const env = await readTestEnv();
   const res = await request.post("/api/test/reset", {
     headers: { "x-markbase-test-secret": env.testSecret },
   });
@@ -37,7 +46,7 @@ export async function loginAs(page: Page, user: TestAuthPayload) {
   await page.context().addCookies([
     {
       name: TEST_AUTH_COOKIE,
-      value: encodeTestAuthCookie(user),
+      value: await signedTestCookie(user),
       url: "http://127.0.0.1:3101",
     },
   ]);
@@ -52,7 +61,7 @@ export async function newLoggedInContext(
   await context.addCookies([
     {
       name: TEST_AUTH_COOKIE,
-      value: encodeTestAuthCookie(user),
+      value: await signedTestCookie(user),
       url: "http://127.0.0.1:3101",
     },
   ]);

@@ -11,6 +11,13 @@ Moved out of `AGENTS.md` on 2026-09-07 (consolidation pass) — linked from `AGE
 - Integration tests: `tests/integration/` — hit real Postgres via testcontainers
 - Integration helper: `tests/helpers/postgres.ts` — `useTestDatabase()` hook spins up a container
 - Coverage thresholds are authoritative in `vitest.config.mts`; do not duplicate numeric claims here
+- `vitest.config.mts` is checked by `npx tsc --noEmit`. Never cast `test` to `any`: that hid the
+  removed `minWorkers` and `coverage.all` options, which Vitest silently ignored
+- Test files run serially (`maxWorkers: 1`) because integration files share one Postgres container
+- Vitest clears mock call history before every test (`clearMocks` defaults to `true` since v5); set
+  up per-test expectations in the test or a `beforeEach`, not `beforeAll`
+- jsdom has no `matchMedia`, `ResizeObserver`, `IntersectionObserver`, clipboard, or `scrollTo`;
+  `tests/setup/vitest.setup.ts` stubs them before each test
 
 ## E2E (Playwright)
 

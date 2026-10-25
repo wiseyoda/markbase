@@ -68,9 +68,23 @@ export async function addComment(opts: CommentResourceInput & {
   });
   if (!access.actorId) throw new ResourceAccessError("Not authenticated");
 
+  if (typeof opts.body !== "string") {
+    throw new Error("Comment body must be a string");
+  }
   const body = opts.body.trim();
   if (!body || body.length > 10_000) {
     throw new Error("Comment body must be between 1 and 10000 characters");
+  }
+  for (const [name, value] of [
+    ["quote", opts.quote],
+    ["quoteContext", opts.quoteContext],
+  ] as const) {
+    if (value !== null && (typeof value !== "string" || value.length > 10_000)) {
+      throw new Error(`Comment ${name} must be a string of at most 10000 characters`);
+    }
+  }
+  if (opts.parentId !== null && (typeof opts.parentId !== "string" || opts.parentId.length > 64)) {
+    throw new Error("Invalid parent comment id");
   }
   const fKey = await buildFileKey(opts.repo, opts.branch, opts.filePath);
 

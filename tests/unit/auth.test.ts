@@ -119,6 +119,34 @@ describe("auth", () => {
     expect(nextAuthHandler).toHaveBeenCalledOnce();
   });
 
+  it("ignores synthetic test sessions on Vercel previews too", async () => {
+    const previewSession = { user: { id: "preview-user" } };
+    const nextAuthHandler = vi.fn().mockResolvedValue(previewSession);
+    nextAuthMock.mockReturnValue({
+      handlers: { GET: vi.fn(), POST: vi.fn() },
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+      auth: nextAuthHandler,
+    });
+    cookiesMock.mockResolvedValue({
+      get: () => ({
+        value: encodeTestAuthCookie({
+          id: "test-user",
+          login: "test-user",
+          name: "Test User",
+          accessToken: "test-token",
+        }),
+      }),
+    });
+    process.env.MARKBASE_TEST_MODE = "true";
+    process.env.VERCEL_ENV = "preview";
+
+    const { auth } = await import("@/auth");
+
+    await expect(auth()).resolves.toEqual(previewSession);
+    expect(nextAuthHandler).toHaveBeenCalledOnce();
+  });
+
   it("falls back to the bypass session when enabled", async () => {
     nextAuthMock.mockReturnValue({
       handlers: { GET: vi.fn(), POST: vi.fn() },

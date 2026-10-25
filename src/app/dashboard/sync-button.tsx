@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { toggleSyncRepo } from "@/lib/synced-repos";
+import { toggleSyncRepo } from "./sync-actions";
 
 interface SyncButtonProps {
   repoFullName: string;

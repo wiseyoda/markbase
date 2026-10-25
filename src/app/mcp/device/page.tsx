@@ -34,8 +34,11 @@ export default async function DevicePage({ searchParams }: DevicePageProps) {
         <p className="mt-4 text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
           Enter the code shown in your terminal. You will be asked to confirm with GitHub, and the waiting client receives its tokens automatically.
         </p>
+        <p className="mt-3 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900 dark:border-amber-400/30 dark:bg-amber-950/40 dark:text-amber-200">
+          Only continue if you started this connection yourself, in your own terminal. Whoever holds this code receives full access to your Markbase comments once you confirm.
+        </p>
 
-        <form action="/api/mcp/device/verify" method="get" className="mt-8 space-y-4">
+        <form action="/api/mcp/device/verify" method="post" className="mt-8 space-y-4">
           <label htmlFor="user_code" className="block text-sm font-medium">
             Device code
           </label>

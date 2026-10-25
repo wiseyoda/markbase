@@ -160,12 +160,60 @@ describe("MCP device authorization routes", () => {
     });
   });
 
+  function verifyPost(userCode: string | null, origin = "https://markbase.test") {
+    const body = new URLSearchParams();
+    if (userCode !== null) body.set("user_code", userCode);
+    return new NextRequest("https://markbase.test/api/mcp/device/verify", {
+      method: "POST",
+      body,
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        ...(origin ? { origin } : {}),
+      },
+    });
+  }
+
   describe("GET /api/mcp/device/verify", () => {
-    it("requires a user_code", async () => {
+    it("never starts OAuth from a link; it only prefills the confirmation page", async () => {
       const { GET } = await import("@/app/api/mcp/device/verify/route");
       const response = await GET(
-        new NextRequest("https://markbase.test/api/mcp/device/verify"),
+        new NextRequest("https://markbase.test/api/mcp/device/verify?user_code=BCDF-GHJK"),
       );
+      expect(response.status).toBe(303);
+      expect(response.headers.get("location")).toBe(
+        "https://markbase.test/mcp/device?user_code=BCDF-GHJK",
+      );
+      expect(findPendingByUserCodeMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("POST /api/mcp/device/verify", () => {
+    it("rejects cross-site submissions", async () => {
+      const { POST } = await import("@/app/api/mcp/device/verify/route");
+      const response = await POST(verifyPost("BCDF-GHJK", "https://evil.example"));
+      expect(response.status).toBe(403);
+      expect(findPendingByUserCodeMock).not.toHaveBeenCalled();
+    });
+
+    it("accepts same-origin submissions that carry only fetch metadata", async () => {
+      const { POST } = await import("@/app/api/mcp/device/verify/route");
+      const response = await POST(
+        new NextRequest("https://markbase.test/api/mcp/device/verify", {
+          method: "POST",
+          body: new URLSearchParams(),
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            "sec-fetch-site": "same-origin",
+          },
+        }),
+      );
+      expect(response.status).toBe(400);
+      expect((await response.json()).error_description).toBe("user_code is required");
+    });
+
+    it("requires a user_code", async () => {
+      const { POST } = await import("@/app/api/mcp/device/verify/route");
+      const response = await POST(verifyPost(null));
       expect(response.status).toBe(400);
       expect((await response.json()).error_description).toBe("user_code is required");
       expect(findPendingByUserCodeMock).not.toHaveBeenCalled();
@@ -173,10 +221,8 @@ describe("MCP device authorization routes", () => {
 
     it("rejects unknown or expired user codes", async () => {
       findPendingByUserCodeMock.mockResolvedValue(null);
-      const { GET } = await import("@/app/api/mcp/device/verify/route");
-      const response = await GET(
-        new NextRequest("https://markbase.test/api/mcp/device/verify?user_code=BCDF-GHJK"),
-      );
+      const { POST } = await import("@/app/api/mcp/device/verify/route");
+      const response = await POST(verifyPost("BCDF-GHJK"));
       expect(response.status).toBe(400);
       expect((await response.json()).error).toBe("invalid_request");
       expect(findPendingByUserCodeMock).toHaveBeenCalledWith("BCDF-GHJK");
@@ -189,13 +235,11 @@ describe("MCP device authorization routes", () => {
         status: "pending",
         expiresAt: new Date(Date.now() + 60_000),
       });
-      const { GET } = await import("@/app/api/mcp/device/verify/route");
+      const { POST } = await import("@/app/api/mcp/device/verify/route");
       const { decodeOAuthState } = await import("@/lib/mcp/oauth");
 
-      const response = await GET(
-        new NextRequest("https://markbase.test/api/mcp/device/verify?user_code=bcdfghjk"),
-      );
-      expect(response.status).toBe(302);
+      const response = await POST(verifyPost("bcdfghjk"));
+      expect(response.status).toBe(303);
       const location = new URL(response.headers.get("location")!);
       expect(location.origin + location.pathname).toBe(
         "https://github.test/login/oauth/authorize",
@@ -215,7 +259,7 @@ describe("MCP device authorization routes", () => {
     });
   });
 
-  describe("GET /api/mcp/device/verify without NEXTAUTH_URL", () => {
+  describe("POST /api/mcp/device/verify without NEXTAUTH_URL", () => {
     it("falls back to the production base URL", async () => {
       delete process.env.NEXTAUTH_URL;
       vi.resetModules();
@@ -225,10 +269,18 @@ describe("MCP device authorization routes", () => {
         status: "pending",
         expiresAt: new Date(Date.now() + 60_000),
       });
-      const { GET } = await import("@/app/api/mcp/device/verify/route");
+      const { POST } = await import("@/app/api/mcp/device/verify/route");
       const { decodeOAuthState } = await import("@/lib/mcp/oauth");
-      const response = await GET(
-        new NextRequest("https://markbase.io/api/mcp/device/verify?user_code=BCDF-GHJK"),
+      const body = new URLSearchParams({ user_code: "BCDF-GHJK" });
+      const response = await POST(
+        new NextRequest("https://markbase.io/api/mcp/device/verify", {
+          method: "POST",
+          body,
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            origin: "https://markbase.io",
+          },
+        }),
       );
       const location = new URL(response.headers.get("location")!);
       expect(location.searchParams.get("redirect_uri")).toBe(

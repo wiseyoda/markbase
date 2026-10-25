@@ -1,4 +1,4 @@
-import { createTwoFilesPatch } from "diff";
+import { createTwoFilesPatch, OMIT_HEADERS } from "diff";
 import { getDb, withDbRetry } from "./db";
 import { generateAiText, getAiStatus } from "./ai";
 import { getFileAtCommit, getFileHistory, type FileCommit } from "./github";
@@ -86,7 +86,14 @@ async function fetchCommitSummaryRow(
   return rows[0] ?? null;
 }
 
-function buildDiffInput(
+/**
+ * Unified diff fed to the commit summarizer. The `---`/`+++` label lines are
+ * written here because diff@9 C-quotes header names containing non-ASCII or
+ * special characters (e.g. `"docs/caf\303\251.md"`), which garbles
+ * non-English paths in the prompt. The patch is never parsed, so raw labels
+ * are safe.
+ */
+export function buildDiffInput(
   filePath: string,
   commitSha: string,
   parentSha: string | null,
@@ -95,16 +102,16 @@ function buildDiffInput(
 ): string {
   const oldLabel = parentSha ? `${filePath} @ ${parentSha.slice(0, 7)}` : `${filePath} (new file)`;
   const newLabel = `${filePath} @ ${commitSha.slice(0, 7)}`;
-  const patch = createTwoFilesPatch(
+  const hunks = createTwoFilesPatch(
     oldLabel,
     newLabel,
     previousContent,
     nextContent,
-    "",
-    "",
-    { context: 3 },
+    undefined,
+    undefined,
+    { context: 3, headerOptions: OMIT_HEADERS },
   );
-  return patch.slice(0, MAX_DIFF_CHARS);
+  return `--- ${oldLabel}\n+++ ${newLabel}\n${hunks}`.slice(0, MAX_DIFF_CHARS);
 }
 
 async function recordCommitSummaryFailure(

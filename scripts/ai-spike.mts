@@ -8,7 +8,7 @@
  */
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createGoogle } from "@ai-sdk/google";
 import { generateText, type LanguageModel } from "ai";
 
 const SAMPLE_DOC = `# Markbase
@@ -48,7 +48,7 @@ const ATTEMPTS: Attempt[] = [
     label: "google",
     envKey: "GOOGLE_GENERATIVE_AI_API_KEY",
     model: process.env.AI_MODEL_GOOGLE ?? "gemini-3.1-flash-lite-preview",
-    build: () => createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY! })(
+    build: () => createGoogle({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY! })(
       process.env.AI_MODEL_GOOGLE ?? "gemini-3.1-flash-lite-preview",
     ),
   },
@@ -70,7 +70,7 @@ async function main() {
       const isReasoningModel = attempt.label === "openai" && /^gpt-5/.test(attempt.model);
       const result = await generateText({
         model: attempt.build(),
-        system: SYSTEM,
+        instructions: SYSTEM,
         prompt: PROMPT,
         maxOutputTokens: 200,
         ...(isReasoningModel ? {} : { temperature: 0.3 }),

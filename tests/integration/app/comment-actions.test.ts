@@ -76,6 +76,31 @@ describe("comment actions", () => {
     expect(await restoreCommentAction(created.id, resource)).toBe(true);
   });
 
+  it("validates comment field types and lengths at the boundary", async () => {
+    const base = {
+      repo: "owner-user/notes",
+      branch: "main",
+      filePath: "README.md",
+      quote: null,
+      quoteContext: null,
+      body: "ok",
+      parentId: null,
+    };
+    await expect(addComment({ ...base, body: 42 as never })).rejects.toThrow(
+      "Comment body must be a string",
+    );
+    await expect(addComment({ ...base, quote: "x".repeat(10_001) })).rejects.toThrow(
+      "Comment quote must be a string",
+    );
+    await expect(addComment({ ...base, quoteContext: 7 as never })).rejects.toThrow(
+      "Comment quoteContext must be a string",
+    );
+    await expect(addComment({ ...base, parentId: "p".repeat(65) })).rejects.toThrow(
+      "Invalid parent comment id",
+    );
+    expect(await fetchComments("owner-user/notes", "main", "README.md")).toHaveLength(0);
+  });
+
   it("rejects unauthenticated access", async () => {
     authMock.mockResolvedValue(null);
 

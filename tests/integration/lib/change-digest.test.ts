@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MockLanguageModelV3 } from "ai/test";
+import { MockLanguageModelV4 } from "ai/test";
 import { getDb } from "@/lib/db";
 import { __setAiTestModel } from "@/lib/ai";
 import {
@@ -41,7 +41,7 @@ const promptCalls: Array<string | undefined> = [];
 
 function sequencedMockModel(responses: string[]) {
   let i = 0;
-  return new MockLanguageModelV3({
+  return new MockLanguageModelV4({
     doGenerate: async (options) => {
       const lastUserMessage = options.prompt
         .filter((m) => m.role === "user")

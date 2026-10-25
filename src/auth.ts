@@ -72,9 +72,12 @@ function isProductionRuntime(): boolean {
 
 function isTestMode(): boolean {
   const secret = process.env.MARKBASE_TEST_SECRET;
+  // Never on Vercel at all, previews included: previews can share the
+  // production database, and a test session would pass as any user there.
   return (
     process.env.MARKBASE_TEST_MODE === "true" &&
     Boolean(secret && secret.length >= 32) &&
+    !process.env.VERCEL_ENV &&
     !isProductionRuntime()
   );
 }

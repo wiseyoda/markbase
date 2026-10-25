@@ -265,7 +265,10 @@ export function RepoList({ syncedRepos }: RepoListProps) {
           Browse your GitHub repos and add them to your workspace.
         </p>
         <button
-          onClick={() => setExpanded(true)}
+          onClick={() => {
+            setLoadFailed(false);
+            setExpanded(true);
+          }}
           className="mt-2 rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
         >
           Browse repositories

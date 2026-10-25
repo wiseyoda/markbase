@@ -1,11 +1,29 @@
 # Session Handoff
 
-> Updated 2026-10-25 (security maintenance: Next.js 16.4.3 + dependency refresh). Previous: 2026-04-14 session 8.
+> Updated 2026-10-25 (full dependency upgrade + security review, PR #14; Next.js 16.4.3, PR #13). Previous: 2026-04-14 session 8.
 > Read this first in the next session.
 
 ## Current State
 
-**2026-10-25 security maintenance:** Next.js upgraded 16.3.3 → 16.4.3 (closes GHSA-2464-fhr4-w9xw image-optimizer RCE via sharp, GHSA-p3m5-59mp-jv5r server-action DoS, and the 16.3.8 SSRF/cache-poisoning set; `use cache`/`next/og` RCEs did not apply since neither is used). In-range dependency refresh took `pnpm audit` from 104 findings (4 critical) to 1 moderate (`uuid` under testcontainers, dev-only). `vite` is now an explicit devDependency so its patched version is pinned. New `eslint-config-next` enforces `react-hooks/set-state-in-effect`; three components were refactored to derive state instead of setting it inside effects. Lockfile checked against the 2026 npm worm waves (ChainDrop/keyv, Tensorlake): clean.
+**2026-10-25 full dependency upgrade + security review (PR #14):** every dependency at latest
+major: `ai` 7 / `@ai-sdk/*` 4 (`system` → `instructions`, `createGoogle`, V4 mock models),
+React 19.3.1, ESLint 10, Vitest 5 (+ coverage-v8 5, jsdom 30, jest-dom 7, testcontainers 12),
+TypeScript 6.0 (7.0 is rejected by typescript-eslint 8.x; `"types": ["node"]` added), diff 9
+(patch headers now written by hand because v9 octal-escapes non-ASCII labels), nanoid 6,
+typography 0.5.20, Node floor 24.15 (jsdom 30 requirement; `.node-version` 24.21.0).
+`pnpm audit`: 0 findings. Vitest: dead `minWorkers`/`coverage.all` removed, `vite-tsconfig-paths`
+replaced by Vite 8's `resolve.tsconfigPaths`, `server-only` aliased to a stub for tests.
+Five parallel review agents also produced a security pass; fixed in the same PR:
+- CRITICAL share-link path traversal: `encodeURIComponent("..")` is `..`, so `/s/<id>/docs%2F..%2F..%2F..%2Fother-repo%2Fcontents%2Fx` read any repo the share creator's token could reach. Now `isSafeContentPath` guards `getFileContent`/`getFileAtCommit`, and the share page and `/api/summary` use `isShareResourceInScope`.
+- HIGH MCP OAuth `redirect_uri` bypass (`http://localhost:@evil.example/cb` passed a `startsWith` fallback): hostname-only allowlist, userinfo rejected; token endpoint now requires exact `redirect_uri`.
+- HIGH device-flow one-click phishing: `/api/mcp/device/verify` GET only prefills `/mcp/device`; approval is a same-origin POST (Origin / Sec-Fetch-Site check) behind a confirmation warning.
+- HIGH `"use server"` on `src/lib/{shares,comments,synced-repos}.ts` registered 26 unauthenticated server actions (incl. `getShare` returning decrypted tokens): now `import "server-only"`; `toggleSyncRepo` lives in `src/app/dashboard/sync-actions.ts`. Verified via `.next/server/server-reference-manifest.json` (47 → 21 actions).
+- MEDIUM test-mode cookie is now HMAC-signed with `MARKBASE_TEST_SECRET`; test mode refuses to run when `VERCEL_ENV` is set at all (previews included). E2E helper signs cookies from `.e2e-test-env.json`.
+- MEDIUM `/api/change-digest` now applies the `AI_PRIVATE_REPO_SUMMARIES_ENABLED` gate like `/api/summary`.
+- LOW `addComment` bounds `quote`/`quoteContext`/`parentId`; repo list resets its failed flag on expand; command palette clamps the selection index.
+Open follow-ups: no rate limiting on `/api/summary` and `/api/mcp/*` (add Vercel Firewall rules); `src/proxy.ts` has no `authorized` callback so it protects nothing (every route self-checks); eslint-plugin-react/import/jsx-a11y lack ESLint 10 peer ranges (enabled rules verified safe); typescript-eslint caps TS at <6.1.
+
+**2026-10-25 security maintenance (PR #13):** Next.js upgraded 16.3.3 → 16.4.3 (closes GHSA-2464-fhr4-w9xw image-optimizer RCE via sharp, GHSA-p3m5-59mp-jv5r server-action DoS, and the 16.3.8 SSRF/cache-poisoning set; `use cache`/`next/og` RCEs did not apply since neither is used). In-range dependency refresh took `pnpm audit` from 104 findings (4 critical) to 1 moderate (`uuid` under testcontainers, dev-only). `vite` is now an explicit devDependency so its patched version is pinned. New `eslint-config-next` enforces `react-hooks/set-state-in-effect`; three components were refactored to derive state instead of setting it inside effects. Lockfile checked against the 2026 npm worm waves (ChainDrop/keyv, Tensorlake): clean.
 
 Markbase is stable at https://markbase.io. Dashboard loads instantly (no bulk GitHub API calls on SSR). GitHub content caching with tag-based invalidation and webhook support. **41 test files, 245 tests, all passing with coverage thresholds met**. All lint errors resolved. All markdown viewers now have multi-provider AI summaries, change digests, and inline section-change highlights — none of which block SSR.
 

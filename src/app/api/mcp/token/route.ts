@@ -91,7 +91,10 @@ async function handleAuthorizationCode(params: {
     );
   }
 
-  if (redirectUri && redirectUri !== authCode.redirect_uri) {
+  // RFC 6749 §4.1.3: redirect_uri is required when it was sent at authorization
+  // time and must match exactly. Making it optional lets a stolen code be
+  // redeemed from anywhere.
+  if (!redirectUri || redirectUri !== authCode.redirect_uri) {
     return NextResponse.json(
       { error: "invalid_grant", error_description: "redirect_uri mismatch" },
       { status: 400 },

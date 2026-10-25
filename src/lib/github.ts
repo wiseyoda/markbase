@@ -30,7 +30,24 @@ function encodeRepoPath(owner: string, repo: string): string {
   return `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
 }
 
+/**
+ * A repository content path is safe to splice into a GitHub REST URL only when
+ * no segment is empty, "." or "..": encodeURIComponent leaves dots intact and
+ * the fetch layer normalizes dot-segments, so "docs/../../other/contents/x"
+ * would escape the shared repository entirely.
+ */
+export function isSafeContentPath(path: string): boolean {
+  if (typeof path !== "string" || path.length === 0 || path.length > 4_096) return false;
+  if (/[\0-\x1f\x7f\\]/.test(path)) return false;
+  return path
+    .split("/")
+    .every((segment) => segment !== "" && segment !== "." && segment !== "..");
+}
+
 function encodeContentPath(path: string): string {
+  if (!isSafeContentPath(path)) {
+    throw new Error("Invalid repository content path");
+  }
   return path.split("/").map(encodeURIComponent).join("/");
 }
 
@@ -132,6 +149,7 @@ export async function getFileContent(
   branch: string,
   path: string,
 ): Promise<string | null> {
+  if (!isSafeContentPath(path)) return null;
   const res = await fetch(
     githubApiUrl(
       `${encodeRepoPath(owner, repo)}/contents/${encodeContentPath(path)}?ref=${encodeURIComponent(branch)}`,
@@ -249,6 +267,7 @@ export async function getFileAtCommit(
   sha: string,
   path: string,
 ): Promise<string | null> {
+  if (!isSafeContentPath(path)) return null;
   const res = await fetch(
     githubApiUrl(
       `${encodeRepoPath(owner, repo)}/contents/${encodeContentPath(path)}?ref=${encodeURIComponent(sha)}`,
