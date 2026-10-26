@@ -11,6 +11,7 @@ import {
 } from "@/lib/mcp/grants";
 import { useTestDatabase } from "../../helpers/postgres";
 import { getDb } from "@/lib/db";
+import { getUserGitHubToken, upsertUser } from "@/lib/users";
 
 describe("MCP grants", () => {
   useTestDatabase();
@@ -89,6 +90,13 @@ describe("MCP grants", () => {
   it("refreshes an expiring GitHub credential for a token inside the rotation grace", async () => {
     process.env.GITHUB_ID = "test-github-id";
     process.env.GITHUB_SECRET = "test-github-secret";
+    await upsertUser({
+      id: "101",
+      login: "owner-user",
+      name: "Owner User",
+      avatarUrl: null,
+      githubToken: "expiring-access-token",
+    });
     const grant = await createMcpGrant({
       userId: "101",
       login: "owner-user",
@@ -119,6 +127,8 @@ describe("MCP grants", () => {
       githubToken: "refreshed-access-token",
       tokenVersion: 2,
     });
+    // The refreshed credential is also the owner's current token for shares.
+    await expect(getUserGitHubToken("101")).resolves.toBe("refreshed-access-token");
   });
 
   it("consumes authorization codes exactly once", async () => {

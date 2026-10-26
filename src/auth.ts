@@ -38,6 +38,8 @@ const {
             login: (profile as Record<string, unknown>).login as string || "",
             name: profile.name || null,
             avatarUrl: (profile as Record<string, unknown>).avatar_url as string || null,
+            githubToken:
+              typeof account?.access_token === "string" ? account.access_token : null,
           });
         } catch {
           // Don't block auth if DB is unavailable

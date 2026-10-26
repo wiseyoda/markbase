@@ -149,6 +149,7 @@ describe("MCP device authorization flow", () => {
       login: "owner-user",
       name: "Owner User",
       avatarUrl: "https://example.com/owner.png",
+      githubToken: "oauth-access-token",
     });
 
     const issued = await pollToken(device.device_code);

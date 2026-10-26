@@ -91,6 +91,7 @@ export async function GET(req: NextRequest) {
     login: user.login,
     name: user.name || user.login,
     avatarUrl: user.avatar_url,
+    githubToken: accessToken,
   });
 
   // Create an encrypted auth code carrying the GitHub token and PKCE challenge

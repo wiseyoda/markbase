@@ -341,6 +341,14 @@ async function refreshMcpGrantCredential(
             AND expires_at > NOW()
           RETURNING id
         `;
+        if (persisted.length > 0) {
+          await db`
+            UPDATE users
+            SET github_token = ${encryptedAccessToken},
+                github_token_updated_at = NOW()
+            WHERE id = ${current.user_id}
+          `;
+        }
         const refreshed = await db<McpGrantRow[]>`
           SELECT id, user_id, login, name, avatar_url, github_token,
                  github_token_expires_at, github_refresh_token,

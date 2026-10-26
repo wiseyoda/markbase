@@ -79,6 +79,7 @@ describe("MCP callback and token routes", () => {
       login: "owner-user",
       name: "Owner User",
       avatarUrl: "https://example.com/owner.png",
+      githubToken: "oauth-access-token",
     });
   });
 
@@ -120,6 +121,7 @@ describe("MCP callback and token routes", () => {
       login: "owner-user",
       name: "owner-user",
       avatarUrl: null,
+      githubToken: "oauth-access-token",
     });
   });
 

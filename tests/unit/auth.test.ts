@@ -248,6 +248,7 @@ describe("auth", () => {
       login: "owner-user",
       name: "Owner User",
       avatarUrl: "https://example.com/owner.png",
+      githubToken: "owner-token",
     });
 
     const session = await capturedConfig.callbacks.session({
