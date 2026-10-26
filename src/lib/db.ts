@@ -19,6 +19,7 @@ const REQUIRED_TABLES = [
 
 const REQUIRED_COLUMNS = {
   shares: ["access_token", "snapshot_content", "snapshot_sha", "repo_private"],
+  users: ["github_token", "github_token_updated_at"],
   mcp_grants: [
     "github_token",
     "github_token_expires_at",
@@ -296,6 +297,14 @@ export async function initDb() {
   await ignoreDbError(db`
     CREATE INDEX IF NOT EXISTS idx_users_login ON users(login)
   `);
+  // The owner's current GitHub token (encrypted), refreshed at every sign-in,
+  // so shares outlive the token captured when they were created.
+  await ignoreDbError(db`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS github_token TEXT
+  `);
+  await ignoreDbError(db`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS github_token_updated_at TIMESTAMPTZ
+  `);
   // Add shared_with column for user-targeted shares
   await ignoreDbError(db`
     ALTER TABLE shares ADD COLUMN IF NOT EXISTS shared_with TEXT
@@ -493,4 +502,22 @@ export async function initDb() {
       PRIMARY KEY (owner, repo, file_path, blob_sha, section_slug)
     )
   `;
+
+  // Backfill: users who authorized the MCP server already have a current
+  // GitHub token on file. Only empty slots are filled, so re-runs are no-ops.
+  await ignoreDbError(db`
+    UPDATE users AS u
+    SET github_token = g.github_token,
+        github_token_updated_at = g.updated_at
+    FROM (
+      SELECT DISTINCT ON (user_id) user_id, github_token, updated_at
+      FROM mcp_grants
+      WHERE revoked_at IS NULL
+        AND expires_at > NOW()
+        AND (github_token_expires_at IS NULL OR github_token_expires_at > NOW())
+      ORDER BY user_id, updated_at DESC
+    ) AS g
+    WHERE u.id = g.user_id
+      AND u.github_token IS NULL
+  `);
 }

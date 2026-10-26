@@ -5,9 +5,10 @@ import { useTestDatabase } from "../../helpers/postgres";
 import { createShareAction, deleteShareAction, searchGitHubUsers } from "@/app/repos/[owner]/[repo]/share-actions";
 import { getShare } from "@/lib/shares";
 
-const { authMock, searchUsersMock } = vi.hoisted(() => ({
+const { authMock, searchUsersMock, saveUserGitHubTokenMock } = vi.hoisted(() => ({
   authMock: vi.fn(),
   searchUsersMock: vi.fn(),
+  saveUserGitHubTokenMock: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/auth", () => ({
@@ -16,6 +17,7 @@ vi.mock("@/auth", () => ({
 
 vi.mock("@/lib/users", () => ({
   searchUsers: searchUsersMock,
+  saveUserGitHubToken: saveUserGitHubTokenMock,
 }));
 
 describe("share actions", () => {
@@ -66,12 +68,28 @@ describe("share actions", () => {
     });
 
     expect(shareId).toHaveLength(12);
+    expect(saveUserGitHubTokenMock).toHaveBeenCalledWith("1", "owner-token");
     await expect(getShare(shareId)).resolves.toMatchObject({
       accessToken: null,
       snapshotContent: expect.any(String),
       snapshotSha: expect.any(String),
     });
     await expect(deleteShareAction(shareId)).resolves.toBe(true);
+  });
+
+  it("still creates the share when recording the owner token fails", async () => {
+    saveUserGitHubTokenMock.mockRejectedValueOnce(new Error("db down"));
+    const shareId = await createShareAction({
+      type: "repo",
+      repo: "owner-user/notes",
+      branch: "main",
+      filePath: null,
+      expiresIn: null,
+      sharedWith: null,
+      sharedWithName: null,
+    });
+    expect(shareId).toHaveLength(12);
+    await expect(getShare(shareId)).resolves.toMatchObject({ accessToken: "owner-token" });
   });
 
   it("rejects unauthenticated share deletion", async () => {

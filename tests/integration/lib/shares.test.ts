@@ -11,6 +11,7 @@ import {
   listSharesWithMe,
   recordShareVisit,
 } from "@/lib/shares";
+import { upsertUser } from "@/lib/users";
 import { useTestDatabase } from "../../helpers/postgres";
 
 describe("shares", () => {
@@ -122,5 +123,37 @@ describe("shares", () => {
 
     const share = await getShare(id);
     expect(share?.expires_at).toBeNull();
+  });
+
+  it("resolves shares with the owner's current GitHub token over the captured one", async () => {
+    const id = await createShare({
+      type: "repo",
+      ownerId: "1",
+      repo: "owner-user/notes",
+      branch: "main",
+      filePath: null,
+      accessToken: "token-at-share-time",
+      expiresIn: null,
+      sharedWith: null,
+      sharedWithName: null,
+    });
+
+    // No current token on file: the captured token is the fallback.
+    await upsertUser({ id: "1", login: "owner-user", name: null, avatarUrl: null });
+    await expect(getShare(id)).resolves.toMatchObject({
+      accessToken: "token-at-share-time",
+    });
+
+    // The owner signed in again (GitHub may have revoked the earlier token).
+    await upsertUser({
+      id: "1",
+      login: "owner-user",
+      name: null,
+      avatarUrl: null,
+      githubToken: "token-from-latest-sign-in",
+    });
+    await expect(getShare(id)).resolves.toMatchObject({
+      accessToken: "token-from-latest-sign-in",
+    });
   });
 });

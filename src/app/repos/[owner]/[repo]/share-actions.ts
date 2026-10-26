@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { createShare, deleteShare } from "@/lib/shares";
+import { saveUserGitHubToken } from "@/lib/users";
 import { withDbRetry } from "@/lib/db";
 import { githubApiUrl } from "@/lib/github-config";
 import { authorizeResourceAccess } from "@/lib/resource-access";
@@ -102,6 +103,12 @@ export async function createShareAction(opts: {
     }
     snapshotSha = computeBlobSha(snapshotContent);
   }
+
+  // Keep the owner's current token on file so the share keeps resolving
+  // after the token captured below is revoked or rotated.
+  await withDbRetry(() =>
+    saveUserGitHubToken(access.actorId!, access.accessToken),
+  ).catch(() => {});
 
   return withDbRetry(() =>
     createShare({

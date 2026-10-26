@@ -20,6 +20,7 @@ export interface Share {
 }
 
 export interface ShareWithToken extends Share {
+  /** The owner's current GitHub token when known, else the one captured at share time. */
   accessToken: string | null;
   snapshotContent: string | null;
   snapshotSha: string | null;
@@ -80,10 +81,12 @@ export async function createShare(opts: {
 export async function getShare(id: string): Promise<ShareWithToken | null> {
   const sql = getDb();
   const rows = await sql`
-    SELECT * FROM shares
-    WHERE id = ${id}
-      AND deleted_at IS NULL
-      AND (expires_at IS NULL OR expires_at > NOW())
+    SELECT s.*, u.github_token AS owner_github_token
+    FROM shares s
+    LEFT JOIN users u ON u.id = s.owner_id
+    WHERE s.id = ${id}
+      AND s.deleted_at IS NULL
+      AND (s.expires_at IS NULL OR s.expires_at > NOW())
   `;
 
   if (rows.length === 0) return null;
@@ -102,7 +105,13 @@ export async function getShare(id: string): Promise<ShareWithToken | null> {
     expires_at: row.expires_at as string | null,
     deleted_at: row.deleted_at as string | null,
     repo_private: (row.repo_private as boolean | null) ?? null,
-    accessToken: row.access_token ? decrypt(row.access_token as string) : null,
+    // GitHub may have revoked or rotated the token captured at share time;
+    // the owner's latest token is always at least as fresh.
+    accessToken: row.owner_github_token
+      ? decrypt(row.owner_github_token as string)
+      : row.access_token
+        ? decrypt(row.access_token as string)
+        : null,
     snapshotContent: row.snapshot_content
       ? decrypt(row.snapshot_content as string)
       : null,

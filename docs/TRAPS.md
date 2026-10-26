@@ -47,3 +47,8 @@ is the full list.
   understanding why
 - GitHub webhook requires `GITHUB_WEBHOOK_SECRET` — currently optional; the endpoint returns 503
   if it's not configured
+- Shares resolve against the owner's *current* GitHub token (`users.github_token`, refreshed at
+  every sign-in, MCP authorization and share creation); the token snapshot on the share row is
+  only a fallback. GitHub can revoke a single OAuth token at any time, which is what made a
+  repo share show "No markdown files found." in 2026-10. If every token on file is dead, the
+  owner signing in again repairs all their shares.

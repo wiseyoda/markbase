@@ -1,9 +1,20 @@
 # Session Handoff
 
-> Updated 2026-10-25 (full dependency upgrade + security review, PR #14; Next.js 16.4.3, PR #13). Previous: 2026-04-14 session 8.
+> Updated 2026-10-26 (shares resolve against the owner's current GitHub token). Previous: 2026-10-25 (PR #14, PR #13), 2026-04-14 session 8.
 > Read this first in the next session.
 
 ## Current State
+
+**2026-10-26 share tokens outlive revocation:** a repo share created on 2026-10-25 went dark
+("No markdown files found.") because GitHub revoked the single OAuth token snapshotted onto the
+share row (the owner's eleven MCP grants and three older shares kept working, so this was not
+the ten-tokens-per-app cap). Shares were a dead end by design: the snapshot was the only
+credential. Now `users.github_token` (+ `github_token_updated_at`, encrypted with the share
+key) holds each user's most recent token, written on web sign-in (`auth.ts` jwt callback), MCP
+OAuth callback, MCP credential refresh, and share creation; `getShare` LEFT JOINs it and prefers
+it over the snapshot. `initDb` backfills the column once from the newest active MCP grant.
+The broken share was repaired in place beforehand with the owner's live MCP token. Trap added
+to `docs/TRAPS.md`. Follow-up: a file share's snapshot still never refreshes (by design).
 
 **2026-10-25 full dependency upgrade + security review (PR #14):** every dependency at latest
 major: `ai` 7 / `@ai-sdk/*` 4 (`system` → `instructions`, `createGoogle`, V4 mock models),

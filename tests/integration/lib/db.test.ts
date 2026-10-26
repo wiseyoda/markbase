@@ -3,6 +3,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { getDb, getDbSchemaStatus, initDb, resetDb } from "@/lib/db";
 import { startTestDatabase, stopTestDatabase } from "../../helpers/postgres";
+import { createMcpGrant } from "@/lib/mcp/grants";
+import { getUserGitHubToken, upsertUser } from "@/lib/users";
 
 describe("db", () => {
   afterEach(async () => {
@@ -49,6 +51,11 @@ describe("db", () => {
       DROP COLUMN github_refresh_claimed_at,
       DROP COLUMN token_rotated_at
     `;
+    await db`
+      ALTER TABLE users
+      DROP COLUMN github_token,
+      DROP COLUMN github_token_updated_at
+    `;
 
     const before = await getDbSchemaStatus();
     expect(before.ready).toBe(false);
@@ -60,6 +67,8 @@ describe("db", () => {
         "mcp_grants.github_refresh_claim_id",
         "mcp_grants.github_refresh_claimed_at",
         "mcp_grants.token_rotated_at",
+        "users.github_token",
+        "users.github_token_updated_at",
       ]),
     );
 
@@ -70,6 +79,45 @@ describe("db", () => {
       missingTables: [],
       missingColumns: [],
     });
+    await stopTestDatabase();
+  });
+
+  it("backfills the current GitHub token from active MCP grants without overwriting", async () => {
+    await startTestDatabase();
+    await upsertUser({ id: "7", login: "mcp-only", name: null, avatarUrl: null });
+    await createMcpGrant({
+      userId: "7",
+      login: "mcp-only",
+      name: "MCP Only",
+      avatarUrl: "",
+      githubToken: "older-grant-token",
+    });
+    await createMcpGrant({
+      userId: "7",
+      login: "mcp-only",
+      name: "MCP Only",
+      avatarUrl: "",
+      githubToken: "newest-grant-token",
+    });
+    await upsertUser({
+      id: "8",
+      login: "web-user",
+      name: null,
+      avatarUrl: null,
+      githubToken: "web-token",
+    });
+    await createMcpGrant({
+      userId: "8",
+      login: "web-user",
+      name: "Web User",
+      avatarUrl: "",
+      githubToken: "grant-token",
+    });
+
+    await initDb();
+
+    await expect(getUserGitHubToken("7")).resolves.toBe("newest-grant-token");
+    await expect(getUserGitHubToken("8")).resolves.toBe("web-token");
     await stopTestDatabase();
   });
 });
